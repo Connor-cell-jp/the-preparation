@@ -1322,14 +1322,18 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
   return(
     <div style={{background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,paddingBottom:88}}>
 
-      {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",
+      {/* Safe area spacer — fills Dynamic Island / notch area in app background color */}
+      <div style={{height:"env(safe-area-inset-top)",background:T.surface0}}/>
+
+      {toast&&<div style={{position:"fixed",top:`calc(env(safe-area-inset-top) + 12px)`,left:"50%",transform:"translateX(-50%)",
         background:T.green,color:"#000",padding:"10px 20px",borderRadius:99,fontWeight:700,
         zIndex:999,fontSize:12,letterSpacing:0.3,boxShadow:`0 4px 24px ${T.green}50`,whiteSpace:"nowrap"}}>
         {toast}</div>}
 
       {(!isOnline||offlineQueue.length>0)&&<div style={{background:isOnline?"#1a1200":"#180808",
         borderBottom:`1px solid ${isOnline?T.yellow:T.red}30`,
-        padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        padding:"8px 16px",paddingTop:`calc(env(safe-area-inset-top) + 8px)`,
+        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:10,color:isOnline?T.yellow:T.red,fontWeight:700,letterSpacing:0.5}}>
           {isOnline?`✓ Back online — ${offlineQueue.length} queued request${offlineQueue.length!==1?"s":""}`:
           "Offline — AI features queued, logging works normally"}
@@ -1342,7 +1346,8 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
       </div>}
 
       {exportReminder&&<div style={{background:"#0f0f1a",borderBottom:`1px solid ${T.blue}25`,
-        padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        padding:"10px 16px",paddingTop:`calc(env(safe-area-inset-top) + 10px)`,
+        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>💾 Time to back up your data</div>
           <div style={{fontSize:10,color:T.textDim,marginTop:2}}>It's been 2+ weeks since your last export</div>
@@ -1368,7 +1373,8 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
       </div>}
 
       {completionBanner.length>0&&<div style={{background:"#0a150a",borderBottom:`1px solid #1a3a1a`,
-        padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        padding:"12px 16px",paddingTop:`calc(env(safe-area-inset-top) + 12px)`,
+        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
             🎯 {completionBanner.length} item{completionBanner.length>1?"s":""} completed
@@ -1390,7 +1396,8 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
       </div>}
 
       {missedDayBanner&&<div style={{background:"#1a1200",borderBottom:`1px solid #3a2a00`,
-        padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        padding:"12px 16px",paddingTop:`calc(env(safe-area-inset-top) + 12px)`,
+        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>⚠ Missed session yesterday</div>
           <div style={{fontSize:10,color:"#5a4a00",marginTop:2}}>Redistribute those hours across remaining days?</div>
