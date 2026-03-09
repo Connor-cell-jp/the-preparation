@@ -871,7 +871,7 @@ Respond ONLY with valid JSON, no markdown:
 
   return(
     <div style={{background:T.bg,minHeight:"100vh",color:T.text,
-      fontFamily:T.fontUI,paddingBottom:"calc(env(safe-area-inset-bottom) + 88px)"}}>
+      fontFamily:T.fontUI,paddingBottom:88}}>
 
       {/* Toast */}
       {toast&&(
