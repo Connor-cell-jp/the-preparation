@@ -552,9 +552,26 @@ function SectionBlock({sec,focusIds,getP,setLogging}){
               {inFocus?" · 🎯":""}
             </div>
           </div>
-          <div style={{flexShrink:0,textAlign:"right"}}>
+          <div style={{flexShrink:0,textAlign:"right",display:"flex",alignItems:"center",gap:6}}>
             {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c,textShadow:`0 0 8px ${c}40`}}>{p.percentComplete}%</div>}
             {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
+            {isDone&&<button onClick={()=>{
+              if(!window.confirm(`Reset "${item.name}" to 0%? This will clear all sessions and hours.`)) return;
+              setProgress(prev=>{
+                const copy={...prev};
+                delete copy[item.id];
+                return copy;
+              });
+              // subtract from week hours if sessions were this week
+              const sessions=getP(item.id).sessions||[];
+              const mon=new Date(getMonday()),sun=new Date(mon);sun.setDate(mon.getDate()+6);
+              const thisWeekH=sessions.filter(s=>{const d=new Date(s.date);return d>=mon&&d<=sun;})
+                .reduce((s,x)=>s+(x.studyHours||0),0);
+              if(thisWeekH>0) setWeek(w=>({...w,hoursLogged:Math.max(0,(w.hoursLogged||0)-thisWeekH)}));
+            }}
+              style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
+                borderRadius:7,padding:"3px 8px",fontSize:9,cursor:"pointer",fontWeight:600,
+                letterSpacing:0.3}}>Reset</button>}
             {!isDone&&<button onClick={()=>setLogging(item)}
               style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
                 borderRadius:7,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:600}}>Log</button>}
@@ -1577,27 +1594,33 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   const f=CURRICULUM.find(i=>i.id===it.id);
                   const c=gc(f?.genre);
                   const p=getP(it.id);
+                  const isDone=p.percentComplete>=100;
                   return <div key={it.id} style={{background:T.surface0,borderRadius:10,
-                    padding:"8px 12px",marginBottom:5,borderLeft:`2px solid ${c}`,boxShadow:shadow.card}}>
+                    padding:"8px 12px",marginBottom:5,
+                    borderLeft:`2px solid ${isDone?T.green:c}`,
+                    boxShadow:shadow.card,opacity:isDone?0.55:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                      <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,lineHeight:1.3}}>
-                        {f?.name||it.id}
+                      <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,lineHeight:1.3,
+                        color:isDone?T.green:T.text}}>
+                        {isDone&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
                       </div>
                       <div style={{flexShrink:0,textAlign:"right"}}>
-                        <div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
-                          {it.realHours}h
-                        </div>
-                        {it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
+                        {isDone
+                          ?<div style={{fontSize:11,color:T.green,fontWeight:700}}>Done</div>
+                          :<div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
+                            {it.realHours}h
+                          </div>}
+                        {!isDone&&it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
                           {it.contentHours}h content
                         </div>}
                       </div>
                     </div>
-                    {it.focus&&<div style={{fontSize:10,color:T.textDim,marginTop:3,lineHeight:1.4}}>{it.focus}</div>}
+                    {!isDone&&it.focus&&<div style={{fontSize:10,color:T.textDim,marginTop:3,lineHeight:1.4}}>{it.focus}</div>}
                     <div style={{display:"flex",justifyContent:"space-between",fontSize:9,marginTop:5,color:T.textDim}}>
-                      <span>Now: {p.percentComplete}%</span>
-                      {it.targetPct&&<span style={{color:c,fontWeight:700}}>→ target {it.targetPct}%</span>}
+                      <span style={{color:isDone?T.green:T.textDim}}>{p.percentComplete}%</span>
+                      {!isDone&&it.targetPct&&<span style={{color:c,fontWeight:700}}>→ target {it.targetPct}%</span>}
                     </div>
-                    <div style={{marginTop:4}}><Bar pct={p.percentComplete} color={c} height={2}/></div>
+                    <div style={{marginTop:4}}><Bar pct={p.percentComplete} color={isDone?T.green:c} height={2}/></div>
                   </div>;
                 })}
               </div>;
