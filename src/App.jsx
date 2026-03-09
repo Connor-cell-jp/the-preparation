@@ -654,7 +654,7 @@ export default function App(){
   });
   const [view,setView]=useState("today");
   const [logging,setLogging]=useState(null);
-  const [logForm,setLogForm]=useState({hours:"",courseHours:"",note:""});
+  const [logForm,setLogForm]=useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString()});
   const [confirmLog,setConfirmLog]=useState(false);
   const [toast,setToast]=useState(null);
   const [aiLoading,setAiLoading]=useState(false);
@@ -730,15 +730,20 @@ export default function App(){
     const prev=progress[id]?.courseHoursComplete||0;
     const newCH=Math.min(prev+ch,tot);
     const newPct=Math.round((newCH/tot)*100);
+    // Only add to current week hours if the session date is in this week
+    const sessionDate=new Date(logForm.date);
+    const monDate=new Date(getMonday());
+    const sunDate=new Date(monDate); sunDate.setDate(monDate.getDate()+6);
+    const isThisWeek=sessionDate>=monDate&&sessionDate<=sunDate;
     setProgress(p=>({...p,[id]:{
       hoursSpent:(p[id]?.hoursSpent||0)+h,
       courseHoursComplete:newCH,percentComplete:newPct,
       sessions:[...(p[id]?.sessions||[]),
-        {date:new Date().toLocaleDateString(),studyHours:h,courseHours:ch,note:logForm.note}]
+        {date:logForm.date,studyHours:h,courseHours:ch,note:logForm.note}]
     }}));
-    setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+h}));
-    setLogging(null);setLogForm({hours:"",courseHours:"",note:""});setConfirmLog(false);
-    toast_(`✓ ${h}h logged · ${logging.name}`);
+    if(isThisWeek) setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+h}));
+    setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString()});setConfirmLog(false);
+    toast_(`✓ ${h}h logged · ${logging.name}${!isThisWeek?" (previous week)":""}`);
   };
 
   const openEditSession=(itemId,idx)=>{
@@ -1625,6 +1630,31 @@ Respond ONLY with valid JSON, no markdown:
               <div>
                 <div style={{marginBottom:14}}>
                   <label style={{fontSize:11,color:T.textMid,display:"block",
+                    marginBottom:6,letterSpacing:0.3}}>Session date</label>
+                  <input type="date"
+                    value={logForm.date
+                      ? new Date(logForm.date).toLocaleDateString('en-CA')
+                      : new Date().toLocaleDateString('en-CA')}
+                    max={new Date().toLocaleDateString('en-CA')}
+                    onChange={e=>{
+                      const d=new Date(e.target.value+"T12:00:00");
+                      setLogForm(f=>({...f,date:d.toLocaleDateString()}));
+                    }}
+                    style={{...inputSt,fontSize:14,colorScheme:"dark"}}/>
+                  {(()=>{
+                    const sessionDate=new Date(logForm.date);
+                    const monDate=new Date(getMonday());
+                    const sunDate=new Date(monDate); sunDate.setDate(monDate.getDate()+6);
+                    const isThisWeek=sessionDate>=monDate&&sessionDate<=sunDate;
+                    return !isThisWeek?(
+                      <div style={{fontSize:11,color:T.yellow,marginTop:5}}>
+                        ⚠ Previous week — won't count toward this week's 20h
+                      </div>
+                    ):null;
+                  })()}
+                </div>
+                <div style={{marginBottom:14}}>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",
                     marginBottom:6,letterSpacing:0.3}}>Real study hours</label>
                   <input type="number" min="0.25" max="12" step="0.25"
                     value={logForm.hours}
@@ -1674,7 +1704,7 @@ Respond ONLY with valid JSON, no markdown:
                 </div>
 
                 <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:""});setConfirmLog(false);}}
+                  <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString()});setConfirmLog(false);}}
                     style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
                       color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>
                     Cancel
