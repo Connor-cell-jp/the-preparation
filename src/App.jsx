@@ -612,8 +612,8 @@ export default function App(){
     return w.weekStart!==mon?{weekStart:mon,hoursLogged:0}:w;
   });
   const [focus,setFocus]=useState(()=>{
-    const f=load(SK_F,{courses:["A1"],books:["B99","B34"]});
-    if(f.primary!==undefined) return{courses:[f.primary,f.secondary].filter(Boolean),books:f.books||[]};
+    const f=load(SK_F,{courses:["A1"],books:["B99","B34"],manual:false});
+    if(f.primary!==undefined) return{courses:[f.primary,f.secondary].filter(Boolean),books:f.books||[],manual:false};
     return f;
   });
   const [weekPlan,setWeekPlan]=useState(()=>{
@@ -928,7 +928,7 @@ Remaining budget: ${wkRem.toFixed(2)}h real over ${dLeft} day(s)
 ${weekH>=WEEKLY_TARGET?"NOTE: Target already hit. Acknowledge this — no new plan needed unless it's Sunday. Give assessment and insight only.":""}
 
 ═══ CURRENT FOCUS ═══
-${focusIds.join(", ")}
+${focusIds.join(", ")} ${focus.manual?"— MANUALLY SET. Hard constraint — do not swap unless item hits 100%.":"— AI proposed. Can update if data supports it."} ${focus.manual?"— MANUALLY SET BY LEARNER. Treat as a hard constraint. Do not propose swapping these out unless one hits 100% this week.":"— AI proposed. Can be updated if data supports it."}
 LEARNER NOTE THIS WEEK: "${weekNote||"none"}"
 
 ═══ ALL ACTIVE / IN-PROGRESS ITEMS ═══
@@ -1274,7 +1274,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
     setEditSession(null);toast_("Session deleted");
   };
   const applyFocusProposal=proposal=>{
-    setFocus({courses:proposal.courses,books:proposal.books});
+    setFocus({courses:proposal.courses,books:proposal.books,manual:false});
     setAiResult(r=>({...r,focusProposal:null}));
     toast_("✓ Focus updated");
   };
@@ -1453,7 +1453,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               {CURRICULUM.filter(i=>i.type===type&&getP(i.id).percentComplete<100).map(i=>{
                 const on=(focus[key]||[]).includes(i.id),c=gc(i.genre);
                 return <button key={i.id}
-                  onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id]}))}
+                  onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
                   style={{background:on?`${c}15`:T.surface2,border:`1px solid ${on?c+"40":T.surface3}`,
                     color:on?c:T.textDim,borderRadius:20,padding:"4px 10px",fontSize:10,
                     cursor:"pointer",fontWeight:on?700:400,boxShadow:on?`0 0 8px ${c}20`:"none",
