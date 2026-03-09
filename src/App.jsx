@@ -569,6 +569,7 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset}){
   </div>;
 }
 
+// Notification only requested on user gesture — called from the Check-In button
 async function requestNotificationPermission(){
   if(!("Notification" in window)) return false;
   if(Notification.permission==="granted") return true;
@@ -618,7 +619,6 @@ export default function App(){
   });
   const [weekPlan,setWeekPlan]=useState(()=>{
     const p=load(SK_PLAN,null);
-    // Discard plan if it's from a previous week
     return p?.weekStart===getMonday()?p:null;
   });
   const [weeklyHours,setWeeklyHours]=useState(()=>load(SK_WEEKLY_HOURS,[]));
@@ -683,8 +683,8 @@ export default function App(){
     check();const t=setInterval(check,60000);return()=>clearInterval(t);
   },[]);
 
+  // On mount: auto check-in Monday, auto summary Sunday, register SW — NO notification prompt here
   useEffect(()=>{
-    requestNotificationPermission();
     if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
     const now=new Date();
     const isMonday=now.getDay()===1;
@@ -762,7 +762,6 @@ export default function App(){
     ?weeklyHours.slice(0,4).reduce((s,w)=>s+(w.realH||0),0)/Math.min(4,weeklyHours.length)
     :WEEKLY_TARGET/2;
 
-  // todayItems: empty when 20h hit so Today tab goes straight to bonus mode
   const todayItems=()=>{
     if(weekH>=WEEKLY_TARGET) return [];
     const todayName=getDayName();
@@ -806,19 +805,16 @@ export default function App(){
   };
 
   const buildAIContext=()=>{
-    // ── Week history with plan vs actual comparison ───────────────
     const recentHistory=weekLogs.slice(0,4).map((l,i)=>
       `WEEK ${i+1} AGO (${l.date}): ${(l.hoursLogged||0).toFixed(1)}h real logged. Note:"${l.note||"none"}". Assessment:"${l.assessment||""}". Focus at time:${l.focusBefore?.join(", ")||"unknown"}.`
     ).join("\n");
 
-    // ── Plan vs actual for THIS week ──────────────────────────────
     let planVsActual="No plan this week yet.";
     if(weekPlan?.days){
       const pastDays=weekPlan.days.filter(d=>DAY_NAMES.indexOf(d.day)<getDayIdx());
       if(pastDays.length>0){
         planVsActual=pastDays.map(d=>{
           const plannedH=d.items?.reduce((s,it)=>s+(it.realHours||0),0)||0;
-          // sum real sessions logged on that day
           const dayDate=new Date(getMonday());
           dayDate.setDate(dayDate.getDate()+DAY_NAMES.indexOf(d.day));
           const dayStr=dayDate.toLocaleDateString();
@@ -833,7 +829,6 @@ export default function App(){
       }
     }
 
-    // ── Item momentum: velocity over last 2 weeks ─────────────────
     const twoWeeksAgo=new Date(Date.now()-14*24*60*60*1000);
     const touchedAndFocus=CURRICULUM
       .filter(i=>getP(i.id).percentComplete>0||focusIds.includes(i.id))
@@ -845,21 +840,18 @@ export default function App(){
         return buildItemContext(i,p)+` | momentum=${momentum} (${recentRealH.toFixed(1)}h in last 2wk)`;
       }).join("\n");
 
-    // ── Next untouched core items ─────────────────────────────────
     const nextCore=CURRICULUM
       .filter(i=>i.section==="Core"&&getP(i.id).percentComplete===0&&!focusIds.includes(i.id))
       .slice(0,12)
       .map(i=>{const realH=contentToReal(i,i.hours||0);return `${i.id} "${i.name}" (${i.type}, ${i.genre}): ${i.hours}h content = ${realH}h real`;})
       .join("\n");
 
-    // ── Dynamic arc position ──────────────────────────────────────
     const totalDoneH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
     const arcYear=totalDoneH<200?"Year 1 — Foundations":totalDoneH<600?"Year 2 — Applied":totalDoneH<1200?"Year 3 — Specialization":"Year 4 — Integration";
     const completedGenres=[...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.genre))];
     const inProgressGenres=[...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).map(i=>i.genre))];
     const arcPosition=`${arcYear}. ${totalDoneH.toFixed(0)}h real logged total. Completed genres: ${completedGenres.join(", ")||"none"}. Active genres: ${inProgressGenres.join(", ")||"none"}.`;
 
-    // ── Weekly velocity trend ─────────────────────────────────────
     const recentWeeks=weeklyHours.slice(0,4);
     const velocityTrend=recentWeeks.length>=2
       ?recentWeeks[0].realH>recentWeeks[1].realH?"↑ accelerating"
@@ -870,13 +862,11 @@ export default function App(){
     return{recentHistory,planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH};
   };
 
-  // ── Offline queue processor ───────────────────────────────────
   const processQueue=useCallback(async()=>{
     const q=loadQueue();
     if(!q.length||!navigator.onLine) return;
     for(const item of q){
       try{
-        // Re-run the appropriate action based on type
         if(item.type==="checkin"){
           await runFullCheckin(false);
         } else if(item.type==="adapt"){
@@ -897,7 +887,11 @@ export default function App(){
       toast_("Offline — check-in queued");
       return;
     }
+    // Request notification permission on user gesture (auto=false means user clicked)
+    if(!auto) requestNotificationPermission();
     setAiLoading(true);setAiResult(null);
+    // mondaySeed declared before buildAIContext so it's in scope for the prompt template
+    const mondaySeed=localStorage.getItem("tp_monday_seed")||"";
     const{recentHistory,planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
     const todayStr_=new Date().toLocaleDateString();
     const loggedToday_=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr_));
@@ -932,7 +926,7 @@ Remaining budget: ${wkRem.toFixed(2)}h real over ${dLeft} day(s)
 ${weekH>=WEEKLY_TARGET?"NOTE: Target already hit. Acknowledge this — no new plan needed unless it's Sunday. Give assessment and insight only.":""}
 
 ═══ CURRENT FOCUS ═══
-${focusIds.join(", ")} ${focus.manual?"— MANUALLY SET. Hard constraint — do not swap unless item hits 100%.":"— AI proposed. Can update if data supports it."} ${focus.manual?"— MANUALLY SET BY LEARNER. Treat as a hard constraint. Do not propose swapping these out unless one hits 100% this week.":"— AI proposed. Can be updated if data supports it."}
+${focusIds.join(", ")} ${focus.manual?"— MANUALLY SET BY LEARNER. Treat as a hard constraint. Do not propose swapping these out unless one hits 100% this week.":"— AI proposed. Can be updated if data supports it."}
 LEARNER NOTE THIS WEEK: "${weekNote||"none"}"
 
 ═══ ALL ACTIVE / IN-PROGRESS ITEMS ═══
@@ -970,7 +964,6 @@ Respond ONLY with valid JSON, no markdown:
       const d=await r.json();
       const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
       const parsed=JSON.parse(txt);
-      // Keep any days already logged, merge new plan days after
       const keptDays=(weekPlan?.days||[]).filter(d=>DAY_NAMES.indexOf(d.day)<effectiveDayIdx_);
       const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
         days:[...keptDays,...(parsed.days||[])],
@@ -981,7 +974,6 @@ Respond ONLY with valid JSON, no markdown:
       setAiResult(parsed);
       saveWeekLog(parsed);
       updateWeeklyHours(weekH);
-      // Consume monday seed after use
       localStorage.removeItem("tp_monday_seed");
       if(auto) showPlanReadyNotification();
     }catch(e){toast_("Couldn't generate — try again");}
@@ -1030,7 +1022,7 @@ Today: ${getDayName()}${loggedToday?" (already logged — not replanning today)"
 Logged this week: ${weekH.toFixed(2)}h. Still needed: ${wkRem.toFixed(2)}h real.
 
 ═══ CURRENT FOCUS ═══
-${focusIds.join(", ")}
+${focusIds.join(", ")} ${focus.manual?"— MANUALLY SET. Hard constraint — do not swap unless item hits 100%.":"— AI proposed. Can update if data supports it."}
 
 ═══ ITEM STATUS (with momentum) ═══
 ${touchedAndFocus||"None."}
@@ -1322,7 +1314,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
   return(
     <div style={{background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,paddingBottom:88}}>
 
-      {/* Safe area spacer — fills Dynamic Island / notch area in app background color */}
       <div style={{height:"env(safe-area-inset-top)",background:T.surface0}}/>
 
       {toast&&<div style={{position:"fixed",top:`calc(env(safe-area-inset-top) + 12px)`,left:"50%",transform:"translateX(-50%)",
@@ -1566,7 +1557,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             </Card>;
           })}
 
-          {/* Bonus mode — shows whenever 20h hit */}
           {weekH>=WEEKLY_TARGET&&<div>
             <Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`}}>
               <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>
@@ -1623,7 +1613,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             {weekH>=WEEKLY_TARGET&&<span style={{color:T.green,fontWeight:700}}> · 🎯 Target hit</span>}
           </div>
 
-          {/* Projected finish per active item */}
           {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).length>0&&
           <Card style={{padding:"13px 14px",marginBottom:12}}>
             <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
@@ -1679,7 +1668,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               const todayIdx=getDayIdx();
               const isPast=dayIdx<todayIdx;
               const isFuture=dayIdx>todayIdx;
-              // Once 20h hit, collapse future days entirely — no obligations left
               if(weekH>=WEEKLY_TARGET&&isFuture) return null;
               const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
               return <div key={day.day} style={{marginBottom:14}}>
@@ -2244,7 +2232,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                     value={logForm.hours}
                     onChange={e=>{
                       const rh=e.target.value;
-                      // Auto-fill content hours when real hours change, but only if user hasn't manually edited content
                       setLogForm(f=>({...f,hours:rh,
                         courseHours:f._contentManuallySet?f.courseHours:
                           rh?parseFloat(realToContent(logging,parseFloat(rh)).toFixed(3)).toString():""
@@ -2266,7 +2253,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                     value={logForm.courseHours}
                     onChange={e=>setLogForm(f=>({...f,courseHours:e.target.value,_contentManuallySet:true}))}
                     onFocus={e=>{
-                      // Pre-fill on first focus if empty
                       if(!logForm.courseHours&&logForm.hours){
                         setLogForm(f=>({...f,
                           courseHours:parseFloat(realToContent(logging,parseFloat(logForm.hours)).toFixed(3)).toString(),
