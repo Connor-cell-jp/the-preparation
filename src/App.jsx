@@ -568,7 +568,7 @@ Respond ONLY with valid JSON, no markdown:
 {"assessment":"...","focusProposal":{"courses":["A1"],"books":["B99","B34"],"reasoning":"..."},"weekPlan":[{"day":"Mon","items":[{"id":"A1","hours":1.5,"contentMinutes":50,"focus":"..."}]}],"totalPlannedHours":0,"insight":"...","nextMilestone":"..."}`;
 
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:2000,messages:[{role:"user",content:prompt}]})});
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:2000,messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
       const parsed=JSON.parse(txt);
