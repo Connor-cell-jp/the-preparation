@@ -349,15 +349,15 @@ const CURRICULUM = [
 {id:"B184",name:"The No-Code Revolution",hours:6,type:"book",section:"Optional",genre:"Skills & Craft"},
 ];
 
-const SECTIONS = [
-  {label:"Core Courses",   items: CURRICULUM.filter(i=>i.type==="course"&&i.section==="Core")},
-  {label:"Optional Courses", items: CURRICULUM.filter(i=>i.type==="course"&&i.section==="Optional")},
-  {label:"Core Books",    items: CURRICULUM.filter(i=>i.type==="book"&&i.section==="Core")},
-  {label:"Optional Books", items: CURRICULUM.filter(i=>i.type==="book"&&i.section==="Optional")},
+const SECTIONS=[
+  {label:"Core Courses",   items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Core")},
+  {label:"Optional Courses",items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Optional")},
+  {label:"Core Books",     items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Core")},
+  {label:"Optional Books", items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Optional")},
 ];
 
-const gc = g => {
-  const m = {Biology:"#4ade80",Physics:"#60a5fa",Marketing:"#f472b6",Sales:"#fb923c",
+const gc=g=>{
+  const m={Biology:"#4ade80",Physics:"#60a5fa",Marketing:"#f472b6",Sales:"#fb923c",
     Investing:"#facc15",Law:"#a78bfa",Literature:"#38bdf8","World History":"#f97316",
     "American History":"#ef4444",Art:"#e879f9",Geology:"#86efac",Chemistry:"#fde68a",
     Pilot:"#7dd3fc",Welder:"#fca5a5",Maker:"#6ee7b7",Fighter:"#fcd34d",Sailor:"#93c5fd",
@@ -366,17 +366,17 @@ const gc = g => {
     Tinker:"#67e8f9","Personal Mastery":"#c084fc","Money & Markets":"#fbbf24",
     "Skills & Craft":"#94a3b8","Power/State":"#ef4444",Classics:"#e2e8f0",
     Astronomy:"#a5b4fc","Music Theory":"#f0abfc",Meteorology:"#7dd3fc"};
-  if (!g) return "#94a3b8";
-  for (const [k,v] of Object.entries(m)) if (g.toLowerCase().includes(k.toLowerCase())) return v;
+  if(!g) return "#94a3b8";
+  for(const [k,v] of Object.entries(m)) if(g.toLowerCase().includes(k.toLowerCase())) return v;
   return "#94a3b8";
 };
 
-const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k))??d; } catch { return d; } };
-const save = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} };
+const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d;}catch{return d;}};
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
 
-function getMonday() {
-  const d=new Date(), day=d.getDay(), diff=day===0?-6:1-day;
-  d.setDate(d.getDate()+diff); d.setHours(0,0,0,0);
+function getMonday(){
+  const d=new Date(),day=d.getDay(),diff=day===0?-6:1-day;
+  d.setDate(d.getDate()+diff);d.setHours(0,0,0,0);
   return d.toISOString().split('T')[0];
 }
 function getDayIdx(){const d=new Date().getDay();return d===0?6:d-1;}
@@ -418,55 +418,111 @@ PACING:
 - Year 3: Specialization — pilot, advanced investing, technical
 - Year 4: Integration`;
 
-// ── Pill component ────────────────────────────────────────────────
-function Pill({color, label}){
+// ── Design tokens ─────────────────────────────────────────────────
+const T={
+  bg:"#080808",
+  surface0:"#0d0d0d",
+  surface1:"#111111",
+  surface2:"#161616",
+  surface3:"#1c1c1c",
+  border:"rgba(255,255,255,0.06)",
+  borderLight:"rgba(255,255,255,0.10)",
+  text:"#f0f0f0",
+  textMid:"#888",
+  textDim:"#444",
+  textFaint:"#2a2a2a",
+  blue:"#60a5fa",
+  green:"#4ade80",
+  pink:"#f472b6",
+  yellow:"#facc15",
+  red:"#ef4444",
+};
+
+const shadow={
+  card:"0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 16px rgba(0,0,0,0.5)",
+  raised:"0 1px 0 rgba(255,255,255,0.06) inset, 0 8px 32px rgba(0,0,0,0.6)",
+  glow:(c)=>`0 0 12px ${c}28, 0 0 32px ${c}10`,
+  inset:"inset 0 2px 8px rgba(0,0,0,0.6)",
+};
+
+// ── Pill ──────────────────────────────────────────────────────────
+function Pill({color,label}){
   return(
-    <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:600,
-      color:color,background:`${color}18`,borderRadius:20,padding:"2px 8px",
-      border:`1px solid ${color}30`,letterSpacing:0.3}}>
+    <span style={{display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:600,
+      color,background:`${color}15`,borderRadius:20,padding:"2px 8px",
+      border:`1px solid ${color}25`,letterSpacing:0.3,
+      boxShadow:`0 0 8px ${color}15`}}>
       {label}
     </span>
   );
 }
 
-// ── Progress bar ──────────────────────────────────────────────────
-function Bar({pct, color="#60a5fa", height=4, style={}}){
+// ── Bar ───────────────────────────────────────────────────────────
+function Bar({pct,color=T.blue,height=4,style={},glow=false}){
   return(
-    <div style={{background:"#1e1e1e",borderRadius:99,height,overflow:"hidden",...style}}>
-      <div style={{background:color,width:`${Math.min(100,pct)}%`,height:"100%",
-        borderRadius:99,transition:"width 0.4s ease"}}/>
+    <div style={{background:T.surface2,borderRadius:99,height,overflow:"hidden",
+      boxShadow:shadow.inset,...style}}>
+      <div style={{background:color,width:`${Math.min(100,Math.max(0,pct))}%`,height:"100%",
+        borderRadius:99,transition:"width 0.5s ease",
+        boxShadow:glow?`0 0 8px ${color}80`:"none"}}/>
     </div>
   );
 }
 
-// ── Session history (collapsible per item) ────────────────────────
-function SessionHistory({item, sessions, onEdit}){
+// ── Card ──────────────────────────────────────────────────────────
+function Card({children,style={},accent,glow=false}){
+  return(
+    <div style={{
+      background:T.surface1,
+      borderRadius:16,
+      border:`1px solid ${T.border}`,
+      borderTop:`1px solid ${T.borderLight}`,
+      boxShadow:glow&&accent?`${shadow.card}, 0 0 24px ${accent}12`:shadow.card,
+      ...(accent?{borderLeft:`3px solid ${accent}`}:{}),
+      ...style
+    }}>
+      {children}
+    </div>
+  );
+}
+
+// ── Session History ───────────────────────────────────────────────
+function SessionHistory({item,sessions,onEdit}){
   const [open,setOpen]=useState(false);
   return(
-    <div style={{marginTop:8}}>
+    <div style={{marginTop:10}}>
       <button onClick={()=>setOpen(o=>!o)}
-        style={{background:"none",border:"none",color:"#444",fontSize:10,cursor:"pointer",
-          display:"flex",alignItems:"center",gap:5,padding:"2px 0",letterSpacing:0.3}}>
-        <span style={{fontSize:9,color:open?"#60a5fa":"#444"}}>{open?"▲":"▼"}</span>
-        <span style={{color:open?"#60a5fa":"#444",fontWeight:600}}>LOG HISTORY</span>
-        <span style={{color:"#333",fontWeight:500}}>({sessions.length})</span>
+        style={{background:"none",border:"none",color:open?T.blue:T.textDim,
+          fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",
+          gap:5,padding:"2px 0",letterSpacing:0.5,fontWeight:600,
+          textTransform:"uppercase",transition:"color 0.2s"}}>
+        <span style={{fontSize:8}}>{open?"▲":"▼"}</span>
+        Log History
+        <span style={{color:T.textFaint,fontWeight:400,textTransform:"none",letterSpacing:0}}>
+          ({sessions.length})
+        </span>
       </button>
       {open&&(
-        <div style={{marginTop:6,borderLeft:"1px solid #1e1e1e",paddingLeft:10}}>
+        <div style={{marginTop:8,borderLeft:`1px solid ${T.surface3}`,paddingLeft:12}}>
           {sessions.map((s,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-              padding:"6px 0",borderBottom:"1px solid #141414"}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:11,color:"#888",fontWeight:500}}>{s.date}</div>
-                <div style={{fontSize:10,color:"#555",marginTop:1}}>
-                  {s.studyHours}h study{s.courseHours&&s.courseHours!==s.studyHours?` · ${s.courseHours}h content`:""}
-                  {s.note?<span style={{color:"#444"}}> · {s.note}</span>:""}
+            <div key={i} style={{display:"flex",justifyContent:"space-between",
+              alignItems:"center",padding:"7px 0",
+              borderBottom:`1px solid ${T.surface2}`}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:T.textMid,fontWeight:500}}>{s.date}</div>
+                <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+                  {s.studyHours}h study
+                  {s.courseHours&&s.courseHours!==s.studyHours?` · ${s.courseHours}h content`:""}
+                  {s.note?<span style={{color:"#333"}}> · {s.note}</span>:""}
                 </div>
               </div>
               <button onClick={()=>onEdit(i)}
-                style={{background:"#1a1a1a",border:"1px solid #2a2a2a",color:"#60a5fa",
-                  borderRadius:6,padding:"3px 10px",fontSize:10,cursor:"pointer",
-                  fontWeight:600,flexShrink:0,marginLeft:8}}>Edit</button>
+                style={{background:T.surface2,border:`1px solid ${T.surface3}`,
+                  color:T.blue,borderRadius:7,padding:"3px 10px",fontSize:10,
+                  cursor:"pointer",fontWeight:600,marginLeft:10,
+                  boxShadow:`0 0 8px ${T.blue}10`}}>
+                Edit
+              </button>
             </div>
           ))}
         </div>
@@ -475,31 +531,42 @@ function SessionHistory({item, sessions, onEdit}){
   );
 }
 
-// ── Section block (Year Arc) ──────────────────────────────────────
-function SectionBlock({sec, focusIds, getP, setLogging}){
+// ── Section Block ─────────────────────────────────────────────────
+function SectionBlock({sec,focusIds,getP,setLogging}){
   const [open,setOpen]=useState(false);
-  const done   = sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
-  const active = sec.items.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length;
-  const totalH = sec.items.reduce((s,i)=>s+(i.hours||0),0);
-  const spentH = sec.items.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
-  const pct    = totalH>0?Math.round((spentH/totalH)*100):0;
+  const done  =sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
+  const active=sec.items.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length;
+  const totalH=sec.items.reduce((s,i)=>s+(i.hours||0),0);
+  const spentH=sec.items.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
+  const pct   =totalH>0?Math.round((spentH/totalH)*100):0;
   return(
-    <div style={{background:"#111",border:"1px solid #1a1a1a",borderRadius:14,marginBottom:8,overflow:"hidden"}}>
+    <div style={{background:T.surface1,border:`1px solid ${T.border}`,
+      borderTop:`1px solid ${T.borderLight}`,borderRadius:14,marginBottom:8,
+      overflow:"hidden",boxShadow:shadow.card}}>
       <div onClick={()=>setOpen(o=>!o)}
-        style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        style={{padding:"14px 16px",cursor:"pointer",display:"flex",
+          justifyContent:"space-between",alignItems:"center"}}>
         <div>
-          <div style={{fontSize:13,fontWeight:700,letterSpacing:0.2}}>{sec.label}</div>
-          <div style={{fontSize:10,color:"#444",marginTop:3}}>{sec.items.length} items · {totalH}h content</div>
+          <div style={{fontSize:13,fontWeight:700,letterSpacing:0.1}}>{sec.label}</div>
+          <div style={{fontSize:10,color:T.textDim,marginTop:3}}>
+            {sec.items.length} items · {totalH}h content
+          </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:16,fontWeight:900,color:pct>0?"#60a5fa":"#2a2a2a"}}>{pct}%</div>
-            <div style={{fontSize:9,color:"#444",marginTop:1}}>{done} done · {active} active</div>
+            <div style={{fontSize:16,fontWeight:900,
+              color:pct>0?T.blue:T.textFaint,
+              textShadow:pct>0?shadow.glow(T.blue):"none"}}>
+              {pct}%
+            </div>
+            <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
+              {done} done · {active} active
+            </div>
           </div>
-          <div style={{color:"#2a2a2a",fontSize:11}}>{open?"▲":"▼"}</div>
+          <div style={{color:T.textFaint,fontSize:11}}>{open?"▲":"▼"}</div>
         </div>
       </div>
-      <Bar pct={pct} style={{margin:"0 16px 10px",height:3}}/>
+      <Bar pct={pct} style={{margin:"0 16px 10px",height:3}} glow={pct>0}/>
       {open&&(
         <div style={{padding:"0 12px 12px"}}>
           {sec.items.map(item=>{
@@ -511,27 +578,36 @@ function SectionBlock({sec, focusIds, getP, setLogging}){
             return(
               <div key={item.id}
                 style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
-                  borderBottom:"1px solid #161616",
-                  background:inFocus&&!isDone?"#0d1a0d":"transparent"}}>
+                  borderBottom:`1px solid ${T.surface2}`,
+                  background:inFocus&&!isDone?"#0d1a0d08":"transparent",
+                  borderRadius:inFocus?6:0}}>
                 <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
-                  background:isDone?"#22c55e":isTouched?c:inFocus?"#f472b6":"#222"}}/>
+                  background:isDone?T.green:isTouched?c:inFocus?"#f472b6":T.surface3,
+                  boxShadow:isDone||isTouched?`0 0 6px ${isDone?T.green:c}60`:"none"}}/>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:11,fontWeight:isDone||isTouched?600:400,
-                    color:isDone?"#22c55e":isTouched?"#e8e8e8":"#555",
+                    color:isDone?T.green:isTouched?T.text:T.textDim,
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    <span style={{color:"#444",marginRight:4}}>{item.id}</span>{item.name}
+                    <span style={{color:T.textDim,marginRight:5}}>{item.id}</span>
+                    {item.name}
                   </div>
-                  <div style={{fontSize:9,color:"#333",marginTop:2}}>
+                  <div style={{fontSize:9,color:"#2e2e2e",marginTop:2}}>
                     {item.hours}h{item.genre?` · ${item.genre}`:""}{inFocus?" · 🎯":""}
                   </div>
                 </div>
                 <div style={{flexShrink:0,textAlign:"right"}}>
-                  {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c}}>{p.percentComplete}%</div>}
-                  {isDone&&<div style={{fontSize:13,color:"#22c55e"}}>✓</div>}
+                  {isTouched&&(
+                    <div style={{fontSize:11,fontWeight:700,color:c,
+                      textShadow:`0 0 8px ${c}40`}}>
+                      {p.percentComplete}%
+                    </div>
+                  )}
+                  {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
                   {!isDone&&(
                     <button onClick={()=>setLogging(item)}
-                      style={{background:"#0d1a2e",border:"1px solid #1e3a5f",color:"#60a5fa",
-                        borderRadius:6,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:600}}>
+                      style={{background:T.surface2,border:`1px solid ${T.surface3}`,
+                        color:T.blue,borderRadius:7,padding:"3px 9px",fontSize:10,
+                        cursor:"pointer",fontWeight:600}}>
                       Log
                     </button>
                   )}
@@ -545,35 +621,35 @@ function SectionBlock({sec, focusIds, getP, setLogging}){
   );
 }
 
-// ── Main App ──────────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────
 export default function App(){
-  const [progress,setProgress] = useState(()=>load(SK_P,{}));
-  const [week,setWeek]         = useState(()=>{
+  const [progress,setProgress]=useState(()=>load(SK_P,{}));
+  const [week,setWeek]=useState(()=>{
     const w=load(SK_W,{weekStart:getMonday(),hoursLogged:0}),mon=getMonday();
     return w.weekStart!==mon?{weekStart:mon,hoursLogged:0}:w;
   });
-  const [focus,setFocus]       = useState(()=>{
+  const [focus,setFocus]=useState(()=>{
     const f=load(SK_F,{courses:["A1"],books:["B99","B34"]});
     if(f.primary!==undefined) return{courses:[f.primary,f.secondary].filter(Boolean),books:f.books||[]};
     return f;
   });
-  const [view,setView]             = useState("today");
-  const [logging,setLogging]       = useState(null);
-  const [logForm,setLogForm]       = useState({hours:"",courseHours:"",note:""});
-  const [confirmLog,setConfirmLog] = useState(false);
-  const [toast,setToast]           = useState(null);
-  const [aiLoading,setAiLoading]   = useState(false);
-  const [aiResult,setAiResult]     = useState(null);
-  const [weekNote,setWeekNote]     = useState("");
-  const [editFocus,setEditFocus]   = useState(false);
-  const [completionBanner,setCompletionBanner] = useState([]);
-  const [weekLogs,setWeekLogs]     = useState(()=>load(SK_LOG,[]));
-  const [profile,setProfile]       = useState(()=>localStorage.getItem(SK_PROFILE)||DEFAULT_PROFILE);
-  const [editProfile,setEditProfile] = useState(false);
-  const [showHistory,setShowHistory] = useState(false);
-  const [editSession,setEditSession] = useState(null);
-  const [editSessionForm,setEditSessionForm] = useState({hours:"",note:""});
-  const prevProgressRef = useRef({});
+  const [view,setView]=useState("today");
+  const [logging,setLogging]=useState(null);
+  const [logForm,setLogForm]=useState({hours:"",courseHours:"",note:""});
+  const [confirmLog,setConfirmLog]=useState(false);
+  const [toast,setToast]=useState(null);
+  const [aiLoading,setAiLoading]=useState(false);
+  const [aiResult,setAiResult]=useState(null);
+  const [weekNote,setWeekNote]=useState("");
+  const [editFocus,setEditFocus]=useState(false);
+  const [completionBanner,setCompletionBanner]=useState([]);
+  const [weekLogs,setWeekLogs]=useState(()=>load(SK_LOG,[]));
+  const [profile,setProfile]=useState(()=>localStorage.getItem(SK_PROFILE)||DEFAULT_PROFILE);
+  const [editProfile,setEditProfile]=useState(false);
+  const [showHistory,setShowHistory]=useState(false);
+  const [editSession,setEditSession]=useState(null);
+  const [editSessionForm,setEditSessionForm]=useState({hours:"",courseHours:"",note:""});
+  const prevProgressRef=useRef({});
 
   useEffect(()=>save(SK_P,progress),[progress]);
   useEffect(()=>save(SK_W,week),[week]);
@@ -638,7 +714,8 @@ export default function App(){
     setProgress(p=>({...p,[id]:{
       hoursSpent:(p[id]?.hoursSpent||0)+h,
       courseHoursComplete:newCH,percentComplete:newPct,
-      sessions:[...(p[id]?.sessions||[]),{date:new Date().toLocaleDateString(),studyHours:h,courseHours:ch,note:logForm.note}]
+      sessions:[...(p[id]?.sessions||[]),
+        {date:new Date().toLocaleDateString(),studyHours:h,courseHours:ch,note:logForm.note}]
     }}));
     setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+h}));
     setLogging(null);setLogForm({hours:"",courseHours:"",note:""});setConfirmLog(false);
@@ -706,7 +783,7 @@ export default function App(){
   const genAI=async()=>{
     setAiLoading(true);setAiResult(null);
     const recentHistory=weekLogs.slice(0,4).map((l,i)=>
-      `WEEK ${i+1} AGO (${l.date}): ${(l.hoursLogged||0).toFixed(1)}h. Note: "${l.note||"none"}". Assessment: "${l.assessment}". Focus: ${l.focusBefore?.join(", ")}.`
+      `WEEK ${i+1} AGO (${l.date}): ${(l.hoursLogged||0).toFixed(1)}h. Note:"${l.note||"none"}". Assessment:"${l.assessment}". Focus:${l.focusBefore?.join(", ")}.`
     ).join("\n");
     const activeProgress=CURRICULUM
       .filter(i=>getP(i.id).percentComplete>0||focusItems.map(f=>f.id).includes(i.id))
@@ -759,40 +836,40 @@ Respond ONLY with valid JSON, no markdown:
   const totalItems=CURRICULUM.length;
   const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
   const totalSpentH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
-  const wksLeft=Math.round(((totalItems-doneItems)*10)/WEEKLY_TARGET); // rough estimate
-  const estDate=new Date(Date.now()+wksLeft*7*24*60*60*1000).toLocaleDateString("en-CA",{year:"numeric",month:"short"});
+  // Estimate based on avg hours per item remaining
+  const avgHrsPerItem=CURRICULUM.reduce((s,i)=>s+(i.hours||0),0)/totalItems;
+  const itemsLeft=totalItems-doneItems;
+  const wksLeft=Math.round((itemsLeft*avgHrsPerItem)/WEEKLY_TARGET);
+  const estDate=new Date(Date.now()+wksLeft*7*24*60*60*1000)
+    .toLocaleDateString("en-CA",{year:"numeric",month:"short"});
 
-  // ── Style tokens ──────────────────────────────────────────────
-  const card={background:"#111",border:"1px solid #1a1a1a",borderRadius:14,padding:16};
-  const cardSm={...card,padding:"12px 14px"};
-  const inputSt={width:"100%",background:"#0c0c0c",border:"1px solid #222",borderRadius:10,
-    padding:"11px 13px",color:"#f0f0f0",fontSize:15,boxSizing:"border-box",fontFamily:"inherit",
-    outline:"none"};
-  const btnPrimary={background:"#0d1a2e",border:"1px solid #1e3a5f",color:"#60a5fa",
-    borderRadius:10,padding:"12px 0",fontSize:14,fontWeight:700,cursor:"pointer",width:"100%"};
-  const btnSecondary={background:"#141414",border:"1px solid #222",color:"#555",
-    borderRadius:10,padding:"12px 0",fontSize:13,cursor:"pointer",flex:1};
+  // Shared input style
+  const inputSt={width:"100%",background:T.surface0,
+    border:`1px solid ${T.surface3}`,borderRadius:10,
+    padding:"11px 13px",color:T.text,fontSize:15,
+    boxSizing:"border-box",fontFamily:"inherit",outline:"none",
+    boxShadow:shadow.inset};
 
   return(
-    <div style={{background:"#0a0a0a",minHeight:"100vh",color:"#f0f0f0",
+    <div style={{background:T.bg,minHeight:"100vh",color:T.text,
       fontFamily:"'Inter',-apple-system,sans-serif",paddingBottom:88}}>
 
       {/* Toast */}
       {toast&&(
         <div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",
-          background:"#22c55e",color:"#000",padding:"10px 20px",borderRadius:99,
+          background:T.green,color:"#000",padding:"10px 20px",borderRadius:99,
           fontWeight:700,zIndex:999,fontSize:12,letterSpacing:0.3,
-          boxShadow:"0 4px 20px rgba(34,197,94,0.3)",whiteSpace:"nowrap"}}>
+          boxShadow:`0 4px 24px ${T.green}50`,whiteSpace:"nowrap"}}>
           {toast}
         </div>
       )}
 
       {/* Completion banner */}
       {completionBanner.length>0&&(
-        <div style={{background:"#0d1a0d",borderBottom:"1px solid #1a3a1a",
+        <div style={{background:"#0a150a",borderBottom:`1px solid #1a3a1a`,
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#22c55e",letterSpacing:0.5}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
               🎯 {completionBanner.length} item{completionBanner.length>1?"s":""} completed
             </div>
             <div style={{fontSize:10,color:"#2a5a2a",marginTop:2}}>
@@ -800,64 +877,78 @@ Respond ONLY with valid JSON, no markdown:
             </div>
           </div>
           <button onClick={()=>{setView("ai");setCompletionBanner([]);}}
-            style={{background:"#22c55e",border:"none",color:"#000",borderRadius:8,
-              padding:"6px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}}>
+            style={{background:T.green,border:"none",color:"#000",borderRadius:8,
+              padding:"6px 12px",fontSize:11,fontWeight:800,cursor:"pointer",
+              boxShadow:`0 0 16px ${T.green}40`}}>
             Check-In →
           </button>
         </div>
       )}
 
-      {/* Header */}
-      <div style={{background:"#0e0e0e",padding:"20px 16px 0",borderBottom:"1px solid #161616",
-        position:"sticky",top:0,zIndex:50}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+      {/* ── Header ── */}
+      <div style={{background:T.surface0,padding:"20px 16px 0",
+        borderBottom:`1px solid ${T.border}`,
+        position:"sticky",top:0,zIndex:50,
+        boxShadow:"0 4px 24px rgba(0,0,0,0.6)"}}>
+
+        <div style={{display:"flex",justifyContent:"space-between",
+          alignItems:"flex-start",marginBottom:14}}>
           <div>
-            <div style={{fontSize:9,color:"#333",letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>
+            <div style={{fontSize:9,color:T.textDim,letterSpacing:4,
+              textTransform:"uppercase",marginBottom:4}}>
               The Preparation
             </div>
-            <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.5}}>Learning Tracker</div>
+            <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.5}}>
+              Learning Tracker
+            </div>
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:18,fontWeight:900,color:weekH>=WEEKLY_TARGET?"#22c55e":"#f0f0f0"}}>
-              {weekH.toFixed(1)}<span style={{fontSize:11,color:"#444",fontWeight:400}}>/{WEEKLY_TARGET}h</span>
+            <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
+              color:weekH>=WEEKLY_TARGET?T.green:T.text,
+              textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none"}}>
+              {weekH.toFixed(1)}
+              <span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
             </div>
-            <div style={{fontSize:9,color:"#444",marginTop:1}}>
+            <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
               {getDayName()} · {dLeft}d left
             </div>
           </div>
         </div>
 
-        {/* Week progress */}
         <Bar pct={(weekH/WEEKLY_TARGET)*100}
-          color={weekH>=WEEKLY_TARGET?"#22c55e":"#60a5fa"}
-          height={3} style={{marginBottom:3}}/>
-        <div style={{fontSize:9,color:"#333",marginBottom:14,textAlign:"right",letterSpacing:0.3}}>
+          color={weekH>=WEEKLY_TARGET?T.green:T.blue}
+          height={3} glow style={{marginBottom:4}}/>
+        <div style={{fontSize:9,color:T.textDim,marginBottom:14,
+          textAlign:"right",letterSpacing:0.3}}>
           {weekH>=WEEKLY_TARGET?"✓ Target hit":`${daily.toFixed(1)}h/day to finish`}
         </div>
 
         {/* Focus chips */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",
+          alignItems:"center",marginBottom:12}}>
           <div style={{display:"flex",flexWrap:"wrap",gap:5,flex:1,paddingRight:8}}>
             {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
               <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
             ))}
           </div>
           <button onClick={()=>setEditFocus(e=>!e)}
-            style={{background:"none",border:"1px solid #222",color:"#444",
-              borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer",
-              letterSpacing:0.3,flexShrink:0}}>
+            style={{background:"none",border:`1px solid ${T.surface3}`,
+              color:T.textDim,borderRadius:8,padding:"5px 12px",
+              fontSize:11,cursor:"pointer",letterSpacing:0.3,flexShrink:0}}>
             {editFocus?"Done":"Edit Focus"}
           </button>
         </div>
 
-        {/* Nav tabs */}
-        <div style={{display:"flex",gap:0}}>
+        {/* Nav */}
+        <div style={{display:"flex"}}>
           {[["today","Today"],["week","Week"],["ai","Check-In"],["arc","Year Arc"]].map(([k,l])=>(
             <button key={k} onClick={()=>setView(k)}
               style={{flex:1,padding:"10px 2px",background:"none",border:"none",
-                borderBottom:view===k?"2px solid #60a5fa":"2px solid transparent",
-                color:view===k?"#60a5fa":"#444",fontSize:11,fontWeight:700,cursor:"pointer",
-                textTransform:"uppercase",letterSpacing:1}}>
+                borderBottom:view===k?`2px solid ${T.blue}`:"2px solid transparent",
+                color:view===k?T.blue:T.textDim,fontSize:11,fontWeight:700,
+                cursor:"pointer",textTransform:"uppercase",letterSpacing:1,
+                transition:"color 0.2s",
+                textShadow:view===k?shadow.glow(T.blue):"none"}}>
               {l}
             </button>
           ))}
@@ -866,22 +957,30 @@ Respond ONLY with valid JSON, no markdown:
 
       {/* Focus Editor */}
       {editFocus&&(
-        <div style={{background:"#0e0e0e",padding:"14px 16px",borderBottom:"1px solid #161616"}}>
-          <div style={{fontSize:10,fontWeight:700,color:"#444",letterSpacing:1.5,
+        <div style={{background:T.surface0,padding:"14px 16px",
+          borderBottom:`1px solid ${T.border}`}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textDim,letterSpacing:1.5,
             textTransform:"uppercase",marginBottom:12}}>Manual Focus Override</div>
           {[["COURSES","courses","course"],["BOOKS","books","book"]].map(([label,key,type])=>(
             <div key={key} style={{marginBottom:12}}>
-              <div style={{fontSize:9,color:"#333",letterSpacing:1.5,textTransform:"uppercase",marginBottom:7}}>{label}</div>
+              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,
+                textTransform:"uppercase",marginBottom:7}}>{label}</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
                 {CURRICULUM.filter(i=>i.type===type&&getP(i.id).percentComplete<100).map(i=>{
                   const on=(focus[key]||[]).includes(i.id);
+                  const c=gc(i.genre);
                   return(
                     <button key={i.id}
-                      onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(c=>c!==i.id):[...(f[key]||[]),i.id]}))}
-                      style={{background:on?"#0d1a2e":"#141414",
-                        border:`1px solid ${on?"#1e3a5f":"#222"}`,
-                        color:on?"#60a5fa":"#444",borderRadius:20,padding:"4px 10px",
-                        fontSize:10,cursor:"pointer",fontWeight:on?700:400}}>
+                      onClick={()=>setFocus(f=>({...f,[key]:on
+                        ?(f[key]||[]).filter(c=>c!==i.id)
+                        :[...(f[key]||[]),i.id]}))}
+                      style={{background:on?`${c}15`:T.surface2,
+                        border:`1px solid ${on?c+"40":T.surface3}`,
+                        color:on?c:T.textDim,borderRadius:20,
+                        padding:"4px 10px",fontSize:10,cursor:"pointer",
+                        fontWeight:on?700:400,
+                        boxShadow:on?`0 0 8px ${c}20`:"none",
+                        transition:"all 0.2s"}}>
                       {i.id}
                     </button>
                   );
@@ -897,34 +996,38 @@ Respond ONLY with valid JSON, no markdown:
         {/* ── TODAY ── */}
         {view==="today"&&(
           <div>
-            <div style={{fontSize:11,color:"#444",marginBottom:16,letterSpacing:0.3}}>
-              {weekH>=WEEKLY_TARGET?"Target hit — any session is a bonus":`${daily.toFixed(1)}h recommended today`}
+            <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
+              {weekH>=WEEKLY_TARGET
+                ?"Target hit — any session is a bonus"
+                :`${daily.toFixed(1)}h recommended today`}
             </div>
             {todaySched().map(item=>{
-              const p=getP(item.id);
-              const c=gc(item.genre);
+              const p=getP(item.id),c=gc(item.genre);
               return(
-                <div key={item.id}
-                  style={{...card,marginBottom:10,borderLeft:`3px solid ${c}`,paddingLeft:14}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                <Card key={item.id} accent={c} glow
+                  style={{marginBottom:10,padding:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",
+                    alignItems:"flex-start",marginBottom:10}}>
                     <div style={{flex:1,paddingRight:10}}>
-                      <div style={{fontSize:9,color:"#444",letterSpacing:1.5,
+                      <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,
                         textTransform:"uppercase",marginBottom:4}}>
                         {item.type==="course"?"Course":"Book"}
                       </div>
-                      <div style={{fontSize:14,fontWeight:700,lineHeight:1.3,letterSpacing:-0.2}}>
+                      <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,
+                        lineHeight:1.3}}>
                         {item.name}
                       </div>
-                      <div style={{marginTop:6}}>
+                      <div style={{marginTop:7}}>
                         <Pill color={c} label={item.genre||item.id}/>
                       </div>
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
-                      <div style={{fontSize:20,fontWeight:900,color:"#60a5fa",letterSpacing:-0.5}}>
+                      <div style={{fontSize:22,fontWeight:900,color:T.blue,
+                        letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
                         {item.allocHrs}h
                       </div>
                       {item.contentMin&&(
-                        <div style={{fontSize:10,color:"#444",marginTop:2}}>
+                        <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
                           {item.contentMin}min content
                         </div>
                       )}
@@ -932,22 +1035,30 @@ Respond ONLY with valid JSON, no markdown:
                   </div>
                   <div style={{marginBottom:12}}>
                     <div style={{display:"flex",justifyContent:"space-between",
-                      fontSize:10,color:"#444",marginBottom:5}}>
+                      fontSize:10,color:T.textDim,marginBottom:5}}>
                       <span>{(p.courseHoursComplete||0).toFixed(1)}h / {item.hours}h</span>
-                      <span style={{fontWeight:600,color:c}}>{p.percentComplete}%</span>
+                      <span style={{fontWeight:600,color:c,
+                        textShadow:`0 0 8px ${c}40`}}>
+                        {p.percentComplete}%
+                      </span>
                     </div>
-                    <Bar pct={p.percentComplete} color={c}/>
+                    <Bar pct={p.percentComplete} color={c} glow/>
                   </div>
                   <button onClick={()=>setLogging(item)}
-                    style={{...btnPrimary,padding:"9px 0",fontSize:12}}>
+                    style={{width:"100%",background:T.surface2,
+                      border:`1px solid ${T.surface3}`,color:T.blue,
+                      borderRadius:10,padding:"10px 0",fontSize:12,
+                      fontWeight:700,cursor:"pointer",
+                      boxShadow:`0 0 12px ${T.blue}10`}}>
                     + Log Session
                   </button>
-                </div>
+                </Card>
               );
             })}
             {weekH>=WEEKLY_TARGET&&(
-              <div style={{textAlign:"center",color:"#22c55e",padding:48,fontSize:15,fontWeight:700,
-                letterSpacing:0.3}}>
+              <div style={{textAlign:"center",color:T.green,padding:48,
+                fontSize:15,fontWeight:700,letterSpacing:0.3,
+                textShadow:shadow.glow(T.green)}}>
                 🎯 {WEEKLY_TARGET}h hit. Week complete.
               </div>
             )}
@@ -957,20 +1068,17 @@ Respond ONLY with valid JSON, no markdown:
         {/* ── WEEK ── */}
         {view==="week"&&(
           <div>
-            <div style={{fontSize:11,color:"#444",marginBottom:16,letterSpacing:0.3}}>
+            <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
               Active focus · {weekH.toFixed(1)}h logged this week
             </div>
             {focusItems.filter(i=>getP(i.id).percentComplete<100).map(item=>{
-              const p=getP(item.id);
-              const sessions=p.sessions||[];
-              const c=gc(item.genre);
+              const p=getP(item.id),sessions=p.sessions||[],c=gc(item.genre);
               return(
-                <div key={item.id}
-                  style={{...cardSm,marginBottom:10,borderLeft:`3px solid ${c}`,paddingLeft:13}}>
+                <Card key={item.id} accent={c} style={{marginBottom:10,padding:"13px 14px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",
                     alignItems:"center",marginBottom:8}}>
                     <div style={{flex:1,minWidth:0,paddingRight:10}}>
-                      <div style={{fontSize:9,color:"#444",letterSpacing:1.5,
+                      <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,
                         textTransform:"uppercase",marginBottom:3}}>
                         {item.type==="course"?"Course":"Book"}
                       </div>
@@ -978,31 +1086,34 @@ Respond ONLY with valid JSON, no markdown:
                         overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                         {item.name}
                       </div>
-                      <div style={{fontSize:9,color:"#333",marginTop:2}}>
+                      <div style={{fontSize:9,color:T.textDim,marginTop:2}}>
                         {item.id} · {item.hours}h total
                       </div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
                       <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:15,fontWeight:800,color:c}}>{p.percentComplete}%</div>
-                        <div style={{fontSize:9,color:"#444",marginTop:1}}>
+                        <div style={{fontSize:15,fontWeight:800,color:c,
+                          textShadow:`0 0 10px ${c}40`}}>
+                          {p.percentComplete}%
+                        </div>
+                        <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
                           {(p.courseHoursComplete||0).toFixed(1)}h done
                         </div>
                       </div>
                       <button onClick={()=>setLogging(item)}
-                        style={{background:"#0d1a2e",border:"1px solid #1e3a5f",color:"#60a5fa",
-                          borderRadius:8,padding:"7px 12px",fontSize:11,cursor:"pointer",
-                          fontWeight:700,flexShrink:0}}>
+                        style={{background:T.surface2,border:`1px solid ${T.surface3}`,
+                          color:T.blue,borderRadius:8,padding:"7px 12px",
+                          fontSize:11,cursor:"pointer",fontWeight:700}}>
                         Log
                       </button>
                     </div>
                   </div>
-                  <Bar pct={p.percentComplete} color={c} style={{marginBottom:0}}/>
+                  <Bar pct={p.percentComplete} color={c} glow/>
                   {sessions.length>0&&(
                     <SessionHistory item={item} sessions={sessions}
                       onEdit={idx=>openEditSession(item.id,idx)}/>
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>
@@ -1011,127 +1122,140 @@ Respond ONLY with valid JSON, no markdown:
         {/* ── CHECK-IN ── */}
         {view==="ai"&&(
           <div>
-            <div style={{fontSize:11,color:"#444",marginBottom:16,letterSpacing:0.3}}>
+            <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
               Weekly check-in · AI coach with memory
             </div>
 
-            {/* Learning Profile */}
-            <div style={{...cardSm,marginBottom:10}}>
+            <Card style={{padding:"13px 14px",marginBottom:10}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontSize:11,fontWeight:700,color:"#555",letterSpacing:0.5}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.textMid,letterSpacing:0.5}}>
                   Learning Profile
                 </div>
                 <button onClick={()=>setEditProfile(e=>!e)}
-                  style={{background:"none",border:"none",color:"#444",fontSize:11,
-                    cursor:"pointer",fontWeight:600}}>
+                  style={{background:"none",border:"none",color:T.textDim,
+                    fontSize:11,cursor:"pointer",fontWeight:600}}>
                   {editProfile?"Done":"Edit"}
                 </button>
               </div>
               {editProfile&&(
                 <textarea value={profile} onChange={e=>setProfile(e.target.value)}
-                  style={{...inputSt,fontSize:11,height:160,resize:"none",marginTop:10,
-                    lineHeight:1.6}}/>
+                  style={{...inputSt,fontSize:11,height:160,resize:"none",
+                    marginTop:10,lineHeight:1.6}}/>
               )}
-            </div>
+            </Card>
 
-            {/* Week history */}
             {weekLogs.length>0&&(
-              <div style={{...cardSm,marginBottom:10}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-                  marginBottom:showHistory?10:0}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#555",letterSpacing:0.5}}>
-                    Week History <span style={{color:"#333",fontWeight:400}}>({weekLogs.length})</span>
+              <Card style={{padding:"13px 14px",marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",
+                  alignItems:"center",marginBottom:showHistory?10:0}}>
+                  <div style={{fontSize:11,fontWeight:700,color:T.textMid,letterSpacing:0.5}}>
+                    Week History{" "}
+                    <span style={{color:T.textDim,fontWeight:400}}>({weekLogs.length})</span>
                   </div>
                   <button onClick={()=>setShowHistory(s=>!s)}
-                    style={{background:"none",border:"none",color:"#444",fontSize:11,
-                      cursor:"pointer",fontWeight:600}}>
+                    style={{background:"none",border:"none",color:T.textDim,
+                      fontSize:11,cursor:"pointer",fontWeight:600}}>
                     {showHistory?"Hide":"Show"}
                   </button>
                 </div>
                 {showHistory&&weekLogs.map((l,i)=>(
-                  <div key={i} style={{borderTop:"1px solid #161616",paddingTop:10,marginTop:8}}>
+                  <div key={i} style={{borderTop:`1px solid ${T.surface2}`,
+                    paddingTop:10,marginTop:8}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                      <div style={{fontSize:10,fontWeight:700,color:"#60a5fa"}}>{l.date}</div>
+                      <div style={{fontSize:10,fontWeight:700,color:T.blue}}>{l.date}</div>
                       <div style={{fontSize:10,fontWeight:700,
-                        color:l.hoursLogged>=WEEKLY_TARGET?"#22c55e":"#555"}}>
+                        color:l.hoursLogged>=WEEKLY_TARGET?T.green:T.textMid}}>
                         {(l.hoursLogged||0).toFixed(1)}h
                       </div>
                     </div>
                     {l.assessment&&(
-                      <div style={{fontSize:11,color:"#555",lineHeight:1.5,marginBottom:4}}>
+                      <div style={{fontSize:11,color:T.textMid,lineHeight:1.5,marginBottom:4}}>
                         {l.assessment}
                       </div>
                     )}
                     {l.insight&&(
-                      <div style={{fontSize:10,color:"#f472b6",fontStyle:"italic"}}>
+                      <div style={{fontSize:10,color:T.pink,fontStyle:"italic"}}>
                         {l.insight}
                       </div>
                     )}
                   </div>
                 ))}
-              </div>
+              </Card>
             )}
 
-            {/* Week note */}
-            <div style={{...cardSm,marginBottom:12}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#555",letterSpacing:0.5,marginBottom:8}}>
+            <Card style={{padding:"13px 14px",marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.textMid,
+                letterSpacing:0.5,marginBottom:8}}>
                 What happened this week?
               </div>
               <textarea value={weekNote} onChange={e=>setWeekNote(e.target.value)}
                 placeholder="Energy, what you finished, missed days, life context..."
                 style={{...inputSt,fontSize:12,resize:"none",height:76,lineHeight:1.5}}/>
-            </div>
+            </Card>
 
             <button onClick={genAI} disabled={aiLoading}
-              style={{...btnPrimary,fontSize:14,marginBottom:16,
-                opacity:aiLoading?0.5:1,letterSpacing:0.3}}>
+              style={{width:"100%",background:aiLoading?T.surface1:T.surface2,
+                border:`1px solid ${aiLoading?T.surface3:T.blue+"40"}`,
+                color:aiLoading?T.textDim:T.blue,borderRadius:10,padding:13,
+                fontSize:14,fontWeight:800,cursor:aiLoading?"default":"pointer",
+                marginBottom:16,letterSpacing:0.3,
+                boxShadow:aiLoading?"none":`0 0 20px ${T.blue}15`,
+                transition:"all 0.2s"}}>
               {aiLoading?"Thinking…":"Run Weekly Check-In"}
             </button>
 
             {aiResult&&(
               <div>
-                {[["assessment","#60a5fa","Assessment"],
-                  ["insight","#f472b6","Insight"],
-                  ["nextMilestone","#4ade80","Next Milestone"]].map(([k,c,label])=>aiResult[k]&&(
-                  <div key={k}
-                    style={{...cardSm,marginBottom:10,borderLeft:`3px solid ${c}`}}>
+                {[["assessment",T.blue,"Assessment"],
+                  ["insight",T.pink,"Insight"],
+                  ["nextMilestone",T.green,"Next Milestone"]].map(([k,c,label])=>aiResult[k]&&(
+                  <Card key={k} accent={c} style={{padding:"13px 14px",marginBottom:10}}>
                     <div style={{fontSize:9,color:c,textTransform:"uppercase",
-                      letterSpacing:1.5,marginBottom:7,fontWeight:700}}>
+                      letterSpacing:1.5,marginBottom:7,fontWeight:700,
+                      textShadow:`0 0 8px ${c}60`}}>
                       {label}
                     </div>
-                    <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult[k]}</div>
-                  </div>
+                    <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>
+                      {aiResult[k]}
+                    </div>
+                  </Card>
                 ))}
 
                 {aiResult.focusProposal&&(
-                  <div style={{...cardSm,marginBottom:10,border:"1px solid #2a1a3a"}}>
-                    <div style={{fontSize:9,color:"#f472b6",textTransform:"uppercase",
-                      letterSpacing:1.5,marginBottom:12,fontWeight:700}}>
+                  <Card style={{padding:"13px 14px",marginBottom:10,
+                    border:`1px solid ${T.pink}20`}}>
+                    <div style={{fontSize:9,color:T.pink,textTransform:"uppercase",
+                      letterSpacing:1.5,marginBottom:12,fontWeight:700,
+                      textShadow:`0 0 8px ${T.pink}60`}}>
                       Proposed Focus Update
                     </div>
                     {[["COURSES","courses"],["BOOKS","books"]].map(([label,key])=>(
                       <div key={key} style={{marginBottom:12}}>
-                        <div style={{fontSize:9,color:"#333",textTransform:"uppercase",
+                        <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",
                           letterSpacing:1.5,marginBottom:8}}>{label}</div>
                         {(aiResult.focusProposal[key]||[]).map(id=>{
                           const item=CURRICULUM.find(i=>i.id===id);
                           const p=getP(id);
                           const current=(focus[key]||[]).includes(id);
                           return item?(
-                            <div key={id}
-                              style={{display:"flex",alignItems:"center",gap:10,
-                                padding:"7px 0",borderBottom:"1px solid #161616"}}>
+                            <div key={id} style={{display:"flex",alignItems:"center",gap:10,
+                              padding:"7px 0",borderBottom:`1px solid ${T.surface2}`}}>
                               <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,
-                                background:current?"#2a2a2a":"#22c55e"}}/>
+                                background:current?T.surface3:T.green,
+                                boxShadow:!current?`0 0 6px ${T.green}60`:"none"}}/>
                               <div style={{flex:1}}>
-                                <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name}</div>
-                                <div style={{fontSize:9,color:"#444",marginTop:1}}>
+                                <div style={{fontSize:11,fontWeight:600}}>
+                                  {item.id} — {item.name}
+                                </div>
+                                <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
                                   {item.genre} · {p.percentComplete}% done
                                 </div>
                               </div>
                               {!current&&(
-                                <span style={{fontSize:9,color:"#22c55e",fontWeight:700,
-                                  letterSpacing:0.5}}>NEW</span>
+                                <span style={{fontSize:9,color:T.green,fontWeight:700,
+                                  letterSpacing:0.5,textShadow:`0 0 6px ${T.green}60`}}>
+                                  NEW
+                                </span>
                               )}
                             </div>
                           ):null;
@@ -1139,64 +1263,82 @@ Respond ONLY with valid JSON, no markdown:
                       </div>
                     ))}
                     {aiResult.focusProposal.reasoning&&(
-                      <div style={{fontSize:11,color:"#555",marginBottom:14,
+                      <div style={{fontSize:11,color:T.textMid,marginBottom:14,
                         lineHeight:1.6,fontStyle:"italic"}}>
                         {aiResult.focusProposal.reasoning}
                       </div>
                     )}
                     <div style={{display:"flex",gap:8}}>
                       <button onClick={()=>setAiResult(r=>({...r,focusProposal:null}))}
-                        style={{...btnSecondary}}>Keep Current</button>
+                        style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                          color:T.textMid,borderRadius:10,padding:12,fontSize:13,
+                          cursor:"pointer"}}>
+                        Keep Current
+                      </button>
                       <button onClick={()=>applyFocusProposal(aiResult.focusProposal)}
-                        style={{flex:2,background:"#0d1a0d",border:"1px solid #1a3a1a",
-                          color:"#22c55e",borderRadius:10,padding:"12px 0",fontSize:13,
-                          fontWeight:800,cursor:"pointer"}}>
+                        style={{flex:2,background:"#0a180a",
+                          border:`1px solid ${T.green}30`,color:T.green,
+                          borderRadius:10,padding:12,fontSize:13,fontWeight:800,
+                          cursor:"pointer",boxShadow:`0 0 16px ${T.green}15`}}>
                         Apply New Focus ✓
                       </button>
                     </div>
-                  </div>
+                  </Card>
                 )}
 
                 {aiResult.weekPlan&&(
-                  <div style={{...cardSm,marginBottom:10}}>
+                  <Card style={{padding:"13px 14px",marginBottom:10}}>
                     <div style={{display:"flex",justifyContent:"space-between",
                       alignItems:"center",marginBottom:14}}>
-                      <div style={{fontSize:9,color:"#444",textTransform:"uppercase",
-                        letterSpacing:1.5,fontWeight:700}}>Remaining Week Schedule</div>
+                      <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",
+                        letterSpacing:1.5,fontWeight:700}}>
+                        Remaining Week Schedule
+                      </div>
                       {aiResult.totalPlannedHours!=null&&(
                         <div style={{fontSize:14,fontWeight:900,
-                          color:aiResult.totalPlannedHours<=wkRem?"#22c55e":"#ef4444"}}>
+                          color:aiResult.totalPlannedHours<=wkRem?T.green:T.red,
+                          textShadow:shadow.glow(aiResult.totalPlannedHours<=wkRem?T.green:T.red)}}>
                           {aiResult.totalPlannedHours}h
                         </div>
                       )}
                     </div>
                     {aiResult.weekPlan.map(day=>(
                       <div key={day.day} style={{marginBottom:14}}>
-                        <div style={{fontSize:11,fontWeight:800,color:"#60a5fa",
-                          letterSpacing:0.5,marginBottom:7}}>{day.day}</div>
+                        <div style={{fontSize:11,fontWeight:800,color:T.blue,
+                          letterSpacing:0.5,marginBottom:7,
+                          textShadow:shadow.glow(T.blue)}}>
+                          {day.day}
+                        </div>
                         {day.items?.map(it=>{
                           const f=CURRICULUM.find(i=>i.id===it.id);
                           const c=gc(f?.genre);
                           return(
                             <div key={it.id}
-                              style={{background:"#0c0c0c",borderRadius:10,
+                              style={{background:T.surface0,borderRadius:10,
                                 padding:"9px 12px",marginBottom:6,
-                                borderLeft:`2px solid ${c}`}}>
+                                borderLeft:`2px solid ${c}`,
+                                boxShadow:shadow.card}}>
                               <div style={{display:"flex",justifyContent:"space-between",
                                 alignItems:"center"}}>
-                                <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,
-                                  lineHeight:1.3}}>{f?.name||it.id}</div>
+                                <div style={{fontSize:12,fontWeight:600,flex:1,
+                                  paddingRight:8,lineHeight:1.3}}>
+                                  {f?.name||it.id}
+                                </div>
                                 <div style={{flexShrink:0,textAlign:"right"}}>
-                                  <div style={{fontSize:13,fontWeight:800,color:"#60a5fa"}}>
+                                  <div style={{fontSize:13,fontWeight:800,color:T.blue,
+                                    textShadow:shadow.glow(T.blue)}}>
                                     {it.hours}h
                                   </div>
                                   {it.contentMinutes&&f?.type==="course"&&(
-                                    <div style={{fontSize:9,color:"#444"}}>{it.contentMinutes}min</div>
+                                    <div style={{fontSize:9,color:T.textDim}}>
+                                      {it.contentMinutes}min
+                                    </div>
                                   )}
                                 </div>
                               </div>
                               {it.focus&&(
-                                <div style={{fontSize:10,color:"#444",marginTop:4,lineHeight:1.4}}>
+                                <div style={{fontSize:10,color:T.textDim,
+                                  marginTop:4,lineHeight:1.4}}>
                                   {it.focus}
                                 </div>
                               )}
@@ -1205,7 +1347,7 @@ Respond ONLY with valid JSON, no markdown:
                         })}
                       </div>
                     ))}
-                  </div>
+                  </Card>
                 )}
               </div>
             )}
@@ -1215,50 +1357,70 @@ Respond ONLY with valid JSON, no markdown:
         {/* ── YEAR ARC ── */}
         {view==="arc"&&(
           <div>
-            {/* Overview card */}
-            <div style={{...card,marginBottom:16}}>
-              <div style={{fontSize:9,fontWeight:700,color:"#444",textTransform:"uppercase",
-                letterSpacing:1.5,marginBottom:14}}>Curriculum Overview</div>
+            <Card style={{marginBottom:16,padding:16}}>
+              <div style={{fontSize:9,fontWeight:700,color:T.textDim,
+                textTransform:"uppercase",letterSpacing:1.5,marginBottom:14}}>
+                Curriculum Overview
+              </div>
 
               {/* Stats grid */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
-                {[[CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length,"Completed","#22c55e"],
-                  [CURRICULUM.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length,"In Progress","#60a5fa"],
-                  [CURRICULUM.filter(i=>getP(i.id).percentComplete===0).length,"Untouched","#333"],
-                  [CURRICULUM.length,"Total Items","#555"]].map(([v,l,c])=>(
-                  <div key={l} style={{background:"#0c0c0c",borderRadius:10,padding:"12px 14px"}}>
-                    <div style={{fontSize:24,fontWeight:900,color:c,letterSpacing:-1}}>{v}</div>
-                    <div style={{fontSize:10,color:"#444",marginTop:2,letterSpacing:0.3}}>{l}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",
+                gap:8,marginBottom:16}}>
+                {[[doneItems,"Completed",T.green],
+                  [CURRICULUM.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length,"In Progress",T.blue],
+                  [CURRICULUM.filter(i=>getP(i.id).percentComplete===0).length,"Untouched",T.textDim],
+                  [totalItems,"Total Items",T.textMid]].map(([v,l,c])=>(
+                  <div key={l} style={{background:T.surface0,borderRadius:12,
+                    padding:"12px 14px",border:`1px solid ${T.border}`,
+                    boxShadow:shadow.card}}>
+                    <div style={{fontSize:24,fontWeight:900,color:c,letterSpacing:-1,
+                      textShadow:c!==T.textDim&&c!==T.textMid?`0 0 12px ${c}40`:"none"}}>
+                      {v}
+                    </div>
+                    <div style={{fontSize:10,color:T.textDim,marginTop:2,letterSpacing:0.3}}>
+                      {l}
+                    </div>
                   </div>
                 ))}
               </div>
 
               {/* Hours counter */}
-              <div style={{background:"#0c0c0c",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
-                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Study Hours Logged</div>
-                <div style={{fontSize:28,fontWeight:900,color:"#60a5fa",letterSpacing:-1}}>{totalSpentH.toFixed(1)}<span style={{fontSize:12,color:"#444",fontWeight:400}}> hrs</span></div>
-              </div>
-
-              {/* Items bar */}
-              <div style={{marginBottom:14}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#444",marginBottom:5}}>
-                  <span>Items completed</span>
-                  <span style={{color:"#888",fontWeight:600}}>{doneItems} of {totalItems}</span>
+              <div style={{background:T.surface0,borderRadius:12,
+                padding:"12px 14px",marginBottom:12,
+                border:`1px solid ${T.border}`,boxShadow:shadow.card}}>
+                <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,
+                  textTransform:"uppercase",marginBottom:4}}>
+                  Study Hours Logged
                 </div>
-                <Bar pct={(doneItems/totalItems)*100} color="#4ade80" height={5}/>
+                <div style={{fontSize:28,fontWeight:900,color:T.blue,
+                  letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
+                  {totalSpentH.toFixed(1)}
+                  <span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
+                </div>
               </div>
 
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,paddingTop:10,borderTop:"1px solid #161616"}}>
-                <span style={{color:"#444"}}>Est. completion at 20h/week</span>
-                <span style={{color:"#facc15",fontWeight:700}}>{estDate}</span>
+              {/* Items completed bar */}
+              <div style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",
+                  fontSize:10,color:T.textDim,marginBottom:5}}>
+                  <span>Items completed</span>
+                  <span style={{color:T.textMid,fontWeight:600}}>
+                    {doneItems} of {totalItems}
+                  </span>
+                </div>
+                <Bar pct={(doneItems/totalItems)*100} color={T.green} height={5} glow/>
               </div>
 
+              {/* Est completion — single instance */}
               <div style={{display:"flex",justifyContent:"space-between",fontSize:11,
-                paddingTop:10,borderTop:"1px solid #161616"}}>
-                <span style={{color:"#444"}}>Est. completion at 20h/week</span>
-                <span style={{color:"#facc15",fontWeight:700}}>{estDate}</span>
+                paddingTop:10,borderTop:`1px solid ${T.surface2}`}}>
+                <span style={{color:T.textDim}}>Est. completion at 20h/week</span>
+                <span style={{color:T.yellow,fontWeight:700,
+                  textShadow:shadow.glow(T.yellow)}}>
+                  {estDate}
+                </span>
               </div>
-            </div>
+            </Card>
 
             {SECTIONS.map(sec=>(
               <SectionBlock key={sec.label} sec={sec} focusIds={focusIds}
@@ -1273,19 +1435,20 @@ Respond ONLY with valid JSON, no markdown:
         const {itemId,sessionIdx}=editSession;
         const item=CURRICULUM.find(i=>i.id===itemId);
         return(
-          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",
-            display:"flex",alignItems:"flex-end",zIndex:100}}>
-            <div style={{background:"#111",borderRadius:"18px 18px 0 0",padding:24,
-              width:"100%",boxSizing:"border-box",
-              borderTop:"3px solid #60a5fa"}}>
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
+            display:"flex",alignItems:"flex-end",zIndex:100,
+            backdropFilter:"blur(4px)"}}>
+            <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
+              padding:24,width:"100%",boxSizing:"border-box",
+              borderTop:`3px solid ${T.blue}`,boxShadow:shadow.raised}}>
               <div style={{fontSize:16,fontWeight:800,letterSpacing:-0.3,marginBottom:3}}>
                 Edit Session
               </div>
-              <div style={{fontSize:11,color:"#444",marginBottom:20}}>
+              <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>
                 {item?.name} · session {sessionIdx+1}
               </div>
               <div style={{marginBottom:14}}>
-                <label style={{fontSize:11,color:"#555",display:"block",
+                <label style={{fontSize:11,color:T.textMid,display:"block",
                   marginBottom:6,letterSpacing:0.3}}>Study hours</label>
                 <input type="number" min="0.25" max="12" step="0.25"
                   value={editSessionForm.hours}
@@ -1294,7 +1457,7 @@ Respond ONLY with valid JSON, no markdown:
               </div>
               {item?.type==="course"&&(
                 <div style={{marginBottom:14}}>
-                  <label style={{fontSize:11,color:"#555",display:"block",
+                  <label style={{fontSize:11,color:T.textMid,display:"block",
                     marginBottom:6,letterSpacing:0.3}}>Content hours</label>
                   <input type="number" min="0.1" max={item.hours} step="0.1"
                     value={editSessionForm.courseHours}
@@ -1303,7 +1466,7 @@ Respond ONLY with valid JSON, no markdown:
                 </div>
               )}
               <div style={{marginBottom:20}}>
-                <label style={{fontSize:11,color:"#555",display:"block",
+                <label style={{fontSize:11,color:T.textMid,display:"block",
                   marginBottom:6,letterSpacing:0.3}}>Note</label>
                 <input value={editSessionForm.note}
                   onChange={e=>setEditSessionForm(f=>({...f,note:e.target.value}))}
@@ -1311,19 +1474,21 @@ Respond ONLY with valid JSON, no markdown:
               </div>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={deleteSession}
-                  style={{flex:1,background:"#1a0d0d",border:"1px solid #3a1a1a",
-                    color:"#ef4444",borderRadius:10,padding:12,fontSize:13,
+                  style={{flex:1,background:"#180a0a",border:`1px solid ${T.red}30`,
+                    color:T.red,borderRadius:10,padding:12,fontSize:13,
                     fontWeight:700,cursor:"pointer"}}>
                   Delete
                 </button>
                 <button onClick={()=>setEditSession(null)}
-                  style={{...btnSecondary,flex:1}}>
+                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                    color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>
                   Cancel
                 </button>
                 <button onClick={saveEditSession}
-                  style={{flex:2,background:"#0d1a2e",border:"1px solid #1e3a5f",
-                    color:"#60a5fa",borderRadius:10,padding:12,fontSize:13,
-                    fontWeight:800,cursor:"pointer"}}>
+                  style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,
+                    color:T.blue,borderRadius:10,padding:12,fontSize:13,
+                    fontWeight:800,cursor:"pointer",
+                    boxShadow:`0 0 16px ${T.blue}15`}}>
                   Save ✓
                 </button>
               </div>
@@ -1334,40 +1499,48 @@ Respond ONLY with valid JSON, no markdown:
 
       {/* ── LOG MODAL ── */}
       {logging&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",
-          display:"flex",alignItems:"flex-end",zIndex:100}}>
-          <div style={{background:"#111",borderRadius:"18px 18px 0 0",padding:24,
-            width:"100%",boxSizing:"border-box",
-            borderTop:`3px solid ${gc(logging.genre)}`}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
+          display:"flex",alignItems:"flex-end",zIndex:100,
+          backdropFilter:"blur(4px)"}}>
+          <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
+            padding:24,width:"100%",boxSizing:"border-box",
+            borderTop:`3px solid ${gc(logging.genre)}`,
+            boxShadow:shadow.raised}}>
             <div style={{fontSize:16,fontWeight:800,letterSpacing:-0.3,marginBottom:3}}>
               {logging.name}
             </div>
-            <div style={{fontSize:11,color:"#444",marginBottom:20,letterSpacing:0.3}}>
+            <div style={{fontSize:11,color:T.textDim,marginBottom:20,letterSpacing:0.3}}>
               {logging.id} · log a session
             </div>
 
             {confirmLog?(
               <div>
-                <div style={{background:"#0c0c0c",borderRadius:12,padding:14,marginBottom:16,
-                  border:"1px solid #1a1a1a"}}>
-                  <div style={{fontSize:11,color:"#444",marginBottom:6,letterSpacing:0.3}}>
+                <div style={{background:T.surface0,borderRadius:12,padding:14,
+                  marginBottom:16,border:`1px solid ${T.surface3}`,
+                  boxShadow:shadow.card}}>
+                  <div style={{fontSize:11,color:T.textDim,marginBottom:6,letterSpacing:0.3}}>
                     Confirm session
                   </div>
                   <div style={{fontSize:15,fontWeight:700}}>
                     {logForm.hours}h study
                     {logging.type==="course"&&logForm.courseHours
-                      ?<span style={{color:"#60a5fa"}}> · {logForm.courseHours}h content</span>:""}
+                      ?<span style={{color:T.blue}}> · {logForm.courseHours}h content</span>:""}
                   </div>
                   {logForm.note&&(
-                    <div style={{fontSize:11,color:"#555",marginTop:5}}>{logForm.note}</div>
+                    <div style={{fontSize:11,color:T.textMid,marginTop:5}}>{logForm.note}</div>
                   )}
                 </div>
                 <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setConfirmLog(false)} style={btnSecondary}>Edit</button>
+                  <button onClick={()=>setConfirmLog(false)}
+                    style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                      color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>
+                    Edit
+                  </button>
                   <button onClick={submitLog}
-                    style={{flex:2,background:"#0d1a2e",border:"1px solid #1e3a5f",
-                      color:"#60a5fa",borderRadius:10,padding:12,fontSize:14,
-                      fontWeight:800,cursor:"pointer"}}>
+                    style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,
+                      color:T.blue,borderRadius:10,padding:12,fontSize:14,
+                      fontWeight:800,cursor:"pointer",
+                      boxShadow:`0 0 20px ${T.blue}15`}}>
                     Confirm ✓
                   </button>
                 </div>
@@ -1375,7 +1548,7 @@ Respond ONLY with valid JSON, no markdown:
             ):(
               <div>
                 <div style={{marginBottom:14}}>
-                  <label style={{fontSize:11,color:"#555",display:"block",
+                  <label style={{fontSize:11,color:T.textMid,display:"block",
                     marginBottom:6,letterSpacing:0.3}}>Real study hours</label>
                   <input type="number" min="0.25" max="12" step="0.25"
                     value={logForm.hours}
@@ -1392,21 +1565,22 @@ Respond ONLY with valid JSON, no markdown:
                   const nearCap=ch>0&&newCH>=logging.hours*0.95;
                   return(
                     <div style={{marginBottom:14}}>
-                      <label style={{fontSize:11,color:"#555",display:"block",
+                      <label style={{fontSize:11,color:T.textMid,display:"block",
                         marginBottom:6,letterSpacing:0.3}}>
                         Content hours watched
-                        <span style={{color:"#333",fontWeight:400}}>
+                        <span style={{color:T.textDim,fontWeight:400}}>
                           {" "}({remaining.toFixed(1)}h remaining)
                         </span>
                       </label>
                       <input type="number" min="0.1" max={logging.hours} step="0.1"
                         value={logForm.courseHours}
                         onChange={e=>setLogForm(f=>({...f,courseHours:e.target.value}))}
-                        style={{...inputSt,borderColor:nearCap?"#facc1560":"#222"}}
+                        style={{...inputSt,
+                          borderColor:nearCap?`${T.yellow}50`:T.surface3}}
                         placeholder="e.g. 0.5"/>
                       {logForm.courseHours&&(
                         <div style={{fontSize:11,marginTop:5,
-                          color:nearCap?"#facc15":"#60a5fa"}}>
+                          color:nearCap?T.yellow:T.blue}}>
                           → {newCH.toFixed(2)}h / {logging.hours}h = {pct}%
                           {nearCap?" ⚠ Near completion":""}
                         </div>
@@ -1416,7 +1590,7 @@ Respond ONLY with valid JSON, no markdown:
                 })()}
 
                 <div style={{marginBottom:20}}>
-                  <label style={{fontSize:11,color:"#555",display:"block",
+                  <label style={{fontSize:11,color:T.textMid,display:"block",
                     marginBottom:6,letterSpacing:0.3}}>Note (optional)</label>
                   <input value={logForm.note}
                     onChange={e=>setLogForm(f=>({...f,note:e.target.value}))}
@@ -1425,13 +1599,15 @@ Respond ONLY with valid JSON, no markdown:
 
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:""});setConfirmLog(false);}}
-                    style={btnSecondary}>
+                    style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                      color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>
                     Cancel
                   </button>
                   <button onClick={submitLog}
-                    style={{flex:2,background:"#0d1a2e",border:"1px solid #1e3a5f",
-                      color:"#60a5fa",borderRadius:10,padding:12,fontSize:14,
-                      fontWeight:800,cursor:"pointer"}}>
+                    style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,
+                      color:T.blue,borderRadius:10,padding:12,fontSize:14,
+                      fontWeight:800,cursor:"pointer",
+                      boxShadow:`0 0 20px ${T.blue}15`}}>
                     Review →
                   </button>
                 </div>
