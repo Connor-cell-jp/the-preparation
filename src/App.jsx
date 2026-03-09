@@ -1253,7 +1253,7 @@ Respond ONLY with valid JSON, no markdown:
               const isPast=DAY_NAMES.indexOf(day.day)<getDayIdx();
               const isToday=day.day===getDayName();
               const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
-              return <div key={day.day} style={{marginBottom:14,opacity:isPast?0.4:1}}>
+              return <div key={day.day} style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <div style={{fontSize:11,fontWeight:800,
                     color:isToday?T.blue:isPast?T.textDim:T.text,
