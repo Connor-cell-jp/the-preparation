@@ -501,7 +501,7 @@ function SessionHistory({item,sessions,onEdit}){
   </div>;
 }
 
-function SectionBlock({sec,focusIds,getP,setLogging}){
+function SectionBlock({sec,focusIds,getP,setLogging,onReset}){
   const [open,setOpen]=useState(false);
   const done=sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
   const active=sec.items.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length;
@@ -555,20 +555,7 @@ function SectionBlock({sec,focusIds,getP,setLogging}){
           <div style={{flexShrink:0,textAlign:"right",display:"flex",alignItems:"center",gap:6}}>
             {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c,textShadow:`0 0 8px ${c}40`}}>{p.percentComplete}%</div>}
             {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
-            {isDone&&<button onClick={()=>{
-              if(!window.confirm(`Reset "${item.name}" to 0%? This will clear all sessions and hours.`)) return;
-              setProgress(prev=>{
-                const copy={...prev};
-                delete copy[item.id];
-                return copy;
-              });
-              // subtract from week hours if sessions were this week
-              const sessions=getP(item.id).sessions||[];
-              const mon=new Date(getMonday()),sun=new Date(mon);sun.setDate(mon.getDate()+6);
-              const thisWeekH=sessions.filter(s=>{const d=new Date(s.date);return d>=mon&&d<=sun;})
-                .reduce((s,x)=>s+(x.studyHours||0),0);
-              if(thisWeekH>0) setWeek(w=>({...w,hoursLogged:Math.max(0,(w.hoursLogged||0)-thisWeekH)}));
-            }}
+            {isDone&&<button onClick={()=>onReset(item)}
               style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
                 borderRadius:7,padding:"3px 8px",fontSize:9,cursor:"pointer",fontWeight:600,
                 letterSpacing:0.3}}>Reset</button>}
@@ -1920,14 +1907,24 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
           </Card>
 
           {SECTIONS.map(sec=>(
-            <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP} setLogging={setLogging}/>
+            <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP} setLogging={setLogging}
+              onReset={item=>{
+                if(!window.confirm(`Reset "${item.name}" to 0%? This clears all sessions and hours.`)) return;
+                const sessions=getP(item.id).sessions||[];
+                const mon=new Date(getMonday()),sun=new Date(mon);sun.setDate(mon.getDate()+6);
+                const thisWeekH=sessions.filter(s=>{const d=new Date(s.date);return d>=mon&&d<=sun;})
+                  .reduce((s,x)=>s+(x.studyHours||0),0);
+                setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});
+                if(thisWeekH>0) setWeek(w=>({...w,hoursLogged:Math.max(0,(w.hoursLogged||0)-thisWeekH)}));
+              }}
+            />
           ))}
 
           <Card style={{padding:"14px 16px",marginTop:8}}>
             <div style={{fontSize:9,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>
               Data Backup
             </div>
-            <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
               <button onClick={()=>{
                 const data={progress,week,focus,weekLogs,profile,weekPlan,weeklyHours};
                 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
@@ -1965,6 +1962,26 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                 Import JSON
               </button>
             </div>
+            <button onClick={()=>{
+              if(!window.confirm("Clear ALL data? This resets every item, session, plan, and weekly log. Export first if you want a backup.")) return;
+              if(!window.confirm("Are you sure? This cannot be undone.")) return;
+              [SK_P,SK_W,SK_F,SK_LOG,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1","tp_monday_seed","tp_last_export"]
+                .forEach(k=>localStorage.removeItem(k));
+              setProgress({});
+              setWeek({weekStart:getMonday(),hoursLogged:0});
+              setFocus({courses:["A1"],books:["B99","B34"]});
+              setWeekLogs([]);
+              setProfile(DEFAULT_PROFILE);
+              setWeekPlan(null);
+              setWeeklyHours([]);
+              setBonusItems([]);
+              setOfflineQueue([]);
+              setWeeklySummary(null);
+              toast_("✓ All data cleared");
+            }} style={{width:"100%",background:"#180a0a",border:`1px solid ${T.red}20`,
+              color:T.red,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              Clear All Data
+            </button>
           </Card>
         </div>}
       </div>
