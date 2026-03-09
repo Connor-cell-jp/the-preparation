@@ -1461,7 +1461,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             const loggedTodayH=(p.sessions||[]).filter(s=>s.date===todayStr).reduce((s,x)=>s+(x.studyHours||0),0);
             const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
             const sessionDoneToday=loggedTodayH>0;
-            const isComplete=isDone;// only gray when 100%, not just because logged today
+            const isComplete=isDone||(sessionDoneToday&&remainingH===0);
             return <Card key={item.id} accent={isComplete?T.green:c} glow style={{marginBottom:10,padding:16,opacity:isComplete?0.6:1}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div style={{flex:1,paddingRight:10}}>
