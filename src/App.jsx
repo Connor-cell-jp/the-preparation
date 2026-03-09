@@ -764,12 +764,6 @@ export default function App(){
 
   const todayItems=()=>{
     if(weekH>=WEEKLY_TARGET) return [];
-    // If user already logged sessions today, don't show plan cards — they've done their work
-    const todayStr=new Date().toLocaleDateString();
-    const alreadyLoggedToday=Object.values(progress).some(p=>
-      (p.sessions||[]).some(s=>s.date===todayStr)
-    );
-    if(alreadyLoggedToday) return [];
     const todayName=getDayName();
     if(weekPlan&&weekPlan.weekStart===getMonday()&&weekPlan.days){
       const todayPlan=weekPlan.days.find(d=>d.day===todayName);
@@ -1517,24 +1511,33 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
 
           {today.map(item=>{
             const p=getP(item.id),c=gc(item.genre);
-            return <Card key={item.id} accent={c} glow style={{marginBottom:10,padding:16}}>
+            const isDone=p.percentComplete>=100;
+            const todayStr=new Date().toLocaleDateString();
+            const loggedTodayH=((p.sessions||[]).filter(s=>s.date===todayStr)).reduce((s,x)=>s+(x.studyHours||0),0);
+            const sessionDoneToday=loggedTodayH>0;
+            return <Card key={item.id} accent={isDone||sessionDoneToday?T.green:c} glow style={{marginBottom:10,padding:16,opacity:sessionDoneToday?0.7:1}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div style={{flex:1,paddingRight:10}}>
                   <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
                     {item.type==="course"?"Course":"Book"}
+                    {sessionDoneToday&&<span style={{marginLeft:8,color:T.green}}>· ✓ Logged today</span>}
                   </div>
                   <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
-                  <div style={{marginTop:7}}><Pill color={c} label={item.genre||item.id}/></div>
+                  <div style={{marginTop:7}}><Pill color={sessionDoneToday?T.green:c} label={item.genre||item.id}/></div>
                   {item.planNote&&<div style={{fontSize:10,color:T.textDim,marginTop:7,lineHeight:1.4,fontStyle:"italic"}}>
                     {item.planNote}
                   </div>}
                 </div>
                 <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{fontSize:22,fontWeight:900,color:T.blue,letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
-                    {item.allocRealH}h
-                  </div>
-                  <div style={{fontSize:10,color:T.textDim,marginTop:2}}>real study</div>
-                  {item.type==="course"&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
+                  {sessionDoneToday
+                    ?<div style={{fontSize:18,fontWeight:900,color:T.green,letterSpacing:-1,textShadow:shadow.glow(T.green)}}>
+                        {loggedTodayH}h
+                      </div>
+                    :<div style={{fontSize:22,fontWeight:900,color:T.blue,letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
+                        {item.allocRealH}h
+                      </div>}
+                  <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{sessionDoneToday?"logged today":"real study"}</div>
+                  {item.type==="course"&&!sessionDoneToday&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
                     {item.contentGain}h content
                   </div>}
                 </div>
@@ -1543,31 +1546,32 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               <div style={{background:T.surface0,borderRadius:10,padding:"10px 12px",marginBottom:12,
                 border:`1px solid ${T.surface3}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:6}}>
-                  <span style={{color:T.textDim}}>{item.contentDone.toFixed(2)}h / {item.contentTotal}h content</span>
+                  <span style={{color:T.textDim}}>{(p.courseHoursComplete||0).toFixed(2)}h / {item.contentTotal}h content</span>
                   <span style={{color:T.textDim}}>{item.contentLeft.toFixed(2)}h left</span>
                 </div>
-                <Bar pct={p.percentComplete} color={c} height={4} glow/>
+                <Bar pct={p.percentComplete} color={sessionDoneToday?T.green:c} height={4} glow/>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5}}>
                   <span style={{color:T.textMid,fontWeight:600}}>Now: {p.percentComplete}%</span>
-                  <span style={{color:c,fontWeight:700,textShadow:`0 0 8px ${c}40`}}>
+                  {!sessionDoneToday&&<span style={{color:c,fontWeight:700,textShadow:`0 0 8px ${c}40`}}>
                     Target: {item.targetPct}% after session
-                  </span>
+                  </span>}
+                  {sessionDoneToday&&<span style={{color:T.green,fontWeight:700}}>✓ Done for today</span>}
                 </div>
               </div>
 
-              <div style={{marginBottom:8}}>
+              {!sessionDoneToday&&<div style={{marginBottom:8}}>
                 <button onClick={()=>setLogging(item)}
                   style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
                     color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                   + Log Session
                 </button>
-              </div>
-              <button onClick={()=>setMarkCompleteConfirm(item)}
+              </div>}
+              {!sessionDoneToday&&<button onClick={()=>setMarkCompleteConfirm(item)}
                 style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
                   color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,
                   cursor:"pointer",letterSpacing:0.3}}>
                 ✓ Mark Complete &amp; Adapt
-              </button>
+              </button>}
             </Card>;
           })}
 
@@ -1698,32 +1702,41 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   const c=gc(f?.genre);
                   const p=getP(it.id);
                   const isDone=p.percentComplete>=100;
+                  // Check if this item was actually logged on this specific day
+                  const dayDate=new Date(getMonday());
+                  dayDate.setDate(dayDate.getDate()+DAY_NAMES.indexOf(day.day));
+                  const dayStr=dayDate.toLocaleDateString();
+                  const loggedOnDay=(p.sessions||[]).filter(s=>s.date===dayStr).reduce((s,x)=>s+(x.studyHours||0),0);
+                  const wasLogged=loggedOnDay>0;
                   return <div key={it.id} style={{background:T.surface0,borderRadius:10,
                     padding:"8px 12px",marginBottom:5,
-                    borderLeft:`2px solid ${isDone?T.green:c}`,
-                    boxShadow:shadow.card,opacity:isDone?0.55:1}}>
+                    borderLeft:`2px solid ${isDone||wasLogged?T.green:c}`,
+                    boxShadow:shadow.card,opacity:isDone||wasLogged?0.6:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,lineHeight:1.3,
-                        color:isDone?T.green:T.text}}>
-                        {isDone&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
+                        color:isDone||wasLogged?T.green:T.text}}>
+                        {(isDone||wasLogged)&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
                       </div>
                       <div style={{flexShrink:0,textAlign:"right"}}>
-                        {isDone
-                          ?<div style={{fontSize:11,color:T.green,fontWeight:700}}>Done</div>
+                        {isDone||wasLogged
+                          ?<div style={{fontSize:11,color:T.green,fontWeight:700}}>
+                            {wasLogged&&!isDone?`${loggedOnDay}h logged`:"Done"}
+                          </div>
                           :<div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
                             {it.realHours}h
                           </div>}
-                        {!isDone&&it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
+                        {!isDone&&!wasLogged&&it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
                           {it.contentHours}h content
                         </div>}
                       </div>
                     </div>
-                    {!isDone&&it.focus&&<div style={{fontSize:10,color:T.textDim,marginTop:3,lineHeight:1.4}}>{it.focus}</div>}
+                    {!isDone&&!wasLogged&&it.focus&&<div style={{fontSize:10,color:T.textDim,marginTop:3,lineHeight:1.4}}>{it.focus}</div>}
                     <div style={{display:"flex",justifyContent:"space-between",fontSize:9,marginTop:5,color:T.textDim}}>
-                      <span style={{color:isDone?T.green:T.textDim}}>{p.percentComplete}%</span>
-                      {!isDone&&it.targetPct&&<span style={{color:c,fontWeight:700}}>→ target {it.targetPct}%</span>}
+                      <span style={{color:isDone||wasLogged?T.green:T.textDim,fontWeight:600}}>{p.percentComplete}%</span>
+                      {!isDone&&!wasLogged&&it.targetPct&&<span style={{color:c,fontWeight:700}}>→ target {it.targetPct}%</span>}
+                      {wasLogged&&!isDone&&<span style={{color:T.green}}>now {p.percentComplete}%</span>}
                     </div>
-                    <div style={{marginTop:4}}><Bar pct={p.percentComplete} color={isDone?T.green:c} height={2}/></div>
+                    <div style={{marginTop:4}}><Bar pct={p.percentComplete} color={isDone||wasLogged?T.green:c} height={2}/></div>
                   </div>;
                 })}
               </div>;
