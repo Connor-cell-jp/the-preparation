@@ -14,7 +14,8 @@ const targetPctAfterSession = (item, p, sessionRealH) => {
   const contentDone = p.courseHoursComplete || 0;
   const contentGain = realToContent(item, sessionRealH);
   const newContent = Math.min(contentDone + contentGain, item.hours || 1);
-  return Math.round((newContent / (item.hours || 1)) * 100);
+  // Always floor to match how percentComplete is stored — no rounding up
+  return Math.floor((newContent / (item.hours || 1)) * 100);
 };
 
 const CURRICULUM = [
@@ -815,7 +816,7 @@ export default function App(){
       if(pastDays.length>0){
         planVsActual=pastDays.map(d=>{
           const plannedH=d.items?.reduce((s,it)=>s+(it.realHours||0),0)||0;
-          const dayDate=new Date(getMonday());
+          const dayDate=new Date(getMonday()+"T12:00:00");
           dayDate.setDate(dayDate.getDate()+DAY_NAMES.indexOf(d.day));
           const dayStr=dayDate.toLocaleDateString();
           const loggedH=CURRICULUM.reduce((s,i)=>{
@@ -1647,7 +1648,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   const p=getP(it.id);
                   const isDone=p.percentComplete>=100;
                   // Check if this item was actually logged on this specific day
-                  const dayDate=new Date(getMonday());
+                  const dayDate=new Date(getMonday()+"T12:00:00");
                   dayDate.setDate(dayDate.getDate()+DAY_NAMES.indexOf(day.day));
                   const dayStr=dayDate.toLocaleDateString();
                   const loggedOnDay=(p.sessions||[]).filter(s=>s.date===dayStr).reduce((s,x)=>s+(x.studyHours||0),0);
