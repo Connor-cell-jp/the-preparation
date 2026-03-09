@@ -899,7 +899,11 @@ export default function App(){
     }
     setAiLoading(true);setAiResult(null);
     const{recentHistory,planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
-    const mondaySeed=localStorage.getItem("tp_monday_seed")||"";
+    const todayStr_=new Date().toLocaleDateString();
+    const loggedToday_=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr_));
+    const effectiveDayIdx_=loggedToday_?getDayIdx()+1:getDayIdx();
+    const effectiveDLeft=Math.max(0,7-effectiveDayIdx_);
+    const effectiveWkRem=Math.max(0,WEEKLY_TARGET-weekH);
 
     const prompt=`You are a precision learning coach with full context on this learner's curriculum, history, and current momentum. Think carefully before planning — use all data provided.
 
@@ -966,8 +970,11 @@ Respond ONLY with valid JSON, no markdown:
       const d=await r.json();
       const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
       const parsed=JSON.parse(txt);
+      // Keep any days already logged, merge new plan days after
+      const keptDays=(weekPlan?.days||[]).filter(d=>DAY_NAMES.indexOf(d.day)<effectiveDayIdx_);
       const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
-        days:parsed.days,totalPlannedHours:parsed.totalPlannedHours,isBaseplan:true,
+        days:[...keptDays,...(parsed.days||[])],
+        totalPlannedHours:parsed.totalPlannedHours,isBaseplan:true,
         reasoning:parsed.insight||"",
         focusReasoning:parsed.focusProposal?.reasoning||""};
       setWeekPlan(plan);
@@ -990,7 +997,11 @@ Respond ONLY with valid JSON, no markdown:
     }
     setAdaptLoading(true);
     const{planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
-    const remainingDays=DAY_NAMES.slice(getDayIdx());
+    const todayStr=new Date().toLocaleDateString();
+    const loggedToday=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr));
+    const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
+    const remainingDays=DAY_NAMES.slice(effectiveDayIdx);
+    const dLeftEffective=Math.max(0,7-effectiveDayIdx);
     const pastDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
     const pastRealH=pastDays.reduce((s,d)=>s+(d.totalDayRealH||d.items?.reduce((ss,i)=>ss+(i.realHours||i.hours||0),0)||0),0);
     const existingRemaining=(weekPlan?.days||[]).filter(d=>remainingDays.includes(d.day));
@@ -1015,7 +1026,7 @@ ${contextNote||"Learner requested mid-week adaptation — no specific reason giv
 
 ═══ THIS WEEK: PLAN vs ACTUAL ═══
 ${planVsActual}
-Today: ${getDayName()}. Remaining days: ${remainingDays.join(", ")}.
+Today: ${getDayName()}${loggedToday?" (already logged — not replanning today)":""}. Remaining days: ${remainingDays.join(", ")||"none — week complete"}.
 Logged this week: ${weekH.toFixed(2)}h. Still needed: ${wkRem.toFixed(2)}h real.
 
 ═══ CURRENT FOCUS ═══
