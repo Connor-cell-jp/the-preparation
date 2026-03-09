@@ -1640,7 +1640,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               const dayStr=dayDate.toLocaleDateString();
               const isDayDone=isPast||(isToday&&(day.items||[]).every(it=>{
                 const p=getP(it.id);
-                return p.percentComplete>=100||(p.sessions||[]).some(s=>s.date===todayStr);
+                return p.percentComplete>=100;
               }));
               return <div key={day.day} style={{marginBottom:14,opacity:isDayDone&&!isToday?0.45:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -1659,7 +1659,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   const isDone=p.percentComplete>=100;
                   const loggedOnDay=(p.sessions||[]).filter(s=>s.date===dayStr).reduce((s,x)=>s+(x.studyHours||0),0);
                   const wasLogged=loggedOnDay>0;
-                  const isComplete=isDone||wasLogged;
+                  const isComplete=isDone||(isPast&&wasLogged);
                   return <div key={it.id} style={{background:T.surface0,borderRadius:10,
                     padding:"8px 12px",marginBottom:5,
                     borderLeft:`2px solid ${isComplete?T.green:c}`,
