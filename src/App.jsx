@@ -2,10 +2,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 const WEEKLY_TARGET = 20;
 
+const snap25 = h => Math.round(h * 4) / 4;
 const contentToReal = (item, contentH) => item.type === "course" ? contentH * 2 : contentH;
 const realToContent = (item, realH) => item.type === "course" ? realH / 2 : realH;
 const maxRealPerSession = (item) => item.type === "course" ? 1.5 : 2.0;
-const maxContentPerSession = (item) => realToContent(item, maxRealPerSession(item));
 const realHoursRemaining = (item, p) => {
   const contentLeft = Math.max(0, (item.hours || 0) - (p.courseHoursComplete || 0));
   return contentToReal(item, contentLeft);
@@ -15,6 +15,45 @@ const targetPctAfterSession = (item, p, sessionRealH) => {
   const contentGain = realToContent(item, sessionRealH);
   const newContent = Math.min(contentDone + contentGain, item.hours || 1);
   return Math.floor((newContent / (item.hours || 1)) * 100);
+};
+
+// Distribute totalH across n days as evenly as possible in 0.25h increments
+const distributeDays = (totalH, dayNames) => {
+  const n = dayNames.length;
+  if (n === 0) return [];
+  const base = snap25(totalH / n);
+  const budgets = Array(n).fill(base);
+  // Fix rounding drift by adding remainder to last day
+  const sum = parseFloat(budgets.reduce((s, h) => s + h, 0).toFixed(2));
+  const diff = parseFloat((totalH - sum).toFixed(2));
+  if (Math.abs(diff) >= 0.25) budgets[n - 1] = snap25(budgets[n - 1] + diff);
+  return budgets;
+};
+
+// Scale items within a day to exactly hit dayBudget, then true-up last item
+const scaleDayItems = (items, dayBudget, getCurrItem, getP) => {
+  if (!items.length) return items;
+  const rawSum = parseFloat(items.reduce((s, it) => s + (it.realHours || 0), 0).toFixed(2));
+  const scale = rawSum > 0 ? dayBudget / rawSum : 1;
+  let scaled = items.map(it => {
+    const r = snap25(it.realHours * scale);
+    const ci = getCurrItem(it.id);
+    const ch = ci ? parseFloat(realToContent(ci, r).toFixed(3)) : r;
+    const tgt = ci ? targetPctAfterSession(ci, getP(it.id), r) : it.targetPct;
+    return { ...it, realHours: r, contentHours: ch, targetPct: tgt };
+  });
+  // True-up: adjust last item for any rounding gap
+  const snappedSum = parseFloat(scaled.reduce((s, it) => s + (it.realHours || 0), 0).toFixed(2));
+  const gap = parseFloat((dayBudget - snappedSum).toFixed(2));
+  if (Math.abs(gap) >= 0.05) {
+    const last = scaled[scaled.length - 1];
+    const adj = Math.max(0.25, snap25(last.realHours + gap));
+    const ci = getCurrItem(last.id);
+    const ch = ci ? parseFloat(realToContent(ci, adj).toFixed(3)) : adj;
+    const tgt = ci ? targetPctAfterSession(ci, getP(last.id), adj) : last.targetPct;
+    scaled[scaled.length - 1] = { ...last, realHours: adj, contentHours: ch, targetPct: tgt };
+  }
+  return scaled;
 };
 
 const CURRICULUM = [
@@ -388,9 +427,6 @@ const gc=g=>{
   return "#94a3b8";
 };
 
-// Round to nearest 0.25h, then format as "1h 30m" / "45m" / "2h"
-
-
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d;}catch{return d;}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
 
@@ -403,9 +439,7 @@ function getDayIdx(){const d=new Date().getDay();return d===0?6:d-1;}
 function getDayName(){return DAY_NAMES[getDayIdx()];}
 function getRemainingDays(){return 7-getDayIdx();}
 function getTodayISO(){return new Date().toISOString().split('T')[0];}
-function getWeekISO(){
-  const d=new Date();return d.toISOString().split('T')[0].slice(0,7);
-}
+function getWeekISO(){const d=new Date();return d.toISOString().split('T')[0].slice(0,7);}
 
 const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_LOG="tp_wlog3",SK_PROFILE="tp_profile2";
 const SK_PLAN="tp_plan2",SK_QUEUE="tp_queue1",SK_WEEKLY_HOURS="tp_wkhours1";
@@ -659,6 +693,7 @@ export default function App(){
   useEffect(()=>save("tp_bonus1",bonusItems),[bonusItems]);
   useEffect(()=>save(SK_WEEKLY_HOURS,weeklyHours),[weeklyHours]);
   useEffect(()=>localStorage.setItem(SK_PROFILE,profile),[profile]);
+  useEffect(()=>save(SK_PLAN,weekPlan),[weekPlan]);
 
   useEffect(()=>{
     const last=parseInt(localStorage.getItem("tp_last_export")||"0");
@@ -672,7 +707,6 @@ export default function App(){
     window.addEventListener("online",up);
     window.addEventListener("offline",dn);
     return()=>{window.removeEventListener("online",up);window.removeEventListener("offline",dn);};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   useEffect(()=>{
@@ -697,7 +731,6 @@ export default function App(){
     if(isSunday&&!weeklySummary){
       setTimeout(()=>runSundaySummary(),3000);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   useEffect(()=>{
@@ -713,7 +746,6 @@ export default function App(){
     const yStr=yDate.toLocaleDateString();
     const logged=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===yStr));
     if(!logged) setMissedDayBanner(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   useEffect(()=>{
@@ -867,26 +899,18 @@ export default function App(){
     if(!q.length||!navigator.onLine) return;
     for(const item of q){
       try{
-        if(item.type==="checkin"){
-          await runFullCheckin(false);
-        } else if(item.type==="adapt"){
-          await runAdaptPlan(item.payload?.contextNote||"");
-        }
+        if(item.type==="checkin") await runFullCheckin(false);
+        else if(item.type==="adapt") await runAdaptPlan(item.payload?.contextNote||"");
         dequeue(item.id);
         setOfflineQueue(loadQueue());
         toast_("✓ Queued plan synced");
       }catch(e){break;}
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
+  // ─── FULL CHECKIN ────────────────────────────────────────────────────────────
   const runFullCheckin=async(auto=false)=>{
-    if(!navigator.onLine){
-      enqueue("checkin",{auto});
-      setOfflineQueue(loadQueue());
-      toast_("Offline — check-in queued");
-      return;
-    }
+    if(!navigator.onLine){enqueue("checkin",{auto});setOfflineQueue(loadQueue());toast_("Offline — check-in queued");return;}
     if(!auto) requestNotificationPermission();
     setAiLoading(true);setAiResult(null);
     const mondaySeed=localStorage.getItem("tp_monday_seed")||"";
@@ -898,33 +922,31 @@ export default function App(){
     const effectiveDLeft=remainingDayNames.length;
     const effectiveWkRem=Math.max(0,WEEKLY_TARGET-weekH);
 
-    if(effectiveDLeft===0||effectiveWkRem===0){
-      toast_("Week complete — nothing left to plan");
-      setAiLoading(false);
-      return;
-    }
+    if(effectiveDLeft===0||effectiveWkRem===0){toast_("Week complete — nothing left to plan");setAiLoading(false);return;}
 
-    const prompt=`Learning coach. Plan this learner's week. Respond ONLY with valid JSON — no markdown, no extra text.
+    // Pre-compute day budgets so we can validate the AI response
+    const dayBudgets=distributeDays(effectiveWkRem,remainingDayNames);
+
+    const prompt=`Learning coach. Plan this learner's remaining week. Respond ONLY with valid JSON — no markdown, no extra text.
 
 HOUR RULES (strict):
 - Courses: 1h content = 2h real. Max 1.5h real/session = 0.75h content.
 - Books: 1h content = 1h real. Max 2h real/session.
 - targetPct = floor((contentDone + contentGain) / totalContent × 100)
 
-WEEK BUDGET — CRITICAL:
-- Weekly target: ${WEEKLY_TARGET}h real. Already logged: ${weekH.toFixed(1)}h. Remaining to schedule: ${effectiveWkRem}h.
-- Remaining days: ${remainingDayNames.join(", ")}.
-- You decide how to distribute hours across days — vary by what makes sense (lighter days, heavier days).
+WEEK BUDGET — NON-NEGOTIABLE:
+- Weekly target: ${WEEKLY_TARGET}h real. Already logged: ${weekH.toFixed(2)}h.
+- Remaining to schedule: ${effectiveWkRem.toFixed(2)}h across ${effectiveDLeft} day(s): ${remainingDayNames.join(", ")}.
+- Suggested day budgets (you may vary slightly, but grand total MUST equal ${effectiveWkRem.toFixed(2)}h):
+  ${remainingDayNames.map((d,i)=>`${d}: ${dayBudgets[i]}h`).join(" | ")}
 - Max 4h real per day. Vary genres — never same genre twice in one day.
-- ALL days combined MUST total exactly ${effectiveWkRem}h. This is non-negotiable.
-- totalPlannedHours in your JSON MUST equal ${effectiveWkRem}.
+- totalPlannedHours in your JSON MUST equal ${effectiveWkRem.toFixed(2)}.
 
 PROFILE: ${profile.split('\n').slice(0,6).join(' ')}
 ARC: ${arcPosition} Velocity: ${velocityTrend}. Avg: ${avgH}h/wk.
 ${mondaySeed?"CONTEXT: "+mondaySeed:""}
 WEEK NOTE: "${weekNote||"none"}"
-THIS WEEK: ${weekH.toFixed(1)}h logged. Plan vs actual: ${planVsActual}
-
+THIS WEEK: ${weekH.toFixed(2)}h logged. Plan vs actual: ${planVsActual}
 FOCUS (${focus.manual?"MANUAL — hard constraint":"AI proposed"}): ${focusIds.join(", ")}
 
 ACTIVE ITEMS:
@@ -936,11 +958,13 @@ ${nextCore.split('\n').slice(0,6).join('\n')}
 HISTORY: ${recentHistory.split('\n').slice(0,2).join(' ')}
 
 Respond ONLY as JSON:
-{"assessment":"2 sentences max","insight":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"},"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"short specific instruction"}]}],"totalPlannedHours":${effectiveWkRem}}`;
+{"assessment":"2 sentences max","insight":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"},"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"short specific instruction"}]}],"totalPlannedHours":${effectiveWkRem.toFixed(2)}}`;
 
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:2000,messages:[{role:"user",content:prompt}]})});
+      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:2000,
+          messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       if(d.error) throw new Error(d.error.message||"API error");
       const raw=d.content.map(c=>c.text||"").join("");
@@ -948,35 +972,24 @@ Respond ONLY as JSON:
       if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
 
-      // Validate and patch: snap all hours to 0.25, scale if needed, true up last item
+      // ── Validate & fix each day against its pre-computed budget ──
       const validatedDays=(parsed.days||[]).map((day,i)=>{
-        const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??2;
-        const rawItems=(day.items||[]);
-        const itemSum=parseFloat(rawItems.reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
-        const needsScale=Math.abs(itemSum-budget)>0.05&&itemSum>0;
-        const scale=needsScale?budget/itemSum:1;
-        let snappedItems=rawItems.map(it=>{
-          const scaledReal=snap25(it.realHours*scale);
-          const curItem=CURRICULUM.find(ci=>ci.id===it.id);
-          const scaledContent=curItem?parseFloat(realToContent(curItem,scaledReal).toFixed(3)):scaledReal;
-          const p=getP(it.id);
-          const tgt=curItem?targetPctAfterSession(curItem,p,scaledReal):it.targetPct;
-          return{...it,realHours:scaledReal,contentHours:scaledContent,targetPct:tgt};
-        });
-        // True up: add any rounding gap to the last item
-        const snappedSum=parseFloat(snappedItems.reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
-        const gap=parseFloat((budget-snappedSum).toFixed(2));
-        if(Math.abs(gap)>=0.05&&snappedItems.length>0){
-          const last=snappedItems[snappedItems.length-1];
-          const adj=snap25(last.realHours+gap);
-          const curItem=CURRICULUM.find(ci=>ci.id===last.id);
-          const adjContent=curItem?parseFloat(realToContent(curItem,adj).toFixed(3)):adj;
-          const p=getP(last.id);
-          const tgt=curItem?targetPctAfterSession(curItem,p,adj):last.targetPct;
-          snappedItems[snappedItems.length-1]={...last,realHours:adj,contentHours:adjContent,targetPct:tgt};
-        }
-        return{...day,totalDayRealH:budget,items:snappedItems};
+        const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(effectiveWkRem/effectiveDLeft);
+        const scaled=scaleDayItems(day.items||[],budget,
+          id=>CURRICULUM.find(c=>c.id===id),id=>getP(id));
+        return{...day,totalDayRealH:budget,items:scaled};
       });
+
+      // ── Final grand-total guard: snap any remaining drift ──
+      const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
+      const drift=parseFloat((effectiveWkRem-grandTotal).toFixed(2));
+      if(Math.abs(drift)>=0.05&&validatedDays.length>0){
+        const last=validatedDays[validatedDays.length-1];
+        const newDayH=parseFloat((last.totalDayRealH+drift).toFixed(2));
+        const scaledLast=scaleDayItems(last.items,newDayH,
+          id=>CURRICULUM.find(c=>c.id===id),id=>getP(id));
+        validatedDays[validatedDays.length-1]={...last,totalDayRealH:newDayH,items:scaledLast};
+      }
 
       const keptDays=(weekPlan?.days||[]).filter(d=>DAY_NAMES.indexOf(d.day)<effectiveDayIdx_);
       const plan={
@@ -998,40 +1011,40 @@ Respond ONLY as JSON:
     setAiLoading(false);
   };
 
+  // ─── ADAPT PLAN ──────────────────────────────────────────────────────────────
   const runAdaptPlan=async(contextNote="")=>{
-    if(!navigator.onLine){
-      enqueue("adapt",{contextNote});
-      setOfflineQueue(loadQueue());
-      toast_("Offline — adapt queued");
-      return;
-    }
+    if(!navigator.onLine){enqueue("adapt",{contextNote});setOfflineQueue(loadQueue());toast_("Offline — adapt queued");return;}
     setAdaptLoading(true);
     const{planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
     const todayStr=new Date().toLocaleDateString();
     const loggedToday=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr));
     const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
     const remainingDays=DAY_NAMES.slice(effectiveDayIdx);
-    const dLeftEffective=Math.max(0,7-effectiveDayIdx);
-    // Use week.hoursLogged directly — it's kept accurate by submitLog and is never stale.
+    const dLeftEffective=remainingDays.length;
     const freshWeekH=week.hoursLogged||0;
     const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
 
-        const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
+    if(dLeftEffective===0||freshWkRem===0){toast_("Week complete — nothing to adapt");setAdaptLoading(false);return;}
+
+    // Pre-compute day budgets for validation
+    const dayBudgets=distributeDays(freshWkRem,remainingDays);
+
+    const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
 
 RULES:
 - Courses: 1h content = 2h real. Max 1.5h real/session.
 - Books: 1h content = 1h real. Max 2h real/session.
-- CRITICAL: ALL days combined MUST total exactly ${freshWkRem.toFixed(1)}h real. Weekly target is ${WEEKLY_TARGET}h, ${freshWeekH.toFixed(1)}h already logged.
-- You decide how to distribute across days — vary as needed. Max 4h/day. Vary genres.
-- totalPlannedHours in your JSON MUST equal ${freshWkRem.toFixed(1)}.
+- Grand total of all days MUST equal exactly ${freshWkRem.toFixed(2)}h. Non-negotiable.
+- Suggested day budgets: ${remainingDays.map((d,i)=>`${d}: ${dayBudgets[i]}h`).join(" | ")}
+- Max 4h/day. Vary genres — never same genre twice in one day.
+- totalPlannedHours MUST equal ${freshWkRem.toFixed(2)}.
 
 TRIGGER: ${contextNote||"Manual adapt — infer reason from plan vs actual."}
 ARC: ${arcPosition} Velocity: ${velocityTrend}.
-THIS WEEK: ${freshWeekH.toFixed(1)}h logged. Remaining: ${freshWkRem.toFixed(1)}h across ${dLeftEffective} day(s): ${remainingDays.join(", ")||"none"}.
+THIS WEEK: ${freshWeekH.toFixed(2)}h logged. Remaining: ${freshWkRem.toFixed(2)}h across ${dLeftEffective} day(s): ${remainingDays.join(", ")||"none"}.
 Today: ${getDayName()}${loggedToday?" (logged — skip today)":""}.
 Plan vs actual: ${planVsActual}
 Focus (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(", ")}
-Original reasoning: ${weekPlan?.reasoning?.slice(0,120)||"none"}
 
 ITEMS:
 ${touchedAndFocus||"None."}
@@ -1039,59 +1052,49 @@ ${touchedAndFocus||"None."}
 NEXT CORE:
 ${nextCore.split('\n').slice(0,4).join('\n')}
 
-Respond ONLY as JSON — totalPlannedHours MUST equal ${freshWkRem.toFixed(1)}:
-{"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(1)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+Respond ONLY as JSON:
+{"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(2)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
+      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1500,
+          messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       if(d.error) throw new Error(d.error.message||"API error");
-      const raw=d.content.map(c=>c.text||"").join("");
-      const txt=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
-      const jsonMatch=txt.match(/\{[\s\S]*\}/);
-      if(!jsonMatch) throw new Error("No JSON in response: "+txt.slice(0,200));
+      const raw=d.content.map(c=>c.text||"").join("").replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
+      const jsonMatch=raw.match(/\{[\s\S]*\}/);
+      if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
-      // Validate: scale each day's items to its own totalDayRealH,
-      // then scale all days so grand total == freshWkRem.
-      let adaptValidatedDays=(parsed.days||[]).map(day=>{
-        const dayTarget=parseFloat((day.totalDayRealH||0).toFixed(2));
-        const itemSum=parseFloat((day.items||[]).reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
-        if(Math.abs(itemSum-dayTarget)>0.05&&itemSum>0){
-          const scale=dayTarget/itemSum;
-          return{...day,items:(day.items||[]).map(it=>{
-            const r=parseFloat((it.realHours*scale).toFixed(2));
-            const ci=CURRICULUM.find(c=>c.id===it.id);
-            const ch=ci?parseFloat(realToContent(ci,r).toFixed(3)):r;
-            const tgt=ci?targetPctAfterSession(ci,getP(it.id),r):it.targetPct;
-            return{...it,realHours:r,contentHours:ch,targetPct:tgt};
-          })};
-        }
-        return day;
+
+      // ── Validate each day against its pre-computed budget ──
+      let adaptDays=(parsed.days||[]).map((day,i)=>{
+        const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(freshWkRem/dLeftEffective);
+        const scaled=scaleDayItems(day.items||[],budget,
+          id=>CURRICULUM.find(c=>c.id===id),id=>getP(id));
+        return{...day,totalDayRealH:budget,items:scaled};
       });
-      const adaptGrandSum=parseFloat(adaptValidatedDays.reduce((s,d)=>s+(d.totalDayRealH||d.items?.reduce((ss,i)=>ss+(i.realHours||0),0)||0),0).toFixed(2));
-      if(Math.abs(adaptGrandSum-freshWkRem)>0.05&&adaptGrandSum>0){
-        const scale=freshWkRem/adaptGrandSum;
-        adaptValidatedDays=adaptValidatedDays.map(day=>{
-          const newDayH=parseFloat(((day.totalDayRealH||0)*scale).toFixed(2));
-          return{...day,totalDayRealH:newDayH,items:(day.items||[]).map(it=>{
-            const r=parseFloat((it.realHours*scale).toFixed(2));
-            const ci=CURRICULUM.find(c=>c.id===it.id);
-            const ch=ci?parseFloat(realToContent(ci,r).toFixed(3)):r;
-            const tgt=ci?targetPctAfterSession(ci,getP(it.id),r):it.targetPct;
-            return{...it,realHours:r,contentHours:ch,targetPct:tgt};
-          })};
-        });
+
+      // ── Final grand-total guard ──
+      const grandTotal=parseFloat(adaptDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
+      const drift=parseFloat((freshWkRem-grandTotal).toFixed(2));
+      if(Math.abs(drift)>=0.05&&adaptDays.length>0){
+        const last=adaptDays[adaptDays.length-1];
+        const newDayH=parseFloat((last.totalDayRealH+drift).toFixed(2));
+        const scaledLast=scaleDayItems(last.items,newDayH,
+          id=>CURRICULUM.find(c=>c.id===id),id=>getP(id));
+        adaptDays[adaptDays.length-1]={...last,totalDayRealH:newDayH,items:scaledLast};
       }
+
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
       const newPlan={...weekPlan,
-        days:[...keptDays,...adaptValidatedDays],
-        totalPlannedHours:parseFloat((freshWeekH+freshWkRem).toFixed(2)),
+        days:[...keptDays,...adaptDays],
+        totalPlannedHours:WEEKLY_TARGET,
         lastAdapted:new Date().toISOString()
       };
       setWeekPlan(newPlan);
       if(parsed.focusProposal){
-        setAiResult(r=>({...r,focusProposal:parsed.focusProposal,quickNote:parsed.note}));
+        setAiResult(r=>({...(r||{}),focusProposal:parsed.focusProposal,quickNote:parsed.note}));
       } else {
         toast_(`✓ Plan adapted — ${parsed.note||"remaining days updated"}`);
       }
@@ -1130,30 +1133,26 @@ Respond ONLY as JSON — totalPlannedHours MUST equal ${freshWkRem.toFixed(1)}:
     if(!navigator.onLine){toast_("Offline — can't generate bonus");return;}
     setBonusLoading(true);
     const{touchedAndFocus,nextCore}=buildAIContext();
-    const prompt=`The learner has hit their 20h weekly target. Suggest 1-2 optional bonus sessions for today — purely extra, not obligations.
+    const prompt=`The learner has hit their 20h weekly target. Suggest 1-2 optional bonus sessions for today.
 
-═══ TIME MATH ═══
-- COURSES: 1h content = 2h real. Max 1.5h real per session.
-- BOOKS: 1h content = 1h real. Max 2h real per session.
+COURSES: 1h content = 2h real. Max 1.5h real per session.
+BOOKS: 1h content = 1h real. Max 2h real per session.
 
-═══ CURRENT STATUS ═══
+CURRENT STATUS:
 ${touchedAndFocus||"None."}
 
-═══ NEXT UNTOUCHED CORE ITEMS ═══
+NEXT UNTOUCHED CORE ITEMS:
 ${nextCore}
 
-Pick 1-2 items that would be high-value — either close to finishing or foundational for what comes next. Keep tone light — bonus, not obligation.
+Pick 1-2 high-value items. Keep tone light — bonus, not obligation.
 
 Respond ONLY with valid JSON:
-{
-  "items": [
-    {"id":"A1","realHours":1.5,"contentHours":0.75,"focus":"..."}
-  ],
-  "note": "one sentence framing why these are worth doing"
-}`;
+{"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"focus":"..."}],"note":"one sentence"}`;
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})});
+      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,
+          messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
       const parsed=JSON.parse(txt);
@@ -1178,8 +1177,7 @@ Respond ONLY with valid JSON:
           const d=new Date(s.date),mon=new Date(getMonday());return d>=mon;
         });
         const wH=weekSessions.reduce((s,x)=>s+(x.studyHours||0),0);
-        const momentum=wH>3?"strong":wH>1?"moderate":"light";
-        return `${i.id} "${i.name}": ${wH.toFixed(1)}h this week, now ${p.percentComplete}% [${momentum} momentum]`;
+        return `${i.id} "${i.name}": ${wH.toFixed(1)}h this week, now ${p.percentComplete}%`;
       }).join("\n");
 
     const stalledItems=CURRICULUM
@@ -1187,33 +1185,28 @@ Respond ONLY with valid JSON:
         const p=getP(i.id);
         if(p.percentComplete>=100||p.percentComplete===0) return false;
         const twoWeeksAgo=new Date(Date.now()-14*24*60*60*1000);
-        const recent=(p.sessions||[]).some(s=>new Date(s.date)>=twoWeeksAgo);
-        return !recent;
+        return !(p.sessions||[]).some(s=>new Date(s.date)>=twoWeeksAgo);
       })
       .map(i=>`${i.id} "${i.name}" stalled at ${getP(i.id).percentComplete}%`)
       .join("\n");
 
-    const prompt=`Write a short Sunday review paragraph (3-4 sentences) for a self-directed learner. Be specific and direct — reference actual items, hours, and patterns. No fluff.
+    const prompt=`Write a short Sunday review (3-4 sentences). Be specific — reference actual items, hours, patterns. No fluff.
 
 Weekly hours: ${weekH.toFixed(1)}h / ${WEEKLY_TARGET}h.
 ${arcPosition}
 Velocity: ${velocityTrend}. Rolling avg: ${avgH}h/week.
+Plan vs actual: ${planVsActual}
+Items worked: ${thisWeekItems||"None logged."}
+${stalledItems?`Stalled:\n${stalledItems}`:""}
 
-Plan vs actual this week:
-${planVsActual}
-
-Items worked:
-${thisWeekItems||"None logged."}
-${stalledItems?`\nCurrently stalled (no sessions in 2+ weeks):\n${stalledItems}`:""}
-
-Then on a new line write exactly: ---MONDAY_SEED---
-Then write 3-4 sentences of sharp context for Monday's AI plan — what has momentum, what's stalled and needs a decision (continue or swap), any pacing concerns, and what the next logical curriculum move is. This feeds directly into Monday's check-in prompt.
-
-Respond with just the paragraph, the separator, then the Monday seed. No labels or headers.`;
+Then write exactly: ---MONDAY_SEED---
+Then 3-4 sentences of sharp context for Monday's AI plan. No labels or headers.`;
 
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:500,messages:[{role:"user",content:prompt}]})});
+      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:500,
+          messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       const txt=d.content.map(c=>c.text||"").join("").trim();
       const parts=txt.split("---MONDAY_SEED---");
@@ -1355,8 +1348,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
         padding:"8px 16px",paddingTop:`calc(env(safe-area-inset-top) + 8px)`,
         display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{fontSize:10,color:isOnline?T.yellow:T.red,fontWeight:700,letterSpacing:0.5}}>
-          {isOnline?`✓ Back online — ${offlineQueue.length} queued request${offlineQueue.length!==1?"s":""}`:
-          "Offline — AI features queued, logging works normally"}
+          {isOnline?`✓ Back online — ${offlineQueue.length} queued`:"Offline — AI features queued, logging works"}
         </div>
         {isOnline&&offlineQueue.length>0&&<button onClick={processQueue}
           style={{background:"none",border:`1px solid ${T.yellow}30`,color:T.yellow,
@@ -1366,11 +1358,10 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
       </div>}
 
       {exportReminder&&<div style={{background:"#0f0f1a",borderBottom:`1px solid ${T.blue}25`,
-        padding:"10px 16px",paddingTop:`calc(env(safe-area-inset-top) + 10px)`,
-        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
-          <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>💾 Time to back up your data</div>
-          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>It's been 2+ weeks since your last export</div>
+          <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>💾 Time to back up</div>
+          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>2+ weeks since last export</div>
         </div>
         <div style={{display:"flex",gap:6}}>
           <button onClick={()=>setExportReminder(false)}
@@ -1380,9 +1371,8 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             const data={progress,week,focus,weekLogs,profile,weekPlan,weeklyHours};
             const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
             const url=URL.createObjectURL(blob);
-            const a=document.createElement("a");
-            a.href=url;a.download=`the-preparation-${getTodayISO()}.json`;
-            a.click();URL.revokeObjectURL(url);
+            const a=document.createElement("a");a.href=url;
+            a.download=`the-preparation-${getTodayISO()}.json`;a.click();URL.revokeObjectURL(url);
             localStorage.setItem("tp_last_export",String(Date.now()));
             setExportReminder(false);toast_("✓ Data exported");
           }} style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
@@ -1393,8 +1383,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
       </div>}
 
       {completionBanner.length>0&&<div style={{background:"#0a150a",borderBottom:`1px solid #1a3a1a`,
-        padding:"12px 16px",paddingTop:`calc(env(safe-area-inset-top) + 12px)`,
-        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
             🎯 {completionBanner.length} item{completionBanner.length>1?"s":""} completed
@@ -1416,17 +1405,16 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
       </div>}
 
       {missedDayBanner&&<div style={{background:"#1a1200",borderBottom:`1px solid #3a2a00`,
-        padding:"12px 16px",paddingTop:`calc(env(safe-area-inset-top) + 12px)`,
-        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>⚠ Missed session yesterday</div>
-          <div style={{fontSize:10,color:"#5a4a00",marginTop:2}}>Redistribute those hours across remaining days?</div>
+          <div style={{fontSize:10,color:"#5a4a00",marginTop:2}}>Redistribute those hours?</div>
         </div>
         <div style={{display:"flex",gap:6}}>
           <button onClick={()=>setMissedDayBanner(false)}
             style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
               borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Skip</button>
-          <button onClick={()=>{setMissedDayBanner(false);runAdaptPlan("Missed yesterday — redistribute those hours across remaining days.");}}
+          <button onClick={()=>{setMissedDayBanner(false);runAdaptPlan("Missed yesterday — redistribute hours across remaining days.");}}
             style={{background:T.yellow,border:"none",color:"#000",borderRadius:7,
               padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Adapt →</button>
         </div>
@@ -1737,12 +1725,11 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   const loggedOnDay=(p.sessions||[]).filter(s=>s.date===dayStr).reduce((s,x)=>s+(x.studyHours||0),0);
                   const wasLogged=loggedOnDay>0;
                   const remainingH=Math.max(0,parseFloat((it.realHours-loggedOnDay).toFixed(2)));
-                  const sessionDoneOnDay=wasLogged;
                   const isComplete=isDone||(isPast&&wasLogged)||(isToday&&wasLogged&&remainingH===0);
                   const liveTargetPct=f?targetPctAfterSession(f,p,it.realHours):it.targetPct;
                   return <div key={it.id} style={{background:T.surface0,borderRadius:10,
                     padding:"8px 12px",marginBottom:5,
-                    borderLeft:`2px solid ${isComplete?T.green:sessionDoneOnDay&&!isComplete?T.yellow:c}`,
+                    borderLeft:`2px solid ${isComplete?T.green:wasLogged&&!isComplete?T.yellow:c}`,
                     boxShadow:shadow.card,opacity:isComplete?0.5:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,lineHeight:1.3,
@@ -1754,13 +1741,12 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                           ?<div style={{fontSize:11,color:T.green,fontWeight:700}}>
                             {isDone?"Done":`${loggedOnDay.toFixed(1)}h logged`}
                           </div>
-                          :sessionDoneOnDay
+                          :wasLogged
                             ?<div>
                               <div style={{fontSize:13,fontWeight:800,color:T.yellow,textShadow:shadow.glow(T.yellow)}}>
                                 {remainingH}h
                               </div>
-                              <div style={{fontSize:9,color:T.textDim}}>remaining</div>
-                              <div style={{fontSize:9,color:T.textDim}}>of {it.realHours}h planned</div>
+                              <div style={{fontSize:9,color:T.textDim}}>remaining of {it.realHours}h</div>
                             </div>
                             :<div>
                               <div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
@@ -1777,14 +1763,12 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                       <span style={{color:isComplete?T.green:T.textDim,fontWeight:isComplete?700:400}}>
                         {p.percentComplete}%
                       </span>
-                      {!isComplete&&<span style={{color:sessionDoneOnDay?T.yellow:c,fontWeight:700}}>
-                        → target {liveTargetPct}%{sessionDoneOnDay&&remainingH>0?` · ${remainingH}h to go`:" after session"}
+                      {!isComplete&&<span style={{color:wasLogged?T.yellow:c,fontWeight:700}}>
+                        → target {liveTargetPct}%{wasLogged&&remainingH>0?` · ${remainingH}h to go`:" after session"}
                       </span>}
-                      {isComplete&&<span style={{color:T.green,fontWeight:700}}>✓ Complete</span>}
+                      {isComplete&&<span style={{color:T.green,fontWeight:700}}>✓</span>}
                     </div>
-                    <div style={{marginTop:4}}>
-                      <Bar pct={p.percentComplete} color={isComplete?T.green:sessionDoneOnDay?T.yellow:c} height={2}/>
-                    </div>
+                    <Bar pct={p.percentComplete} color={isComplete?T.green:wasLogged?T.yellow:c} height={2} style={{marginTop:4}}/>
                   </div>;
                 })}
               </div>;
@@ -1792,7 +1776,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             {weekH>=WEEKLY_TARGET&&<div style={{textAlign:"center",padding:"12px 0 4px",
               fontSize:11,color:T.green,fontWeight:700,letterSpacing:0.3,
               textShadow:shadow.glow(T.green)}}>
-              🎯 {weekH.toFixed(1)}h logged — week done. Head to Today for bonus suggestions.
+              🎯 {weekH.toFixed(1)}h — week done.
             </div>}
           </Card>}
 
@@ -1813,7 +1797,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                     {item.name}
                   </div>
                   <div style={{fontSize:9,color:T.textDim,marginTop:2}}>
-                    {item.id} · {(p.courseHoursComplete||0).toFixed(2)}h/{item.hours}h content · {realLeft.toFixed(1)}h real left
+                    {item.id} · {(p.courseHoursComplete||0).toFixed(2)}h/{item.hours}h · {realLeft.toFixed(1)}h real left
                   </div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
@@ -2089,7 +2073,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
           {SECTIONS.map(sec=>(
             <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP} setLogging={setLogging}
               onReset={item=>{
-                if(!window.confirm(`Reset "${item.name}" to 0%? This clears all sessions and hours.`)) return;
+                if(!window.confirm(`Reset "${item.name}" to 0%?`)) return;
                 const sessions=getP(item.id).sessions||[];
                 const mon=new Date(getMonday()),sun=new Date(mon);sun.setDate(mon.getDate()+6);
                 const thisWeekH=sessions.filter(s=>{const d=new Date(s.date);return d>=mon&&d<=sun;})
@@ -2110,9 +2094,8 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                 const data={progress,week,focus,weekLogs,profile,weekPlan,weeklyHours};
                 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
                 const url=URL.createObjectURL(blob);
-                const a=document.createElement("a");
-                a.href=url;a.download=`the-preparation-${getTodayISO()}.json`;
-                a.click();URL.revokeObjectURL(url);
+                const a=document.createElement("a");a.href=url;
+                a.download=`the-preparation-${getTodayISO()}.json`;a.click();URL.revokeObjectURL(url);
                 localStorage.setItem("tp_last_export",String(Date.now()));
                 toast_("✓ Data exported");
               }} style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
@@ -2144,7 +2127,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               </button>
             </div>
             <button onClick={()=>{
-              if(!window.confirm("Clear ALL data? This resets every item, session, plan, and weekly log. Export first if you want a backup.")) return;
+              if(!window.confirm("Clear ALL data? Export first if you want a backup.")) return;
               if(!window.confirm("Are you sure? This cannot be undone.")) return;
               [SK_P,SK_W,SK_F,SK_LOG,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1","tp_monday_seed","tp_last_export"]
                 .forEach(k=>localStorage.removeItem(k));
@@ -2174,7 +2157,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
           <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>Mark Complete?</div>
           <div style={{fontSize:12,color:T.textMid,marginBottom:6}}>{markCompleteConfirm.name}</div>
           <div style={{fontSize:11,color:T.textDim,marginBottom:20,lineHeight:1.5}}>
-            This will log your remaining content hours, mark it 100%, and immediately adapt the plan to pull in the next item.
+            This will log remaining content hours, mark it 100%, and adapt the plan.
           </div>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>setMarkCompleteConfirm(null)}
@@ -2322,7 +2305,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   <input type="number" min="0.1" max={logging.hours} step="0.05"
                     value={logForm.courseHours}
                     onChange={e=>setLogForm(f=>({...f,courseHours:e.target.value,_contentManuallySet:true}))}
-                    onFocus={e=>{
+                    onFocus={()=>{
                       if(!logForm.courseHours&&logForm.hours){
                         setLogForm(f=>({...f,
                           courseHours:parseFloat(realToContent(logging,parseFloat(logForm.hours)).toFixed(3)).toString(),
