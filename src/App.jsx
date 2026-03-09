@@ -806,18 +806,68 @@ export default function App(){
   };
 
   const buildAIContext=()=>{
+    // ── Week history with plan vs actual comparison ───────────────
     const recentHistory=weekLogs.slice(0,4).map((l,i)=>
-      `WEEK ${i+1} AGO (${l.date}): ${(l.hoursLogged||0).toFixed(1)}h real. Note:"${l.note||"none"}". Assessment:"${l.assessment||""}". Focus:${l.focusBefore?.join(", ")||""}.`
+      `WEEK ${i+1} AGO (${l.date}): ${(l.hoursLogged||0).toFixed(1)}h real logged. Note:"${l.note||"none"}". Assessment:"${l.assessment||""}". Focus at time:${l.focusBefore?.join(", ")||"unknown"}.`
     ).join("\n");
+
+    // ── Plan vs actual for THIS week ──────────────────────────────
+    let planVsActual="No plan this week yet.";
+    if(weekPlan?.days){
+      const pastDays=weekPlan.days.filter(d=>DAY_NAMES.indexOf(d.day)<getDayIdx());
+      if(pastDays.length>0){
+        planVsActual=pastDays.map(d=>{
+          const plannedH=d.items?.reduce((s,it)=>s+(it.realHours||0),0)||0;
+          // sum real sessions logged on that day
+          const dayDate=new Date(getMonday());
+          dayDate.setDate(dayDate.getDate()+DAY_NAMES.indexOf(d.day));
+          const dayStr=dayDate.toLocaleDateString();
+          const loggedH=CURRICULUM.reduce((s,i)=>{
+            return s+(getP(i.id).sessions||[])
+              .filter(s=>s.date===dayStr)
+              .reduce((ss,x)=>ss+(x.studyHours||0),0);
+          },0);
+          const status=loggedH===0?"SKIPPED":loggedH>=plannedH*0.85?"HIT":"SHORT";
+          return `${d.day}: planned ${plannedH.toFixed(1)}h, logged ${loggedH.toFixed(1)}h [${status}]`;
+        }).join("\n");
+      }
+    }
+
+    // ── Item momentum: velocity over last 2 weeks ─────────────────
+    const twoWeeksAgo=new Date(Date.now()-14*24*60*60*1000);
     const touchedAndFocus=CURRICULUM
       .filter(i=>getP(i.id).percentComplete>0||focusIds.includes(i.id))
-      .map(i=>buildItemContext(i,getP(i.id))).join("\n");
+      .map(i=>{
+        const p=getP(i.id);
+        const recentSessions=(p.sessions||[]).filter(s=>new Date(s.date)>=twoWeeksAgo);
+        const recentRealH=recentSessions.reduce((s,x)=>s+(x.studyHours||0),0);
+        const momentum=recentRealH>3?"HIGH":recentRealH>0?"LOW":"STALLED";
+        return buildItemContext(i,p)+` | momentum=${momentum} (${recentRealH.toFixed(1)}h in last 2wk)`;
+      }).join("\n");
+
+    // ── Next untouched core items ─────────────────────────────────
     const nextCore=CURRICULUM
       .filter(i=>i.section==="Core"&&getP(i.id).percentComplete===0&&!focusIds.includes(i.id))
       .slice(0,12)
       .map(i=>{const realH=contentToReal(i,i.hours||0);return `${i.id} "${i.name}" (${i.type}, ${i.genre}): ${i.hours}h content = ${realH}h real`;})
       .join("\n");
-    return{recentHistory,touchedAndFocus,nextCore};
+
+    // ── Dynamic arc position ──────────────────────────────────────
+    const totalDoneH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
+    const arcYear=totalDoneH<200?"Year 1 — Foundations":totalDoneH<600?"Year 2 — Applied":totalDoneH<1200?"Year 3 — Specialization":"Year 4 — Integration";
+    const completedGenres=[...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.genre))];
+    const inProgressGenres=[...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).map(i=>i.genre))];
+    const arcPosition=`${arcYear}. ${totalDoneH.toFixed(0)}h real logged total. Completed genres: ${completedGenres.join(", ")||"none"}. Active genres: ${inProgressGenres.join(", ")||"none"}.`;
+
+    // ── Weekly velocity trend ─────────────────────────────────────
+    const recentWeeks=weeklyHours.slice(0,4);
+    const velocityTrend=recentWeeks.length>=2
+      ?recentWeeks[0].realH>recentWeeks[1].realH?"↑ accelerating"
+        :recentWeeks[0].realH<recentWeeks[1].realH?"↓ decelerating":"→ stable"
+      :"insufficient data";
+    const avgH=recentWeeks.length>0?(recentWeeks.reduce((s,w)=>s+(w.realH||0),0)/recentWeeks.length).toFixed(1):"—";
+
+    return{recentHistory,planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH};
   };
 
   // ── Offline queue processor ───────────────────────────────────
@@ -848,60 +898,64 @@ export default function App(){
       return;
     }
     setAiLoading(true);setAiResult(null);
-    const{recentHistory,touchedAndFocus,nextCore}=buildAIContext();
+    const{recentHistory,planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
     const mondaySeed=localStorage.getItem("tp_monday_seed")||"";
 
-    const prompt=`You are a precision learning coach. You MUST follow the time math rules exactly.
+    const prompt=`You are a precision learning coach with full context on this learner's curriculum, history, and current momentum. Think carefully before planning — use all data provided.
 
-═══ TIME MATH RULES ═══
-- COURSES: 1h content = 2h real study. Max 1.5h real per session = 0.75h content progress.
-- BOOKS: 1h content = 1h real study. Max 2h real per session = 2h content progress.
+═══ TIME MATH RULES (non-negotiable) ═══
+- COURSES: 1h content = 2h real study. Max 1.5h real per session = 0.75h content.
+- BOOKS: 1h content = 1h real study. Max 2h real per session = 2h content.
 - Weekly budget: 20 real study hours across 7 days.
-- "realHoursLeft" in the item data = exact real hours still needed to finish that item.
-- NEVER use hoursSpent as a proxy for content progress — they are tracked separately.
-- Session target%: (contentDone + sessionContentGain) / totalContent × 100
+- targetPct = (contentDone + sessionContentGain) / totalContent × 100
+- NEVER confuse hoursSpent with courseHoursComplete.
 
 ═══ LEARNER PROFILE ═══
 ${profile}
 
-═══ PAST WEEKS ═══
-${recentHistory||"No previous check-ins."}
-${mondaySeed?`\n═══ SUNDAY REVIEW CONTEXT (carry forward) ═══\n${mondaySeed}`:""}
+═══ ARC POSITION (dynamic) ═══
+${arcPosition}
+Velocity trend (last 4 weeks): ${velocityTrend}. Rolling avg: ${avgH}h/week.
 
-═══ TODAY ═══
-${getDayName()}, ${new Date().toLocaleDateString()}
-Real hours logged this week so far: ${weekH.toFixed(2)}h / ${WEEKLY_TARGET}h
+═══ WEEK HISTORY ═══
+${recentHistory||"No previous check-ins."}
+${mondaySeed?`\n═══ SUNDAY CONTEXT (carry forward into this plan) ═══\n${mondaySeed}`:""}
+
+═══ THIS WEEK: PLAN vs ACTUAL (days already passed) ═══
+${planVsActual}
+Hours logged so far this week: ${weekH.toFixed(2)}h / ${WEEKLY_TARGET}h
 Remaining budget: ${wkRem.toFixed(2)}h real over ${dLeft} day(s)
-${weekH>=WEEKLY_TARGET?"NOTE: Learner has already hit 20h this week. Acknowledge this and plan for next week if today is Sunday, otherwise skip plan generation and just give assessment/insight.":""}
+${weekH>=WEEKLY_TARGET?"NOTE: Target already hit. Acknowledge this — no new plan needed unless it's Sunday. Give assessment and insight only.":""}
 
 ═══ CURRENT FOCUS ═══
 ${focusIds.join(", ")}
-LEARNER NOTE: "${weekNote||"none"}"
+LEARNER NOTE THIS WEEK: "${weekNote||"none"}"
 
-═══ ACTIVE / IN-PROGRESS ITEMS (with full math) ═══
+═══ ALL ACTIVE / IN-PROGRESS ITEMS ═══
 ${touchedAndFocus||"None yet."}
 
-═══ NEXT UNTOUCHED CORE ITEMS AVAILABLE ═══
+═══ NEXT UNTOUCHED CORE ITEMS ═══
 ${nextCore}
 
 ═══ PLANNING INSTRUCTIONS ═══
-1. Build a 7-day plan (Mon–Sun) totalling exactly ${WEEKLY_TARGET}h real study.
-2. Each day: 2-4 sessions, no single day over 4h real, vary genres.
-3. For each session specify:
-   - realHours: real study hours (course max 1.5, book max 2.0)
-   - contentHours: content progress = realHours÷2 for courses, realHours÷1 for books
-   - targetPct: (contentDone + contentHours) / totalContent × 100 — show this as the goal
-   - focus: specific instruction (e.g. "Continue from 38% — target nervous system section, reach 47%")
-4. Select items from current focus + next logical Core items. Use ALL 20h.
-5. If an item will finish this week, include the final sessions and add its logical successor.
-6. Suggest updated focusProposal reflecting items active in the plan.
+1. Read plan vs actual carefully. If days were skipped, note the pattern. If items are STALLED (no sessions in 2 weeks), flag them and consider swapping.
+2. Build a 7-day Mon–Sun plan totalling exactly ${WEEKLY_TARGET}h real.
+3. Each day: 2–4 sessions, max 4h real/day, vary genres — never same genre twice in one day.
+4. For each session:
+   - realHours (course max 1.5, book max 2.0)
+   - contentHours (realHours÷2 courses, realHours÷1 books)
+   - targetPct: exact % after session
+   - focus: specific instruction referencing current % and what to cover
+5. focusProposal must exactly match items used in the plan — no divergence.
+6. If an item finishes mid-week, add its Core successor in the same week.
+7. assessment should reference plan vs actual and velocity trend — be direct, not generic.
 
 Respond ONLY with valid JSON, no markdown:
 {
   "assessment": "...",
   "insight": "...",
   "nextMilestone": "...",
-  "focusProposal": {"courses": ["A1"], "books": ["B34","B99"], "reasoning": "..."},
+  "focusProposal": {"courses":["A1"],"books":["B34","B99"],"reasoning":"..."},
   "days": [{"day":"Mon","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"..."}]}],
   "totalPlannedHours": 20
 }`;
@@ -933,28 +987,35 @@ Respond ONLY with valid JSON, no markdown:
       return;
     }
     setAdaptLoading(true);
-    const{touchedAndFocus,nextCore}=buildAIContext();
+    const{planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
     const remainingDays=DAY_NAMES.slice(getDayIdx());
     const pastDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
     const pastRealH=pastDays.reduce((s,d)=>s+(d.totalDayRealH||d.items?.reduce((ss,i)=>ss+(i.realHours||i.hours||0),0)||0),0);
     const existingRemaining=(weekPlan?.days||[]).filter(d=>remainingDays.includes(d.day));
 
-    const prompt=`You are a precision learning coach adapting an existing week plan mid-week.
+    const prompt=`You are a precision learning coach doing a mid-week plan adaptation.
 
 ═══ TIME MATH RULES ═══
 - COURSES: 1h content = 2h real. Max 1.5h real per session = 0.75h content.
 - BOOKS: 1h content = 1h real. Max 2h real per session = 2h content.
 - targetPct = (contentDone + sessionContentGain) / totalContent × 100
 
-═══ ADAPTATION CONTEXT ═══
+═══ ARC POSITION ═══
+${arcPosition}
+Velocity: ${velocityTrend}. Rolling avg: ${avgH}h/week.
+
+═══ ADAPTATION TRIGGER ═══
+${contextNote||"Learner requested mid-week adaptation — no specific reason given. Use plan vs actual to infer why."}
+
+═══ THIS WEEK: PLAN vs ACTUAL ═══
+${planVsActual}
 Today: ${getDayName()}. Remaining days: ${remainingDays.join(", ")}.
-Real hours logged this week: ${weekH.toFixed(2)}h. Still needed: ${wkRem.toFixed(2)}h real.
-${contextNote?`Reason for adapt: ${contextNote}`:"Learner requested mid-week adaptation."}
+Logged this week: ${weekH.toFixed(2)}h. Still needed: ${wkRem.toFixed(2)}h real.
 
 ═══ CURRENT FOCUS ═══
 ${focusIds.join(", ")}
 
-═══ CURRENT ITEM STATUS ═══
+═══ ITEM STATUS (with momentum) ═══
 ${touchedAndFocus||"None."}
 
 ═══ NEXT UNTOUCHED CORE ITEMS ═══
@@ -964,17 +1025,17 @@ ${nextCore}
 ${JSON.stringify(existingRemaining,null,1)}
 
 ═══ INSTRUCTIONS ═══
-1. Keep the spirit of the Monday base plan — same items unless one is now complete or clearly stalled.
-2. Swap out any item that hit 100% since Monday. Pull in its logical curriculum successor.
-3. Redistribute ${wkRem.toFixed(2)}h real across: ${remainingDays.join(", ")}.
-4. Use correct time math for every session. Show targetPct for each session.
-5. Total planned hours for remaining days must equal exactly ${wkRem.toFixed(2)}h.
+1. Read plan vs actual and the trigger. If items are STALLED, swap them for their successor.
+2. If days were skipped, don't try to cram — redistribute realistically.
+3. Redistribute exactly ${wkRem.toFixed(2)}h real across: ${remainingDays.join(", ")}.
+4. focusProposal must match items in the adapted plan exactly.
+5. note should be specific: what changed and why, referencing actual data.
 
 Respond ONLY with valid JSON, no markdown:
 {
   "days": [{"day":"${getDayName()}","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"..."}]}],
   "totalPlannedHours": ${wkRem.toFixed(2)},
-  "note": "one sentence on what changed",
+  "note": "specific one sentence on what changed and why",
   "focusProposal": {"courses":["A1"],"books":["B34","B99"],"reasoning":"..."}
 }`;
 
@@ -1066,6 +1127,7 @@ Respond ONLY with valid JSON:
   const runSundaySummary=async()=>{
     if(!navigator.onLine) return;
     setSummaryLoading(true);
+    const{planVsActual,arcPosition,velocityTrend,avgH}=buildAIContext();
     const thisWeekItems=CURRICULUM
       .filter(i=>{
         const sessions=getP(i.id).sessions||[];
@@ -1078,22 +1140,42 @@ Respond ONLY with valid JSON:
           const d=new Date(s.date),mon=new Date(getMonday());return d>=mon;
         });
         const wH=weekSessions.reduce((s,x)=>s+(x.studyHours||0),0);
-        return `${i.id} "${i.name}": ${wH.toFixed(1)}h real this week, now ${p.percentComplete}%`;
+        const momentum=wH>3?"strong":wH>1?"moderate":"light";
+        return `${i.id} "${i.name}": ${wH.toFixed(1)}h this week, now ${p.percentComplete}% [${momentum} momentum]`;
       }).join("\n");
 
-    const prompt=`Write a short Sunday review paragraph (3-4 sentences) for a self-directed learner.
-Be specific about what was accomplished, tone should be grounded and direct — no fluff.
-Weekly hours: ${weekH.toFixed(1)}h / ${WEEKLY_TARGET}h target.
-Items worked this week:\n${thisWeekItems||"None logged."}
+    const stalledItems=CURRICULUM
+      .filter(i=>{
+        const p=getP(i.id);
+        if(p.percentComplete>=100||p.percentComplete===0) return false;
+        const twoWeeksAgo=new Date(Date.now()-14*24*60*60*1000);
+        const recent=(p.sessions||[]).some(s=>new Date(s.date)>=twoWeeksAgo);
+        return !recent;
+      })
+      .map(i=>`${i.id} "${i.name}" stalled at ${getP(i.id).percentComplete}%`)
+      .join("\n");
+
+    const prompt=`Write a short Sunday review paragraph (3-4 sentences) for a self-directed learner. Be specific and direct — reference actual items, hours, and patterns. No fluff.
+
+Weekly hours: ${weekH.toFixed(1)}h / ${WEEKLY_TARGET}h.
+${arcPosition}
+Velocity: ${velocityTrend}. Rolling avg: ${avgH}h/week.
+
+Plan vs actual this week:
+${planVsActual}
+
+Items worked:
+${thisWeekItems||"None logged."}
+${stalledItems?`\nCurrently stalled (no sessions in 2+ weeks):\n${stalledItems}`:""}
 
 Then on a new line write exactly: ---MONDAY_SEED---
-Then write 2-3 sentences of context that should inform Monday's plan — what to prioritize, what momentum to carry forward, any gaps to address. This will be fed directly into Monday's AI check-in.
+Then write 3-4 sentences of sharp context for Monday's AI plan — what has momentum, what's stalled and needs a decision (continue or swap), any pacing concerns, and what the next logical curriculum move is. This feeds directly into Monday's check-in prompt.
 
 Respond with just the paragraph, the separator, then the Monday seed. No labels or headers.`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,messages:[{role:"user",content:prompt}]})});
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:500,messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       const txt=d.content.map(c=>c.text||"").join("").trim();
       const parts=txt.split("---MONDAY_SEED---");
