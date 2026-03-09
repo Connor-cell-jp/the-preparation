@@ -961,6 +961,17 @@ Respond ONLY as JSON:
     const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
     const remainingDays=DAY_NAMES.slice(effectiveDayIdx);
     const dLeftEffective=Math.max(0,7-effectiveDayIdx);
+    const freshWeekH=(()=>{
+      const mon=new Date(getMonday());
+      const sun=new Date(mon);sun.setDate(mon.getDate()+6);
+      return CURRICULUM.reduce((total,item)=>{
+        const sessions=progress[item.id]?.sessions||[];
+        return total+sessions.filter(s=>{
+          const d=new Date(s.date);return d>=mon&&d<=sun;
+        }).reduce((s,x)=>s+(x.studyHours||0),0);
+      },0);
+    })();
+    const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
     const pastDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
     const pastRealH=pastDays.reduce((s,d)=>s+(d.totalDayRealH||d.items?.reduce((ss,i)=>ss+(i.realHours||i.hours||0),0)||0),0);
 
@@ -969,12 +980,12 @@ Respond ONLY as JSON:
 RULES:
 - Courses: 1h content = 2h real. Max 1.5h real/session.
 - Books: 1h content = 1h real. Max 2h real/session.
-- Redistribute exactly ${wkRem.toFixed(1)}h real across: ${remainingDays.join(", ")||"none"}.
+- THIS IS CRITICAL: You MUST schedule exactly ${freshWkRem.toFixed(1)}h real total across: ${remainingDays.join(", ")||"none"}. Weekly target is ${WEEKLY_TARGET}h. Hit it exactly.
 - Max 4h/day. Vary genres.
 
 TRIGGER: ${contextNote||"Manual adapt — infer reason from plan vs actual."}
 ARC: ${arcPosition} Velocity: ${velocityTrend}.
-THIS WEEK: ${weekH.toFixed(1)}h logged. Remaining: ${wkRem.toFixed(1)}h.
+THIS WEEK: ${freshWeekH.toFixed(1)}h logged. Remaining: ${freshWkRem.toFixed(1)}h across ${dLeftEffective} day(s).
 Today: ${getDayName()}${loggedToday?" (logged — skip today)":""}.
 Plan vs actual: ${planVsActual}
 Focus (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(", ")}
@@ -986,8 +997,8 @@ ${touchedAndFocus||"None."}
 NEXT CORE:
 ${nextCore.split('\n').slice(0,4).join('\n')}
 
-Respond ONLY as JSON:
-{"days":[{"day":"Tue","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${wkRem.toFixed(1)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+Respond ONLY as JSON — totalPlannedHours MUST equal ${freshWkRem.toFixed(1)}:
+{"days":[{"day":"Tue","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(1)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -1002,7 +1013,7 @@ Respond ONLY as JSON:
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
       const newPlan={...weekPlan,
         days:[...keptDays,...(parsed.days||[])],
-        totalPlannedHours:parseFloat((pastRealH+(parsed.totalPlannedHours||0)).toFixed(2)),
+        totalPlannedHours:parseFloat((freshWeekH+freshWkRem).toFixed(2)),
         lastAdapted:new Date().toISOString()
       };
       setWeekPlan(newPlan);
@@ -1348,7 +1359,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
         </div>
       </div>}
 
-      {/* Header */}
       <div style={{background:T.surface0,padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
         borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
         boxShadow:"0 4px 24px rgba(0,0,0,0.6)"}}>
@@ -1422,7 +1432,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
 
       <div style={{padding:"16px 14px"}}>
 
-        {/* ── TODAY ── */}
         {view==="today"&&<div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:11,color:T.textDim,letterSpacing:0.3}}>
@@ -1570,7 +1579,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
           </div>}
         </div>}
 
-        {/* ── WEEK ── */}
         {view==="week"&&<div>
           <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
             {planIsFromThisWeek?"This week's plan":"Active focus"} · {weekH.toFixed(1)}h logged
@@ -1634,14 +1642,10 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               const isFuture=dayIdx>todayIdx;
               if(weekH>=WEEKLY_TARGET&&isFuture) return null;
               const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
-              const todayStr=new Date().toLocaleDateString();
               const dayDate=new Date(getMonday()+"T12:00:00");
               dayDate.setDate(dayDate.getDate()+dayIdx);
               const dayStr=dayDate.toLocaleDateString();
-              const isDayDone=isPast||(isToday&&(day.items||[]).every(it=>{
-                const p=getP(it.id);
-                return p.percentComplete>=100;
-              }));
+              const isDayDone=isPast||(isToday&&(day.items||[]).every(it=>getP(it.id).percentComplete>=100));
               return <div key={day.day} style={{marginBottom:14,opacity:isDayDone&&!isToday?0.45:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <div style={{fontSize:11,fontWeight:800,
@@ -1652,7 +1656,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   </div>
                   <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h planned</div>
                 </div>
-                {/* ── WEEK TAB ITEM CARDS (FIXED) ── */}
                 {day.items?.map(it=>{
                   const f=CURRICULUM.find(i=>i.id===it.id);
                   const c=gc(f?.genre);
@@ -1663,9 +1666,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   const remainingH=Math.max(0,parseFloat((it.realHours-loggedOnDay).toFixed(2)));
                   const sessionDoneOnDay=wasLogged;
                   const isComplete=isDone||(isPast&&wasLogged)||(isToday&&wasLogged&&remainingH===0);
-                  // Always compute target % live from content math, same formula as Today tab
                   const liveTargetPct=f?targetPctAfterSession(f,p,it.realHours):it.targetPct;
-
                   return <div key={it.id} style={{background:T.surface0,borderRadius:10,
                     padding:"8px 12px",marginBottom:5,
                     borderLeft:`2px solid ${isComplete?T.green:sessionDoneOnDay&&!isComplete?T.yellow:c}`,
@@ -1763,7 +1764,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
           })}
         </div>}
 
-        {/* ── CHECK-IN ── */}
         {view==="ai"&&<div>
           <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
             Weekly check-in · AI coach with memory
@@ -1911,7 +1911,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
           </div>}
         </div>}
 
-        {/* ── YEAR ARC ── */}
         {view==="arc"&&<div>
           <Card style={{marginBottom:16,padding:16}}>
             <div style={{fontSize:9,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:14}}>
@@ -2095,7 +2094,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
         </div>}
       </div>
 
-      {/* ── MARK COMPLETE CONFIRM ── */}
       {markCompleteConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
         display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}}>
         <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",padding:24,width:"100%",
@@ -2119,7 +2117,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
         </div>
       </div>}
 
-      {/* ── EDIT SESSION MODAL ── */}
       {editSession&&(()=>{
         const{itemId,sessionIdx}=editSession;
         const item=CURRICULUM.find(i=>i.id===itemId);
@@ -2164,7 +2161,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
         </div>;
       })()}
 
-      {/* ── LOG MODAL ── */}
       {logging&&(()=>{
         const p=getP(logging.id);
         const contentDone=p.courseHoursComplete||0;
@@ -2261,16 +2257,14 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                         }));
                       }
                     }}
-                    style={{...inputSt,
-                      border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":T.surface3}`,
-                    }}
+                    style={{...inputSt,border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":T.surface3}`}}
                     placeholder={realH>0?`Standard: ${realToContent(logging,realH).toFixed(3)}h`:"Enter real hours first"}/>
                   {logForm._contentManuallySet&&logForm.courseHours&&logForm.hours&&<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
                     ⚡ Custom ratio — {logForm.hours}h real → {logForm.courseHours}h content
-                    {(() => {
-                      const ch = parseFloat(logForm.courseHours);
-                      const tot = logging.hours || 1;
-                      const newPct = Math.round((Math.min((p.courseHoursComplete||0)+ch, tot)/tot)*100);
+                    {(()=>{
+                      const ch=parseFloat(logForm.courseHours);
+                      const tot=logging.hours||1;
+                      const newPct=Math.round((Math.min((p.courseHoursComplete||0)+ch,tot)/tot)*100);
                       return ` → ${p.percentComplete}% → ${newPct}%`;
                     })()}
                   </div>}
