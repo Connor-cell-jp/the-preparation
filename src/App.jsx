@@ -899,68 +899,37 @@ export default function App(){
     const effectiveDLeft=Math.max(0,7-effectiveDayIdx_);
     const effectiveWkRem=Math.max(0,WEEKLY_TARGET-weekH);
 
-    const prompt=`You are a precision learning coach with full context on this learner's curriculum, history, and current momentum. Think carefully before planning — use all data provided.
+    const prompt=`Learning coach. Plan this learner's week. Respond ONLY with valid JSON — no markdown, no extra text.
 
-═══ TIME MATH RULES (non-negotiable) ═══
-- COURSES: 1h content = 2h real study. Max 1.5h real per session = 0.75h content.
-- BOOKS: 1h content = 1h real study. Max 2h real per session = 2h content.
-- Weekly budget: 20 real study hours across 7 days.
-- targetPct = (contentDone + sessionContentGain) / totalContent × 100
-- NEVER confuse hoursSpent with courseHoursComplete.
+RULES (strict):
+- Courses: 1h content = 2h real. Max 1.5h real/session = 0.75h content.
+- Books: 1h content = 1h real. Max 2h real/session.
+- Week budget: exactly ${effectiveWkRem}h real across ${effectiveDLeft} remaining day(s): ${DAY_NAMES.slice(effectiveDayIdx_).join(", ")}.
+- Max 4h real/day. Vary genres — never same genre twice in one day.
+- targetPct = (contentDone + contentGain) / totalContent × 100
 
-═══ LEARNER PROFILE ═══
-${profile}
+PROFILE: ${profile.split('\n').slice(0,6).join(' ')}
+ARC: ${arcPosition} Velocity: ${velocityTrend}. Avg: ${avgH}h/wk.
+${mondaySeed?"CONTEXT: "+mondaySeed:""}
+WEEK NOTE: "${weekNote||"none"}"
+THIS WEEK: ${weekH.toFixed(1)}h logged. Plan vs actual: ${planVsActual}
 
-═══ ARC POSITION (dynamic) ═══
-${arcPosition}
-Velocity trend (last 4 weeks): ${velocityTrend}. Rolling avg: ${avgH}h/week.
+FOCUS (${focus.manual?"MANUAL — hard constraint":"AI proposed"}): ${focusIds.join(", ")}
 
-═══ WEEK HISTORY ═══
-${recentHistory||"No previous check-ins."}
-${mondaySeed?`\n═══ SUNDAY CONTEXT (carry forward into this plan) ═══\n${mondaySeed}`:""}
+ACTIVE ITEMS:
+${touchedAndFocus||"None."}
 
-═══ THIS WEEK: PLAN vs ACTUAL (days already passed) ═══
-${planVsActual}
-Hours logged so far this week: ${weekH.toFixed(2)}h / ${WEEKLY_TARGET}h
-Remaining budget: ${wkRem.toFixed(2)}h real over ${dLeft} day(s)
-${weekH>=WEEKLY_TARGET?"NOTE: Target already hit. Acknowledge this — no new plan needed unless it's Sunday. Give assessment and insight only.":""}
+NEXT UNTOUCHED CORE:
+${nextCore.split('\n').slice(0,6).join('\n')}
 
-═══ CURRENT FOCUS ═══
-${focusIds.join(", ")} ${focus.manual?"— MANUALLY SET BY LEARNER. Treat as a hard constraint. Do not propose swapping these out unless one hits 100% this week.":"— AI proposed. Can be updated if data supports it."}
-LEARNER NOTE THIS WEEK: "${weekNote||"none"}"
+HISTORY: ${recentHistory.split('\n').slice(0,2).join(' ')}
 
-═══ ALL ACTIVE / IN-PROGRESS ITEMS ═══
-${touchedAndFocus||"None yet."}
-
-═══ NEXT UNTOUCHED CORE ITEMS ═══
-${nextCore}
-
-═══ PLANNING INSTRUCTIONS ═══
-1. Read plan vs actual carefully. If days were skipped, note the pattern. If items are STALLED (no sessions in 2 weeks), flag them and consider swapping.
-2. Build a 7-day Mon–Sun plan totalling exactly ${WEEKLY_TARGET}h real.
-3. Each day: 2–4 sessions, max 4h real/day, vary genres — never same genre twice in one day.
-4. For each session:
-   - realHours (course max 1.5, book max 2.0)
-   - contentHours (realHours÷2 courses, realHours÷1 books)
-   - targetPct: exact % after session
-   - focus: specific instruction referencing current % and what to cover
-5. focusProposal must exactly match items used in the plan — no divergence.
-6. If an item finishes mid-week, add its Core successor in the same week.
-7. assessment should reference plan vs actual and velocity trend — be direct, not generic.
-
-Respond ONLY with valid JSON, no markdown:
-{
-  "assessment": "...",
-  "insight": "...",
-  "nextMilestone": "...",
-  "focusProposal": {"courses":["A1"],"books":["B34","B99"],"reasoning":"..."},
-  "days": [{"day":"Mon","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"..."}]}],
-  "totalPlannedHours": 20
-}`;
+Respond ONLY as JSON:
+{"assessment":"2 sentences max","insight":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"},"days":[{"day":"Mon","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"short specific instruction"}]}],"totalPlannedHours":${effectiveWkRem}}`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:3000,messages:[{role:"user",content:prompt}]})});
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:2000,messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       if(d.error) throw new Error(d.error.message||"API error");
       const raw=d.content.map(c=>c.text||"").join("");
@@ -1001,59 +970,34 @@ Respond ONLY with valid JSON, no markdown:
     const pastRealH=pastDays.reduce((s,d)=>s+(d.totalDayRealH||d.items?.reduce((ss,i)=>ss+(i.realHours||i.hours||0),0)||0),0);
     const existingRemaining=(weekPlan?.days||[]).filter(d=>remainingDays.includes(d.day));
 
-    const prompt=`You are a precision learning coach doing a mid-week plan adaptation.
+    const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
 
-═══ TIME MATH RULES ═══
-- COURSES: 1h content = 2h real. Max 1.5h real per session = 0.75h content.
-- BOOKS: 1h content = 1h real. Max 2h real per session = 2h content.
-- targetPct = (contentDone + sessionContentGain) / totalContent × 100
+RULES:
+- Courses: 1h content = 2h real. Max 1.5h real/session.
+- Books: 1h content = 1h real. Max 2h real/session.
+- Redistribute exactly ${wkRem.toFixed(1)}h real across: ${remainingDays.join(", ")||"none"}.
+- Max 4h/day. Vary genres.
 
-═══ ARC POSITION ═══
-${arcPosition}
-Velocity: ${velocityTrend}. Rolling avg: ${avgH}h/week.
+TRIGGER: ${contextNote||"Manual adapt — infer reason from plan vs actual."}
+ARC: ${arcPosition} Velocity: ${velocityTrend}.
+THIS WEEK: ${weekH.toFixed(1)}h logged. Remaining: ${wkRem.toFixed(1)}h.
+Today: ${getDayName()}${loggedToday?" (logged — skip today)":""}.
+Plan vs actual: ${planVsActual}
+Focus (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(", ")}
+Original reasoning: ${weekPlan?.reasoning?.slice(0,120)||"none"}
 
-═══ ORIGINAL PLAN REASONING (respect this unless data contradicts it) ═══
-${weekPlan?.reasoning||"None recorded."}
-Focus logic: ${weekPlan?.focusReasoning||"None recorded."}
-
-═══ ADAPTATION TRIGGER ═══
-${contextNote||"Learner requested mid-week adaptation — no specific reason given. Use plan vs actual to infer why."}
-
-═══ THIS WEEK: PLAN vs ACTUAL ═══
-${planVsActual}
-Today: ${getDayName()}${loggedToday?" (already logged — not replanning today)":""}. Remaining days: ${remainingDays.join(", ")||"none — week complete"}.
-Logged this week: ${weekH.toFixed(2)}h. Still needed: ${wkRem.toFixed(2)}h real.
-
-═══ CURRENT FOCUS ═══
-${focusIds.join(", ")} ${focus.manual?"— MANUALLY SET. Hard constraint — do not swap unless item hits 100%.":"— AI proposed. Can update if data supports it."}
-
-═══ ITEM STATUS (with momentum) ═══
+ITEMS:
 ${touchedAndFocus||"None."}
 
-═══ NEXT UNTOUCHED CORE ITEMS ═══
-${nextCore}
+NEXT CORE:
+${nextCore.split('\n').slice(0,4).join('\n')}
 
-═══ EXISTING REMAINING PLAN ═══
-${JSON.stringify(existingRemaining,null,1)}
-
-═══ INSTRUCTIONS ═══
-1. Read plan vs actual and the trigger. If items are STALLED, swap them for their successor.
-2. If days were skipped, don't try to cram — redistribute realistically.
-3. Redistribute exactly ${wkRem.toFixed(2)}h real across: ${remainingDays.join(", ")}.
-4. focusProposal must match items in the adapted plan exactly.
-5. note should be specific: what changed and why, referencing actual data.
-
-Respond ONLY with valid JSON, no markdown:
-{
-  "days": [{"day":"${getDayName()}","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"..."}]}],
-  "totalPlannedHours": ${wkRem.toFixed(2)},
-  "note": "specific one sentence on what changed and why",
-  "focusProposal": {"courses":["A1"],"books":["B34","B99"],"reasoning":"..."}
-}`;
+Respond ONLY as JSON:
+{"days":[{"day":"Tue","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${wkRem.toFixed(1)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:2000,messages:[{role:"user",content:prompt}]})});
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       if(d.error) throw new Error(d.error.message||"API error");
       const raw=d.content.map(c=>c.text||"").join("");
