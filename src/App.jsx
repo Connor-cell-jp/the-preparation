@@ -473,9 +473,13 @@ function Bar({pct,color=T.blue,height=4,style={},glow=false}){
 
 // ── Card ──────────────────────────────────────────────────────────
 function Card({children,style={},accent,glow=false,tint=false}){
+  // avoid color-mix — not supported in iOS WebView
+  const tintBg = tint&&accent
+    ? T.surface1  // fallback: just use surface1, tint via borderLeft only
+    : T.surface1;
   return(
     <div style={{
-      background:tint&&accent?`color-mix(in srgb, ${accent} 4%, ${T.surface1})`:T.surface1,
+      background:tintBg,
       borderRadius:16,
       border:`1px solid ${T.border}`,
       borderTop:`1px solid ${T.borderLight}`,
