@@ -616,7 +616,11 @@ export default function App(){
     if(f.primary!==undefined) return{courses:[f.primary,f.secondary].filter(Boolean),books:f.books||[]};
     return f;
   });
-  const [weekPlan,setWeekPlan]=useState(()=>load(SK_PLAN,null));
+  const [weekPlan,setWeekPlan]=useState(()=>{
+    const p=load(SK_PLAN,null);
+    // Discard plan if it's from a previous week
+    return p?.weekStart===getMonday()?p:null;
+  });
   const [weeklyHours,setWeeklyHours]=useState(()=>load(SK_WEEKLY_HOURS,[]));
   const [view,setView]=useState("today");
   const [logging,setLogging]=useState(null);
@@ -669,10 +673,12 @@ export default function App(){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
+  // Clear stale plan on week rollover
   useEffect(()=>{
     const check=()=>{
       const mon=getMonday();
       setWeek(w=>w.weekStart!==mon?{weekStart:mon,hoursLogged:0}:w);
+      setWeekPlan(p=>p?.weekStart!==mon?null:p);
     };
     check();const t=setInterval(check,60000);return()=>clearInterval(t);
   },[]);
@@ -1272,11 +1278,16 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             {completionBanner.map(id=>CURRICULUM.find(i=>i.id===id)?.name||id).join(", ")}
           </div>
         </div>
-        <button onClick={()=>{setView("ai");setCompletionBanner([]);}}
-          style={{background:T.green,border:"none",color:"#000",borderRadius:8,padding:"6px 12px",
-            fontSize:11,fontWeight:800,cursor:"pointer",boxShadow:`0 0 16px ${T.green}40`}}>
-          Check-In →
-        </button>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>setCompletionBanner([])}
+            style={{background:"none",border:`1px solid #1a3a1a`,color:"#2a5a2a",
+              borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>✕</button>
+          <button onClick={()=>{setView("ai");setCompletionBanner([]);}}
+            style={{background:T.green,border:"none",color:"#000",borderRadius:8,padding:"6px 12px",
+              fontSize:11,fontWeight:800,cursor:"pointer",boxShadow:`0 0 16px ${T.green}40`}}>
+            Check-In →
+          </button>
+        </div>
       </div>}
 
       {missedDayBanner&&<div style={{background:"#1a1200",borderBottom:`1px solid #3a2a00`,
@@ -1546,9 +1557,8 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                 <div style={{fontSize:13,fontWeight:900,
                   color:weekH>=WEEKLY_TARGET?T.green:T.textMid,
                   textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none"}}>
-                  {weekPlan.totalPlannedHours}h
+                  {weekH.toFixed(1)}h logged
                 </div>
-                {/* Only show Adapt button if week not yet complete */}
                 {weekH<WEEKLY_TARGET&&<button onClick={()=>runAdaptPlan()} disabled={adaptLoading}
                   style={{background:"none",border:`1px solid ${T.surface3}`,
                     color:adaptLoading?T.textDim:T.blue,borderRadius:7,
@@ -1561,21 +1571,19 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               const isToday=day.day===getDayName();
               const dayIdx=DAY_NAMES.indexOf(day.day);
               const todayIdx=getDayIdx();
-              // Days past target are shown as "bonus" territory if week is complete
-              const isPastToday=dayIdx>todayIdx;
-              const isBonusDay=weekH>=WEEKLY_TARGET&&isPastToday;
+              const isPast=dayIdx<todayIdx;
+              const isFuture=dayIdx>todayIdx;
+              // Once 20h hit, collapse future days entirely — no obligations left
+              if(weekH>=WEEKLY_TARGET&&isFuture) return null;
               const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
-              return <div key={day.day} style={{marginBottom:14,opacity:isBonusDay?0.5:1}}>
+              return <div key={day.day} style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <div style={{fontSize:11,fontWeight:800,
-                      color:isToday?T.blue:T.text,
-                      textShadow:isToday?shadow.glow(T.blue):"none"}}>
-                      {day.day}{isToday?" — Today":""}
-                    </div>
-                    {isBonusDay&&<span style={{fontSize:9,color:T.textDim,fontWeight:500,fontStyle:"italic"}}>bonus</span>}
+                  <div style={{fontSize:11,fontWeight:800,
+                    color:isToday?T.blue:isPast?T.textMid:T.text,
+                    textShadow:isToday?shadow.glow(T.blue):"none"}}>
+                    {day.day}{isToday?" — Today":""}
                   </div>
-                  <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h real</div>
+                  <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h planned</div>
                 </div>
                 {day.items?.map(it=>{
                   const f=CURRICULUM.find(i=>i.id===it.id);
@@ -1612,6 +1620,11 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                 })}
               </div>;
             })}
+            {weekH>=WEEKLY_TARGET&&<div style={{textAlign:"center",padding:"12px 0 4px",
+              fontSize:11,color:T.green,fontWeight:700,letterSpacing:0.3,
+              textShadow:shadow.glow(T.green)}}>
+              🎯 {weekH.toFixed(1)}h logged — week done. Head to Today for bonus suggestions.
+            </div>}
           </Card>}
 
           <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
@@ -1916,6 +1929,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   .reduce((s,x)=>s+(x.studyHours||0),0);
                 setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});
                 if(thisWeekH>0) setWeek(w=>({...w,hoursLogged:Math.max(0,(w.hoursLogged||0)-thisWeekH)}));
+                setCompletionBanner(b=>b.filter(id=>id!==item.id));
               }}
             />
           ))}
