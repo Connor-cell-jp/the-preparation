@@ -389,15 +389,7 @@ const gc=g=>{
 };
 
 // Round to nearest 0.25h, then format as "1h 30m" / "45m" / "2h"
-const snap25=(h)=>Math.round(h*4)/4;
-const fmtH=(h)=>{
-  const s=snap25(h);
-  const hrs=Math.floor(s);
-  const mins=Math.round((s-hrs)*60);
-  if(hrs===0) return `${mins}m`;
-  if(mins===0) return `${hrs}h`;
-  return `${hrs}h ${mins}m`;
-};
+
 
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d;}catch{return d;}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
@@ -912,16 +904,6 @@ export default function App(){
       return;
     }
 
-    // Pre-compute exact per-day budgets so AI has hard targets, not a vague total.
-    const maxPerDay=4;
-    const rawEven=effectiveWkRem/effectiveDLeft;
-    const dayBudgets=remainingDayNames.map(()=>parseFloat(Math.min(rawEven,maxPerDay).toFixed(2)));
-    // Distribute any rounding remainder onto the first day
-    const budgetTotal=parseFloat(dayBudgets.reduce((s,h)=>s+h,0).toFixed(2));
-    const deficit=parseFloat((effectiveWkRem-budgetTotal).toFixed(2));
-    if(deficit>0) dayBudgets[0]=parseFloat((dayBudgets[0]+deficit).toFixed(2));
-    const dayBudgetStr=remainingDayNames.map((d,i)=>`${d}=${dayBudgets[i]}h`).join(", ");
-
     const prompt=`Learning coach. Plan this learner's week. Respond ONLY with valid JSON — no markdown, no extra text.
 
 HOUR RULES (strict):
@@ -929,12 +911,13 @@ HOUR RULES (strict):
 - Books: 1h content = 1h real. Max 2h real/session.
 - targetPct = floor((contentDone + contentGain) / totalContent × 100)
 
-WEEK BUDGET — HIT THESE EXACTLY. NO BUFFER. NO ROUNDING DOWN:
-- Weekly target: ${WEEKLY_TARGET}h real. Already logged: ${weekH.toFixed(1)}h. Remaining: ${effectiveWkRem}h.
-- Remaining days and their EXACT hour targets: ${dayBudgetStr}
-- Each day's items MUST sum to exactly that day's target.
-- totalPlannedHours in your response MUST equal ${effectiveWkRem}.
-- Vary genres — never same genre twice in one day.
+WEEK BUDGET — CRITICAL:
+- Weekly target: ${WEEKLY_TARGET}h real. Already logged: ${weekH.toFixed(1)}h. Remaining to schedule: ${effectiveWkRem}h.
+- Remaining days: ${remainingDayNames.join(", ")}.
+- You decide how to distribute hours across days — vary by what makes sense (lighter days, heavier days).
+- Max 4h real per day. Vary genres — never same genre twice in one day.
+- ALL days combined MUST total exactly ${effectiveWkRem}h. This is non-negotiable.
+- totalPlannedHours in your JSON MUST equal ${effectiveWkRem}.
 
 PROFILE: ${profile.split('\n').slice(0,6).join(' ')}
 ARC: ${arcPosition} Velocity: ${velocityTrend}. Avg: ${avgH}h/wk.
@@ -953,7 +936,7 @@ ${nextCore.split('\n').slice(0,6).join('\n')}
 HISTORY: ${recentHistory.split('\n').slice(0,2).join(' ')}
 
 Respond ONLY as JSON:
-{"assessment":"2 sentences max","insight":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"},"days":[{"day":"Mon","totalDayRealH":${dayBudgets[0]},"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"short specific instruction"}]}],"totalPlannedHours":${effectiveWkRem}}`;
+{"assessment":"2 sentences max","insight":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"},"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"short specific instruction"}]}],"totalPlannedHours":${effectiveWkRem}}`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -1033,27 +1016,22 @@ Respond ONLY as JSON:
     const freshWeekH=week.hoursLogged||0;
     const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
 
-    // Pre-compute exact per-day budgets so AI has hard targets
+          // Pre-compute per-day budgets for adapt prompt
     const maxPerDay=4;
-    const rawEven=freshWkRem/Math.max(dLeftEffective,1);
-    const adaptDayBudgets=remainingDays.map(()=>parseFloat(Math.min(rawEven,maxPerDay).toFixed(2)));
-    const adaptBudgetTotal=parseFloat(adaptDayBudgets.reduce((s,h)=>s+h,0).toFixed(2));
-    const adaptDeficit=parseFloat((freshWkRem-adaptBudgetTotal).toFixed(2));
-    if(adaptDeficit>0&&adaptDayBudgets.length>0) adaptDayBudgets[0]=parseFloat((adaptDayBudgets[0]+adaptDeficit).toFixed(2));
-    const adaptDayBudgetStr=remainingDays.map((d,i)=>`${d}=${adaptDayBudgets[i]}h`).join(", ");
+    const adaptDayBudgetStr=remainingDays.join(", ");
 
     const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
 
 RULES:
 - Courses: 1h content = 2h real. Max 1.5h real/session.
 - Books: 1h content = 1h real. Max 2h real/session.
-- CRITICAL: Schedule EXACTLY ${freshWkRem.toFixed(1)}h real total. Weekly target is ${WEEKLY_TARGET}h, ${freshWeekH.toFixed(1)}h already logged. No buffer. No rounding down.
-- Per-day targets (MUST match exactly): ${adaptDayBudgetStr}
-- Max 4h/day. Vary genres.
+- CRITICAL: ALL days combined MUST total exactly ${freshWkRem.toFixed(1)}h real. Weekly target is ${WEEKLY_TARGET}h, ${freshWeekH.toFixed(1)}h already logged.
+- You decide how to distribute across days — vary as needed. Max 4h/day. Vary genres.
+- totalPlannedHours in your JSON MUST equal ${freshWkRem.toFixed(1)}.
 
 TRIGGER: ${contextNote||"Manual adapt — infer reason from plan vs actual."}
 ARC: ${arcPosition} Velocity: ${velocityTrend}.
-THIS WEEK: ${freshWeekH.toFixed(1)}h logged. Remaining: ${freshWkRem.toFixed(1)}h across ${dLeftEffective} day(s).
+THIS WEEK: ${freshWeekH.toFixed(1)}h logged. Remaining: ${freshWkRem.toFixed(1)}h across ${dLeftEffective} day(s): ${remainingDays.join(", ")||"none"}.
 Today: ${getDayName()}${loggedToday?" (logged — skip today)":""}.
 Plan vs actual: ${planVsActual}
 Focus (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(", ")}
@@ -1066,7 +1044,7 @@ NEXT CORE:
 ${nextCore.split('\n').slice(0,4).join('\n')}
 
 Respond ONLY as JSON — totalPlannedHours MUST equal ${freshWkRem.toFixed(1)}:
-{"days":[{"day":"Tue","totalDayRealH":${adaptDayBudgets[0]||2},"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(1)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+{"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(1)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -1078,34 +1056,37 @@ Respond ONLY as JSON — totalPlannedHours MUST equal ${freshWkRem.toFixed(1)}:
       const jsonMatch=txt.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON in response: "+txt.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
-      // Validate and patch: snap to 0.25, scale if needed, true up last item
-      const adaptValidatedDays=(parsed.days||[]).map((day,i)=>{
-        const budget=adaptDayBudgets[i]??adaptDayBudgets[adaptDayBudgets.length-1]??2;
-        const rawItems=(day.items||[]);
-        const itemSum=parseFloat(rawItems.reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
-        const needsScale=Math.abs(itemSum-budget)>0.05&&itemSum>0;
-        const scale=needsScale?budget/itemSum:1;
-        let snappedItems=rawItems.map(it=>{
-          const scaledReal=snap25(it.realHours*scale);
-          const curItem=CURRICULUM.find(ci=>ci.id===it.id);
-          const scaledContent=curItem?parseFloat(realToContent(curItem,scaledReal).toFixed(3)):scaledReal;
-          const p=getP(it.id);
-          const tgt=curItem?targetPctAfterSession(curItem,p,scaledReal):it.targetPct;
-          return{...it,realHours:scaledReal,contentHours:scaledContent,targetPct:tgt};
-        });
-        const snappedSum=parseFloat(snappedItems.reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
-        const gap=parseFloat((budget-snappedSum).toFixed(2));
-        if(Math.abs(gap)>=0.05&&snappedItems.length>0){
-          const last=snappedItems[snappedItems.length-1];
-          const adj=snap25(last.realHours+gap);
-          const curItem=CURRICULUM.find(ci=>ci.id===last.id);
-          const adjContent=curItem?parseFloat(realToContent(curItem,adj).toFixed(3)):adj;
-          const p=getP(last.id);
-          const tgt=curItem?targetPctAfterSession(curItem,p,adj):last.targetPct;
-          snappedItems[snappedItems.length-1]={...last,realHours:adj,contentHours:adjContent,targetPct:tgt};
+      // Validate: scale each day's items to its own totalDayRealH,
+      // then scale all days so grand total == freshWkRem.
+      let adaptValidatedDays=(parsed.days||[]).map(day=>{
+        const dayTarget=parseFloat((day.totalDayRealH||0).toFixed(2));
+        const itemSum=parseFloat((day.items||[]).reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
+        if(Math.abs(itemSum-dayTarget)>0.05&&itemSum>0){
+          const scale=dayTarget/itemSum;
+          return{...day,items:(day.items||[]).map(it=>{
+            const r=parseFloat((it.realHours*scale).toFixed(2));
+            const ci=CURRICULUM.find(c=>c.id===it.id);
+            const ch=ci?parseFloat(realToContent(ci,r).toFixed(3)):r;
+            const tgt=ci?targetPctAfterSession(ci,getP(it.id),r):it.targetPct;
+            return{...it,realHours:r,contentHours:ch,targetPct:tgt};
+          })};
         }
-        return{...day,totalDayRealH:budget,items:snappedItems};
+        return day;
       });
+      const adaptGrandSum=parseFloat(adaptValidatedDays.reduce((s,d)=>s+(d.totalDayRealH||d.items?.reduce((ss,i)=>ss+(i.realHours||0),0)||0),0).toFixed(2));
+      if(Math.abs(adaptGrandSum-freshWkRem)>0.05&&adaptGrandSum>0){
+        const scale=freshWkRem/adaptGrandSum;
+        adaptValidatedDays=adaptValidatedDays.map(day=>{
+          const newDayH=parseFloat(((day.totalDayRealH||0)*scale).toFixed(2));
+          return{...day,totalDayRealH:newDayH,items:(day.items||[]).map(it=>{
+            const r=parseFloat((it.realHours*scale).toFixed(2));
+            const ci=CURRICULUM.find(c=>c.id===it.id);
+            const ch=ci?parseFloat(realToContent(ci,r).toFixed(3)):r;
+            const tgt=ci?targetPctAfterSession(ci,getP(it.id),r):it.targetPct;
+            return{...it,realHours:r,contentHours:ch,targetPct:tgt};
+          })};
+        });
+      }
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
       const newPlan={...weekPlan,
         days:[...keptDays,...adaptValidatedDays],
@@ -1579,13 +1560,13 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                     :<div>
                       <div style={{fontSize:22,fontWeight:900,color:remainingH<item.allocRealH?T.yellow:T.blue,letterSpacing:-1,
                         textShadow:shadow.glow(remainingH<item.allocRealH?T.yellow:T.blue)}}>
-                        {fmtH(remainingH)}
+                        {remainingH}h
                       </div>
                       <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
                         {sessionDoneToday?"remaining":"real study"}
                       </div>
                       {sessionDoneToday&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
-                        of {fmtH(item.allocRealH)} planned
+                        of {item.allocRealH}h planned
                       </div>}
                       {!sessionDoneToday&&item.type==="course"&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
                         {item.contentGain}h content
@@ -1750,7 +1731,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                     {day.day}{isToday?" — Today":""}
                     {isDayDone&&<span style={{marginLeft:6,fontSize:9,color:T.green,fontWeight:700}}>✓</span>}
                   </div>
-                  <div style={{fontSize:10,color:T.textDim}}>{fmtH(dayRealH)} planned</div>
+                  <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h planned</div>
                 </div>
                 {day.items?.map(it=>{
                   const f=CURRICULUM.find(i=>i.id===it.id);
@@ -1780,14 +1761,14 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                           :sessionDoneOnDay
                             ?<div>
                               <div style={{fontSize:13,fontWeight:800,color:T.yellow,textShadow:shadow.glow(T.yellow)}}>
-                                {fmtH(remainingH)}
+                                {remainingH}h
                               </div>
                               <div style={{fontSize:9,color:T.textDim}}>remaining</div>
-                              <div style={{fontSize:9,color:T.textDim}}>of {fmtH(it.realHours)} planned</div>
+                              <div style={{fontSize:9,color:T.textDim}}>of {it.realHours}h planned</div>
                             </div>
                             :<div>
                               <div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
-                                {fmtH(it.realHours)}
+                                {it.realHours}h
                               </div>
                               {it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
                                 {it.contentHours}h content
