@@ -383,7 +383,7 @@ function getDayIdx(){const d=new Date().getDay();return d===0?6:d-1;}
 function getDayName(){return["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][getDayIdx()];}
 function getRemainingDays(){return 7-getDayIdx();}
 
-const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_LOG="tp_wlog2",SK_PROFILE="tp_profile2";
+const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_LOG="tp_wlog3",SK_PROFILE="tp_profile2";
 const MAX_WEEK_LOGS=12;
 
 const DEFAULT_PROFILE=`LEARNER: Connor, 18, Kamloops BC. Self-directed 4-year curriculum called The Preparation.
@@ -658,6 +658,7 @@ export default function App(){
   const [confirmLog,setConfirmLog]=useState(false);
   const [toast,setToast]=useState(null);
   const [aiLoading,setAiLoading]=useState(false);
+  const [quickLoading,setQuickLoading]=useState(false);
   const [aiResult,setAiResult]=useState(null);
   const [weekNote,setWeekNote]=useState("");
   const [editFocus,setEditFocus]=useState(false);
@@ -856,7 +857,47 @@ Respond ONLY with valid JSON, no markdown:
     setAiLoading(false);
   };
 
-  const focusIds=[...(focus.courses||[]),...(focus.books||[])];
+  const quickFocusUpdate=async()=>{
+    setQuickLoading(true);
+    const activeProgress=CURRICULUM
+      .filter(i=>getP(i.id).percentComplete>0||focusItems.map(f=>f.id).includes(i.id))
+      .map(i=>{const p=getP(i.id);return`${i.id} "${i.name}" (${i.type},${i.section},${i.hours}h,${i.genre}): ${p.percentComplete}% done, ${(p.hoursSpent||0).toFixed(1)}h spent`;})
+      .join("\n");
+    const nextCore=CURRICULUM
+      .filter(i=>i.section==="Core"&&getP(i.id).percentComplete<100)
+      .slice(0,10)
+      .map(i=>`${i.id} "${i.name}" (${i.type},${i.hours}h,${i.genre}): ${getP(i.id).percentComplete}%`)
+      .join("\n");
+    const prompt=`You are a learning coach. The learner needs a quick mid-week focus adjustment.
+
+LEARNER PROFILE:
+${profile}
+
+CURRENT FOCUS: ${[...(focus.courses||[]),...(focus.books||[])].join(", ")}
+HOURS THIS WEEK: ${weekH.toFixed(1)}h of ${WEEKLY_TARGET}h
+DAYS LEFT: ${dLeft}
+
+ACTIVE/TOUCHED ITEMS:
+${activeProgress||"None yet."}
+
+NEXT CORE ITEMS AVAILABLE:
+${nextCore}
+
+Based on current progress, suggest an updated focus list. Be brief — just adjust what needs changing. If something is complete or stalled, swap it out. Keep what's working.
+
+Respond ONLY with valid JSON, no markdown:
+{"focusProposal":{"courses":["A1"],"books":["B99","B34"],"reasoning":"one sentence"},"note":"..."}`;
+
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})});
+      const d=await r.json();
+      const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(txt);
+      setAiResult(r=>({...r,focusProposal:parsed.focusProposal,quickNote:parsed.note}));
+    }catch(e){toast_("Couldn't update — try again");}
+    setQuickLoading(false);
+  };
   const totalItems=CURRICULUM.length;
   const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
   const totalSpentH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
@@ -1219,6 +1260,17 @@ Respond ONLY with valid JSON, no markdown:
                 style={{...inputSt,fontSize:12,resize:"none",height:76,lineHeight:1.5}}/>
             </Card>
 
+            {/* Quick focus update */}
+            <button onClick={quickFocusUpdate} disabled={quickLoading}
+              className="btn-press"
+              style={{width:"100%",background:quickLoading?T.surface1:T.surface2,
+                border:`1px solid ${T.surface3}`,
+                color:quickLoading?T.textDim:T.textMid,borderRadius:10,padding:11,
+                fontSize:13,fontWeight:700,cursor:quickLoading?"default":"pointer",
+                marginBottom:8,letterSpacing:0.3,transition:"all 0.2s"}}>
+              {quickLoading?"Thinking…":"⚡ Quick Focus Update"}
+            </button>
+
             <button onClick={genAI} disabled={aiLoading}
               className="btn-press"
               style={{width:"100%",background:aiLoading?T.surface1:T.surface2,
@@ -1248,6 +1300,13 @@ Respond ONLY with valid JSON, no markdown:
                   </Card>
                 ))}
 
+                {aiResult.quickNote&&(
+                  <Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.blue}20`}}>
+                    <div style={{fontSize:9,color:T.blue,textTransform:"uppercase",
+                      letterSpacing:1.5,marginBottom:7,fontWeight:700}}>Quick Update</div>
+                    <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult.quickNote}</div>
+                  </Card>
+                )}
                 {aiResult.focusProposal&&(
                   <Card style={{padding:"13px 14px",marginBottom:10,
                     border:`1px solid ${T.pink}20`}}>
