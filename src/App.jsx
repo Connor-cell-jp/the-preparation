@@ -1458,33 +1458,42 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             const p=getP(item.id),c=gc(item.genre);
             const isDone=p.percentComplete>=100;
             const todayStr=new Date().toLocaleDateString();
-            const loggedTodayH=((p.sessions||[]).filter(s=>s.date===todayStr)).reduce((s,x)=>s+(x.studyHours||0),0);
+            const loggedTodayH=(p.sessions||[]).filter(s=>s.date===todayStr).reduce((s,x)=>s+(x.studyHours||0),0);
+            const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
             const sessionDoneToday=loggedTodayH>0;
-            return <Card key={item.id} accent={isDone||sessionDoneToday?T.green:c} glow style={{marginBottom:10,padding:16,opacity:sessionDoneToday?0.7:1}}>
+            const isComplete=isDone;// only gray when 100%, not just because logged today
+            return <Card key={item.id} accent={isComplete?T.green:c} glow style={{marginBottom:10,padding:16,opacity:isComplete?0.6:1}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div style={{flex:1,paddingRight:10}}>
                   <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
                     {item.type==="course"?"Course":"Book"}
-                    {sessionDoneToday&&<span style={{marginLeft:8,color:T.green}}>· ✓ Logged today</span>}
+                    {sessionDoneToday&&!isComplete&&<span style={{marginLeft:8,color:T.blue}}>· {loggedTodayH}h logged</span>}
+                    {isComplete&&<span style={{marginLeft:8,color:T.green}}>· ✓ Complete</span>}
                   </div>
                   <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
-                  <div style={{marginTop:7}}><Pill color={sessionDoneToday?T.green:c} label={item.genre||item.id}/></div>
+                  <div style={{marginTop:7}}><Pill color={isComplete?T.green:c} label={item.genre||item.id}/></div>
                   {item.planNote&&<div style={{fontSize:10,color:T.textDim,marginTop:7,lineHeight:1.4,fontStyle:"italic"}}>
                     {item.planNote}
                   </div>}
                 </div>
                 <div style={{textAlign:"right",flexShrink:0}}>
-                  {sessionDoneToday
-                    ?<div style={{fontSize:18,fontWeight:900,color:T.green,letterSpacing:-1,textShadow:shadow.glow(T.green)}}>
-                        {loggedTodayH}h
+                  {isComplete
+                    ?<div style={{fontSize:22,fontWeight:900,color:T.green,letterSpacing:-1,textShadow:shadow.glow(T.green)}}>✓</div>
+                    :<div>
+                      <div style={{fontSize:22,fontWeight:900,color:remainingH<item.allocRealH?T.yellow:T.blue,letterSpacing:-1,
+                        textShadow:shadow.glow(remainingH<item.allocRealH?T.yellow:T.blue)}}>
+                        {remainingH}h
                       </div>
-                    :<div style={{fontSize:22,fontWeight:900,color:T.blue,letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
-                        {item.allocRealH}h
+                      <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+                        {sessionDoneToday?"remaining":"real study"}
+                      </div>
+                      {sessionDoneToday&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
+                        of {item.allocRealH}h planned
                       </div>}
-                  <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{sessionDoneToday?"logged today":"real study"}</div>
-                  {item.type==="course"&&!sessionDoneToday&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
-                    {item.contentGain}h content
-                  </div>}
+                      {!sessionDoneToday&&item.type==="course"&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
+                        {item.contentGain}h content
+                      </div>}
+                    </div>}
                 </div>
               </div>
 
@@ -1494,24 +1503,24 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   <span style={{color:T.textDim}}>{(p.courseHoursComplete||0).toFixed(2)}h / {item.contentTotal}h content</span>
                   <span style={{color:T.textDim}}>{item.contentLeft.toFixed(2)}h left</span>
                 </div>
-                <Bar pct={p.percentComplete} color={sessionDoneToday?T.green:c} height={4} glow/>
+                <Bar pct={p.percentComplete} color={isComplete?T.green:sessionDoneToday?T.yellow:c} height={4} glow/>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5}}>
                   <span style={{color:T.textMid,fontWeight:600}}>Now: {p.percentComplete}%</span>
-                  {!sessionDoneToday&&<span style={{color:c,fontWeight:700,textShadow:`0 0 8px ${c}40`}}>
-                    Target: {item.targetPct}% after session
+                  {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700,textShadow:`0 0 8px ${c}40`}}>
+                    Target: {item.targetPct}%{sessionDoneToday?` · ${remainingH}h to go`:" after session"}
                   </span>}
-                  {sessionDoneToday&&<span style={{color:T.green,fontWeight:700}}>✓ Done for today</span>}
+                  {isComplete&&<span style={{color:T.green,fontWeight:700}}>✓ Done</span>}
                 </div>
               </div>
 
-              {!sessionDoneToday&&<div style={{marginBottom:8}}>
+              {!isComplete&&<div style={{marginBottom:8}}>
                 <button onClick={()=>setLogging(item)}
                   style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
                     color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                  + Log Session
+                  {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
                 </button>
               </div>}
-              {!sessionDoneToday&&<button onClick={()=>setMarkCompleteConfirm(item)}
+              {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)}
                 style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
                   color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,
                   cursor:"pointer",letterSpacing:0.3}}>
