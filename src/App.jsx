@@ -983,7 +983,7 @@ Respond ONLY as JSON:
         weekStart:getMonday(),
         generatedAt:new Date().toISOString(),
         days:[...keptDays,...validatedDays],
-        totalPlannedHours:effectiveWkRem,  // always set from code, not AI echo
+        totalPlannedHours:effectiveWkRem,
         isBaseplan:true,
         reasoning:parsed.insight||"",
         focusReasoning:parsed.focusProposal?.reasoning||""
