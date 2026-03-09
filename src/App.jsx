@@ -994,7 +994,7 @@ Respond ONLY as JSON:
       updateWeeklyHours(weekH);
       localStorage.removeItem("tp_monday_seed");
       if(auto) showPlanReadyNotification();
-    }catch(e){toast_("Couldn't generate — try again");}
+    }catch(e){console.error("Checkin error:",e);toast_("Couldn't generate — try again");}
     setAiLoading(false);
   };
 
