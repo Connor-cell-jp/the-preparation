@@ -630,6 +630,17 @@ function buildItemContext(item, p) {
     + `contentLeft=${contentLeft.toFixed(2)}h | realHoursLeft=${realLeft.toFixed(2)}h | realSpent=${realSpent.toFixed(2)}h`;
 }
 
+const callAI = async (prompt, max_tokens = 1500, model = "claude-haiku-4-5-20251001") => {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, max_tokens, messages: [{ role: "user", content: prompt }] })
+  });
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message || "API error");
+  return d.content.map(c => c.text || "").join("");
+};
+
 const loadQueue=()=>load(SK_QUEUE,[]);
 const saveQueue=q=>save(SK_QUEUE,q);
 const enqueue=(type,payload)=>{
@@ -961,13 +972,7 @@ Respond ONLY as JSON:
 {"assessment":"2 sentences max","insight":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"},"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"short specific instruction"}]}],"totalPlannedHours":${effectiveWkRem.toFixed(2)}}`;
 
     try{
-      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:2000,
-          messages:[{role:"user",content:prompt}]})});
-      const d=await r.json();
-      if(d.error) throw new Error(d.error.message||"API error");
-      const raw=d.content.map(c=>c.text||"").join("");
+      const raw=await callAI(prompt,2000);
       const jsonMatch=raw.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
@@ -1056,13 +1061,8 @@ Respond ONLY as JSON:
 {"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(2)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
-      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:1500,
-          messages:[{role:"user",content:prompt}]})});
-      const d=await r.json();
-      if(d.error) throw new Error(d.error.message||"API error");
-      const raw=d.content.map(c=>c.text||"").join("").replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
+      const raw=await callAI(prompt,1500);
+      const txt=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
       const jsonMatch=raw.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
@@ -1149,12 +1149,8 @@ Pick 1-2 high-value items. Keep tone light — bonus, not obligation.
 Respond ONLY with valid JSON:
 {"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"focus":"..."}],"note":"one sentence"}`;
     try{
-      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,
-          messages:[{role:"user",content:prompt}]})});
-      const d=await r.json();
-      const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
+      const bonusRaw=await callAI(prompt,600);
+      const txt=bonusRaw.replace(/```json|```/g,"").trim();
       const parsed=JSON.parse(txt);
       setBonusItems({items:parsed.items||[],note:parsed.note||"",generatedAt:new Date().toISOString()});
     }catch(e){toast_("Couldn't generate bonus — try again");}
@@ -1203,13 +1199,9 @@ Then write exactly: ---MONDAY_SEED---
 Then 3-4 sentences of sharp context for Monday's AI plan. No labels or headers.`;
 
     try{
-      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:500,
-          messages:[{role:"user",content:prompt}]})});
-      const d=await r.json();
-      const txt=d.content.map(c=>c.text||"").join("").trim();
-      const parts=txt.split("---MONDAY_SEED---");
+      const summaryRaw=await callAI(prompt,500,"claude-sonnet-4-6");
+      const txt=summaryRaw.trim();
+      const parts=summaryRaw.split("---MONDAY_SEED---");
       setWeeklySummary(parts[0].trim());
       if(parts[1]) localStorage.setItem("tp_monday_seed",parts[1].trim());
     }catch(e){}
