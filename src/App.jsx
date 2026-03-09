@@ -852,7 +852,6 @@ Respond ONLY with valid JSON, no markdown:
   };
 
   const focusIds=[...(focus.courses||[]),...(focus.books||[])];
-  const streak=calcStreak({},progress);
   const totalItems=CURRICULUM.length;
   const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
   const totalSpentH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
@@ -923,19 +922,11 @@ Respond ONLY with valid JSON, no markdown:
             </div>
           </div>
           <div style={{textAlign:"right"}}>
-            {streak>0&&(
-              <div style={{fontSize:11,color:T.yellow,fontWeight:700,
-                letterSpacing:0.3,marginBottom:2,fontFamily:T.fontNum,
-                textShadow:shadow.glow(T.yellow)}}>
-                🔥 {streak}d
-              </div>
-            )}
             <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
               fontFamily:T.fontNum,
               color:weekH>=WEEKLY_TARGET?T.green:T.text,
               textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none"}}>
-              {weekH.toFixed(1)}
-              <span style={{fontSize:11,color:T.textDim,fontWeight:400,fontFamily:T.fontUI}}>/{WEEKLY_TARGET}h</span>
+              {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400,fontFamily:T.fontNum}}>/{WEEKLY_TARGET}h</span>
             </div>
             <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
               {getDayName()} · {dLeft}d left
