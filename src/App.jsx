@@ -436,6 +436,8 @@ const T={
   pink:"#f472b6",
   yellow:"#facc15",
   red:"#ef4444",
+  fontUI:"'DM Sans', -apple-system, sans-serif",
+  fontNum:"'DM Mono', monospace",
 };
 
 const shadow={
@@ -470,10 +472,10 @@ function Bar({pct,color=T.blue,height=4,style={},glow=false}){
 }
 
 // ── Card ──────────────────────────────────────────────────────────
-function Card({children,style={},accent,glow=false}){
+function Card({children,style={},accent,glow=false,tint=false}){
   return(
     <div style={{
-      background:T.surface1,
+      background:tint&&accent?`color-mix(in srgb, ${accent} 4%, ${T.surface1})`:T.surface1,
       borderRadius:16,
       border:`1px solid ${T.border}`,
       borderTop:`1px solid ${T.borderLight}`,
@@ -619,6 +621,23 @@ function SectionBlock({sec,focusIds,getP,setLogging}){
       )}
     </div>
   );
+}
+
+// ── Streak helpers ────────────────────────────────────────────────
+const SK_STREAK="tp_streak2";
+function getTodayStr(){return new Date().toLocaleDateString();}
+function calcStreak(streakData,sessions){
+  // Build set of all days with logged sessions
+  const days=new Set();
+  Object.values(sessions).forEach(p=>(p.sessions||[]).forEach(s=>days.add(s.date)));
+  // Count backwards from today
+  let streak=0,d=new Date();
+  while(true){
+    const key=d.toLocaleDateString();
+    if(days.has(key)){streak++;d.setDate(d.getDate()-1);}
+    else break;
+  }
+  return streak;
 }
 
 // ── App ───────────────────────────────────────────────────────────
@@ -833,6 +852,7 @@ Respond ONLY with valid JSON, no markdown:
   };
 
   const focusIds=[...(focus.courses||[]),...(focus.books||[])];
+  const streak=calcStreak({},progress);
   const totalItems=CURRICULUM.length;
   const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
   const totalSpentH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
@@ -852,7 +872,7 @@ Respond ONLY with valid JSON, no markdown:
 
   return(
     <div style={{background:T.bg,minHeight:"100vh",color:T.text,
-      fontFamily:"'Inter',-apple-system,sans-serif",paddingBottom:88}}>
+      fontFamily:T.fontUI,paddingBottom:88}}>
 
       {/* Toast */}
       {toast&&(
@@ -903,11 +923,19 @@ Respond ONLY with valid JSON, no markdown:
             </div>
           </div>
           <div style={{textAlign:"right"}}>
+            {streak>0&&(
+              <div style={{fontSize:11,color:T.yellow,fontWeight:700,
+                letterSpacing:0.3,marginBottom:2,fontFamily:T.fontNum,
+                textShadow:shadow.glow(T.yellow)}}>
+                🔥 {streak}d
+              </div>
+            )}
             <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
+              fontFamily:T.fontNum,
               color:weekH>=WEEKLY_TARGET?T.green:T.text,
               textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none"}}>
               {weekH.toFixed(1)}
-              <span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
+              <span style={{fontSize:11,color:T.textDim,fontWeight:400,fontFamily:T.fontUI}}>/{WEEKLY_TARGET}h</span>
             </div>
             <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
               {getDayName()} · {dLeft}d left
@@ -1004,7 +1032,7 @@ Respond ONLY with valid JSON, no markdown:
             {todaySched().map(item=>{
               const p=getP(item.id),c=gc(item.genre);
               return(
-                <Card key={item.id} accent={c} glow
+                <Card key={item.id} accent={c} glow tint
                   style={{marginBottom:10,padding:16}}>
                   <div style={{display:"flex",justifyContent:"space-between",
                     alignItems:"flex-start",marginBottom:10}}>
@@ -1023,7 +1051,8 @@ Respond ONLY with valid JSON, no markdown:
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
                       <div style={{fontSize:22,fontWeight:900,color:T.blue,
-                        letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
+                        letterSpacing:-1,fontFamily:T.fontNum,
+                        textShadow:shadow.glow(T.blue)}}>
                         {item.allocHrs}h
                       </div>
                       {item.contentMin&&(
@@ -1074,7 +1103,7 @@ Respond ONLY with valid JSON, no markdown:
             {focusItems.filter(i=>getP(i.id).percentComplete<100).map(item=>{
               const p=getP(item.id),sessions=p.sessions||[],c=gc(item.genre);
               return(
-                <Card key={item.id} accent={c} style={{marginBottom:10,padding:"13px 14px"}}>
+                <Card key={item.id} accent={c} tint style={{marginBottom:10,padding:"13px 14px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",
                     alignItems:"center",marginBottom:8}}>
                     <div style={{flex:1,minWidth:0,paddingRight:10}}>
@@ -1194,6 +1223,7 @@ Respond ONLY with valid JSON, no markdown:
             </Card>
 
             <button onClick={genAI} disabled={aiLoading}
+              className="btn-press"
               style={{width:"100%",background:aiLoading?T.surface1:T.surface2,
                 border:`1px solid ${aiLoading?T.surface3:T.blue+"40"}`,
                 color:aiLoading?T.textDim:T.blue,borderRadius:10,padding:13,
@@ -1374,6 +1404,7 @@ Respond ONLY with valid JSON, no markdown:
                     padding:"12px 14px",border:`1px solid ${T.border}`,
                     boxShadow:shadow.card}}>
                     <div style={{fontSize:24,fontWeight:900,color:c,letterSpacing:-1,
+                      fontFamily:T.fontNum,
                       textShadow:c!==T.textDim&&c!==T.textMid?`0 0 12px ${c}40`:"none"}}>
                       {v}
                     </div>
@@ -1393,9 +1424,10 @@ Respond ONLY with valid JSON, no markdown:
                   Study Hours Logged
                 </div>
                 <div style={{fontSize:28,fontWeight:900,color:T.blue,
-                  letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
+                  letterSpacing:-1,fontFamily:T.fontNum,
+                  textShadow:shadow.glow(T.blue)}}>
                   {totalSpentH.toFixed(1)}
-                  <span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
+                  <span style={{fontSize:12,color:T.textDim,fontWeight:400,fontFamily:T.fontUI}}> hrs</span>
                 </div>
               </div>
 
@@ -1438,7 +1470,7 @@ Respond ONLY with valid JSON, no markdown:
           <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
             display:"flex",alignItems:"flex-end",zIndex:100,
             backdropFilter:"blur(4px)"}}>
-            <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
+          <div className="slide-up" style={{background:T.surface1,borderRadius:"18px 18px 0 0",
               padding:24,width:"100%",boxSizing:"border-box",
               borderTop:`3px solid ${T.blue}`,boxShadow:shadow.raised}}>
               <div style={{fontSize:16,fontWeight:800,letterSpacing:-0.3,marginBottom:3}}>
@@ -1502,7 +1534,7 @@ Respond ONLY with valid JSON, no markdown:
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
           display:"flex",alignItems:"flex-end",zIndex:100,
           backdropFilter:"blur(4px)"}}>
-          <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
+          <div className="slide-up" style={{background:T.surface1,borderRadius:"18px 18px 0 0",
             padding:24,width:"100%",boxSizing:"border-box",
             borderTop:`3px solid ${gc(logging.genre)}`,
             boxShadow:shadow.raised}}>
