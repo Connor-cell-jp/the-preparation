@@ -923,10 +923,10 @@ Respond ONLY with valid JSON, no markdown:
           </div>
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
-              fontFamily:T.fontNum,
+              fontFamily:T.fontUI,
               color:weekH>=WEEKLY_TARGET?T.green:T.text,
               textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none"}}>
-              {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400,fontFamily:T.fontNum}}>/{WEEKLY_TARGET}h</span>
+              {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
             </div>
             <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
               {getDayName()} · {dLeft}d left
@@ -1042,8 +1042,7 @@ Respond ONLY with valid JSON, no markdown:
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
                       <div style={{fontSize:22,fontWeight:900,color:T.blue,
-                        letterSpacing:-1,fontFamily:T.fontNum,
-                        textShadow:shadow.glow(T.blue)}}>
+                        letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
                         {item.allocHrs}h
                       </div>
                       {item.contentMin&&(
@@ -1395,7 +1394,6 @@ Respond ONLY with valid JSON, no markdown:
                     padding:"12px 14px",border:`1px solid ${T.border}`,
                     boxShadow:shadow.card}}>
                     <div style={{fontSize:24,fontWeight:900,color:c,letterSpacing:-1,
-                      fontFamily:T.fontNum,
                       textShadow:c!==T.textDim&&c!==T.textMid?`0 0 12px ${c}40`:"none"}}>
                       {v}
                     </div>
@@ -1415,10 +1413,9 @@ Respond ONLY with valid JSON, no markdown:
                   Study Hours Logged
                 </div>
                 <div style={{fontSize:28,fontWeight:900,color:T.blue,
-                  letterSpacing:-1,fontFamily:T.fontNum,
-                  textShadow:shadow.glow(T.blue)}}>
+                  letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
                   {totalSpentH.toFixed(1)}
-                  <span style={{fontSize:12,color:T.textDim,fontWeight:400,fontFamily:T.fontUI}}> hrs</span>
+                  <span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
                 </div>
               </div>
 
