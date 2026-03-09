@@ -764,6 +764,12 @@ export default function App(){
 
   const todayItems=()=>{
     if(weekH>=WEEKLY_TARGET) return [];
+    // If user already logged sessions today, don't show plan cards — they've done their work
+    const todayStr=new Date().toLocaleDateString();
+    const alreadyLoggedToday=Object.values(progress).some(p=>
+      (p.sessions||[]).some(s=>s.date===todayStr)
+    );
+    if(alreadyLoggedToday) return [];
     const todayName=getDayName();
     if(weekPlan&&weekPlan.weekStart===getMonday()&&weekPlan.days){
       const todayPlan=weekPlan.days.find(d=>d.day===todayName);
@@ -962,8 +968,11 @@ Respond ONLY with valid JSON, no markdown:
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:3000,messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
-      const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(txt);
+      if(d.error) throw new Error(d.error.message||"API error");
+      const raw=d.content.map(c=>c.text||"").join("");
+      const jsonMatch=raw.match(/\{[\s\S]*\}/);
+      if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
+      const parsed=JSON.parse(jsonMatch[0]);
       const keptDays=(weekPlan?.days||[]).filter(d=>DAY_NAMES.indexOf(d.day)<effectiveDayIdx_);
       const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
         days:[...keptDays,...(parsed.days||[])],
@@ -1052,8 +1061,13 @@ Respond ONLY with valid JSON, no markdown:
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:2000,messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
-      const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(txt);
+      if(d.error) throw new Error(d.error.message||"API error");
+      const raw=d.content.map(c=>c.text||"").join("");
+      const txt=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
+      // Extract JSON object if wrapped in extra text
+      const jsonMatch=txt.match(/\{[\s\S]*\}/);
+      if(!jsonMatch) throw new Error("No JSON in response: "+txt.slice(0,200));
+      const parsed=JSON.parse(jsonMatch[0]);
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
       const newPlan={...weekPlan,
         days:[...keptDays,...(parsed.days||[])],
@@ -1066,7 +1080,7 @@ Respond ONLY with valid JSON, no markdown:
       } else {
         toast_(`✓ Plan adapted — ${parsed.note||"remaining days updated"}`);
       }
-    }catch(e){toast_("Couldn't adapt — try again");}
+    }catch(e){toast_(`Adapt failed: ${e.message?.slice(0,60)||"unknown error"}`);}
     setAdaptLoading(false);
   };
 
