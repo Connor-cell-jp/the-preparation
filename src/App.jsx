@@ -991,25 +991,29 @@ Respond ONLY with valid JSON, no markdown:
   const markItemComplete=async(item)=>{
     const p=getP(item.id);
     const tot=item.hours||1;
-    const remaining=Math.max(0,tot-(p.courseHoursComplete||0));
-    const realH=contentToReal(item,remaining);
+    // Only log what's genuinely left — don't add hours if already at 100%
+    const contentDone=p.courseHoursComplete||0;
+    const contentRemaining=Math.max(0,tot-contentDone);
     const today=new Date().toLocaleDateString();
-    // Log remaining content as a final session
-    setProgress(prev=>({...prev,[item.id]:{
-      hoursSpent:(prev[item.id]?.hoursSpent||0)+realH,
-      courseHoursComplete:tot,percentComplete:100,
-      sessions:[...(prev[item.id]?.sessions||[]),
-        {date:today,studyHours:parseFloat(realH.toFixed(2)),courseHours:parseFloat(remaining.toFixed(2)),note:"Marked complete"}]
-    }}));
-    const monDate=new Date(getMonday());
-    const sunDate=new Date(monDate);sunDate.setDate(monDate.getDate()+6);
-    const todayDate=new Date();
-    if(todayDate>=monDate&&todayDate<=sunDate){
-      setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+realH}));
+    if(contentRemaining>0){
+      const realH=contentToReal(item,contentRemaining);
+      setProgress(prev=>({...prev,[item.id]:{
+        hoursSpent:(prev[item.id]?.hoursSpent||0)+realH,
+        courseHoursComplete:tot,percentComplete:100,
+        sessions:[...(prev[item.id]?.sessions||[]),
+          {date:today,studyHours:parseFloat(realH.toFixed(2)),courseHours:parseFloat(contentRemaining.toFixed(2)),note:"Marked complete"}]
+      }}));
+      const monDate=new Date(getMonday());
+      const sunDate=new Date(monDate);sunDate.setDate(monDate.getDate()+6);
+      if(new Date()>=monDate&&new Date()<=sunDate){
+        setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+realH}));
+      }
+    } else {
+      // Already at 100% content-wise, just ensure state is consistent
+      setProgress(prev=>({...prev,[item.id]:{...prev[item.id],percentComplete:100}}));
     }
     setMarkCompleteConfirm(null);
     toast_(`✓ ${item.name} marked complete`);
-    // Trigger adapt to pull in successor
     setTimeout(()=>runAdaptPlan(`${item.id} "${item.name}" was just marked complete mid-week. Swap it out and pull in the next logical curriculum item.`),400);
   };
 
@@ -1362,16 +1366,10 @@ Respond with just the paragraph, no labels or headers.`;
                 </div>
               </div>
 
-              {/* Quick log + full log buttons */}
-              <div style={{display:"flex",gap:8,marginBottom:8}}>
-                <button onClick={()=>submitLog(maxR,quickContentH)}
-                  style={{flex:1,background:`${c}15`,border:`1px solid ${c}30`,
-                    color:c,borderRadius:10,padding:"9px 0",fontSize:11,fontWeight:800,cursor:"pointer"}}>
-                  ⚡ Quick {maxR}h
-                </button>
+              <div style={{marginBottom:8}}>
                 <button onClick={()=>setLogging(item)}
-                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                    color:T.blue,borderRadius:10,padding:"9px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                  style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
+                    color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                   + Log Session
                 </button>
               </div>
