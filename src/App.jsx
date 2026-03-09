@@ -420,13 +420,13 @@ PACING:
 
 // ── Design tokens ─────────────────────────────────────────────────
 const T={
-  bg:"#080808",
-  surface0:"#0d0d0d",
-  surface1:"#111111",
-  surface2:"#161616",
-  surface3:"#1c1c1c",
-  border:"rgba(255,255,255,0.06)",
-  borderLight:"rgba(255,255,255,0.10)",
+  bg:"#141414",
+  surface0:"#1a1a1a",
+  surface1:"#202020",
+  surface2:"#272727",
+  surface3:"#2e2e2e",
+  border:"rgba(255,255,255,0.07)",
+  borderLight:"rgba(255,255,255,0.13)",
   text:"#f0f0f0",
   textMid:"#888",
   textDim:"#444",
