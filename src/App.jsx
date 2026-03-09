@@ -1633,12 +1633,22 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               const isFuture=dayIdx>todayIdx;
               if(weekH>=WEEKLY_TARGET&&isFuture) return null;
               const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
-              return <div key={day.day} style={{marginBottom:14}}>
+              // Day is "done" if it's past, OR if it's today and every item has been logged today
+              const todayStr=new Date().toLocaleDateString();
+              const dayDate=new Date(getMonday()+"T12:00:00");
+              dayDate.setDate(dayDate.getDate()+dayIdx);
+              const dayStr=dayDate.toLocaleDateString();
+              const isDayDone=isPast||(isToday&&(day.items||[]).every(it=>{
+                const p=getP(it.id);
+                return p.percentComplete>=100||(p.sessions||[]).some(s=>s.date===todayStr);
+              }));
+              return <div key={day.day} style={{marginBottom:14,opacity:isDayDone&&!isToday?0.45:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <div style={{fontSize:11,fontWeight:800,
                     color:isToday?T.blue:isPast?T.textMid:T.text,
                     textShadow:isToday?shadow.glow(T.blue):"none"}}>
                     {day.day}{isToday?" — Today":""}
+                    {isDayDone&&<span style={{marginLeft:6,fontSize:9,color:T.green,fontWeight:700}}>✓</span>}
                   </div>
                   <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h planned</div>
                 </div>
@@ -1647,41 +1657,38 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   const c=gc(f?.genre);
                   const p=getP(it.id);
                   const isDone=p.percentComplete>=100;
-                  // Check if this item was actually logged on this specific day
-                  const dayDate=new Date(getMonday()+"T12:00:00");
-                  dayDate.setDate(dayDate.getDate()+DAY_NAMES.indexOf(day.day));
-                  const dayStr=dayDate.toLocaleDateString();
                   const loggedOnDay=(p.sessions||[]).filter(s=>s.date===dayStr).reduce((s,x)=>s+(x.studyHours||0),0);
                   const wasLogged=loggedOnDay>0;
+                  const isComplete=isDone||wasLogged;
                   return <div key={it.id} style={{background:T.surface0,borderRadius:10,
                     padding:"8px 12px",marginBottom:5,
-                    borderLeft:`2px solid ${isDone||wasLogged?T.green:c}`,
-                    boxShadow:shadow.card,opacity:isDone||wasLogged?0.6:1}}>
+                    borderLeft:`2px solid ${isComplete?T.green:c}`,
+                    boxShadow:shadow.card,opacity:isComplete?0.5:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,lineHeight:1.3,
-                        color:isDone||wasLogged?T.green:T.text}}>
-                        {(isDone||wasLogged)&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
+                        color:isComplete?T.green:T.text}}>
+                        {isComplete&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
                       </div>
                       <div style={{flexShrink:0,textAlign:"right"}}>
-                        {isDone||wasLogged
+                        {isComplete
                           ?<div style={{fontSize:11,color:T.green,fontWeight:700}}>
-                            {wasLogged&&!isDone?`${loggedOnDay}h logged`:"Done"}
+                            {isDone?"Done":`${loggedOnDay}h logged`}
                           </div>
                           :<div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
                             {it.realHours}h
                           </div>}
-                        {!isDone&&!wasLogged&&it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
+                        {!isComplete&&it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
                           {it.contentHours}h content
                         </div>}
                       </div>
                     </div>
-                    {!isDone&&!wasLogged&&it.focus&&<div style={{fontSize:10,color:T.textDim,marginTop:3,lineHeight:1.4}}>{it.focus}</div>}
-                    <div style={{display:"flex",justifyContent:"space-between",fontSize:9,marginTop:5,color:T.textDim}}>
-                      <span style={{color:isDone||wasLogged?T.green:T.textDim,fontWeight:600}}>{p.percentComplete}%</span>
-                      {!isDone&&!wasLogged&&it.targetPct&&<span style={{color:c,fontWeight:700}}>→ target {it.targetPct}%</span>}
-                      {wasLogged&&!isDone&&<span style={{color:T.green}}>now {p.percentComplete}%</span>}
+                    {!isComplete&&it.focus&&<div style={{fontSize:10,color:T.textDim,marginTop:3,lineHeight:1.4}}>{it.focus}</div>}
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:9,marginTop:5}}>
+                      <span style={{color:isComplete?T.green:T.textDim,fontWeight:isComplete?700:400}}>{p.percentComplete}%</span>
+                      {!isComplete&&it.targetPct&&<span style={{color:c,fontWeight:700}}>→ target {it.targetPct}%</span>}
+                      {wasLogged&&!isDone&&<span style={{color:T.green,fontSize:9}}>logged today</span>}
                     </div>
-                    <div style={{marginTop:4}}><Bar pct={p.percentComplete} color={isDone||wasLogged?T.green:c} height={2}/></div>
+                    <div style={{marginTop:4}}><Bar pct={p.percentComplete} color={isComplete?T.green:c} height={2}/></div>
                   </div>;
                 })}
               </div>;
