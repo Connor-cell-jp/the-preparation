@@ -1062,6 +1062,8 @@ Respond ONLY with valid JSON:
     }catch(e){toast_("Couldn't generate bonus — try again");}
     setBonusLoading(false);
   };
+
+  const runSundaySummary=async()=>{
     if(!navigator.onLine) return;
     setSummaryLoading(true);
     const{touchedAndFocus}=buildAIContext();
