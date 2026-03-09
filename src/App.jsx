@@ -905,7 +905,7 @@ Respond ONLY with valid JSON, no markdown:
       )}
 
       {/* ── Header ── */}
-      <div style={{background:T.surface0,padding:"20px 16px 0",
+            <div style={{background:T.surface0,padding:"20px 16px 0",
         borderBottom:`1px solid ${T.border}`,
         position:"sticky",top:0,zIndex:50,
         boxShadow:"0 4px 24px rgba(0,0,0,0.6)"}}>
