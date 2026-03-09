@@ -1,26 +1,15 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
-const WEEKLY_TARGET = 20; // real study hours
+const WEEKLY_TARGET = 20;
 
-// ── Time math helpers ─────────────────────────────────────────────
-// Courses: 1h content = 2h real study (1:2 ratio)
-// Books:   1h content = 1h real study (1:1 ratio)
-const contentToReal = (item, contentH) =>
-  item.type === "course" ? contentH * 2 : contentH;
-const realToContent = (item, realH) =>
-  item.type === "course" ? realH / 2 : realH;
-// Max real hours per session
+const contentToReal = (item, contentH) => item.type === "course" ? contentH * 2 : contentH;
+const realToContent = (item, realH) => item.type === "course" ? realH / 2 : realH;
 const maxRealPerSession = (item) => item.type === "course" ? 1.5 : 2.0;
-// Max content progress per session
-const maxContentPerSession = (item) =>
-  realToContent(item, maxRealPerSession(item)); // course: 0.75h content, book: 2h
-// Real hours remaining for an item
+const maxContentPerSession = (item) => realToContent(item, maxRealPerSession(item));
 const realHoursRemaining = (item, p) => {
-  const contentDone = p.courseHoursComplete || 0;
-  const contentLeft = Math.max(0, (item.hours || 0) - contentDone);
+  const contentLeft = Math.max(0, (item.hours || 0) - (p.courseHoursComplete || 0));
   return contentToReal(item, contentLeft);
 };
-// Target % after a session of given real hours
 const targetPctAfterSession = (item, p, sessionRealH) => {
   const contentDone = p.courseHoursComplete || 0;
   const contentGain = realToContent(item, sessionRealH);
@@ -411,9 +400,13 @@ function getDayIdx(){const d=new Date().getDay();return d===0?6:d-1;}
 function getDayName(){return DAY_NAMES[getDayIdx()];}
 function getRemainingDays(){return 7-getDayIdx();}
 function getTodayISO(){return new Date().toISOString().split('T')[0];}
+function getWeekISO(offsetWeeks=0){
+  const d=new Date();d.setDate(d.getDate()-offsetWeeks*7);
+  return d.toISOString().split('T')[0].slice(0,7);
+}
 
 const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_LOG="tp_wlog3",SK_PROFILE="tp_profile2";
-const SK_PLAN="tp_plan2";
+const SK_PLAN="tp_plan2",SK_QUEUE="tp_queue1",SK_WEEKLY_HOURS="tp_wkhours1";
 const MAX_WEEK_LOGS=12;
 
 const DEFAULT_PROFILE=`LEARNER: Connor, 18, Kamloops BC. Self-directed 4-year curriculum called The Preparation.
@@ -448,7 +441,7 @@ const T={
   bg:"#141414",surface0:"#1a1a1a",surface1:"#202020",surface2:"#272727",surface3:"#2e2e2e",
   border:"rgba(255,255,255,0.07)",borderLight:"rgba(255,255,255,0.13)",
   text:"#f0f0f0",textMid:"#999",textDim:"#5a5a5a",textFaint:"#3a3a3a",
-  blue:"#60a5fa",green:"#4ade80",pink:"#f472b6",yellow:"#facc15",red:"#ef4444",
+  blue:"#60a5fa",green:"#4ade80",pink:"#f472b6",yellow:"#facc15",red:"#ef4444",orange:"#fb923c",
   fontUI:"'DM Sans', -apple-system, sans-serif",
 };
 const shadow={
@@ -542,6 +535,8 @@ function SectionBlock({sec,focusIds,getP,setLogging}){
         const c=gc(item.genre);
         const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
         const realLeft=contentToReal(item,contentLeft);
+        // projected finish weeks
+        const projWeeks = weeklyAvgH => weeklyAvgH>0 ? (realLeft/weeklyAvgH).toFixed(1) : null;
         return <div key={item.id}
           style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
             borderBottom:`1px solid ${T.surface2}`,borderRadius:inFocus?6:0}}>
@@ -587,7 +582,6 @@ function showPlanReadyNotification(){
   }
 }
 
-// ── Build AI context string (shared by all AI calls) ──────────────
 function buildItemContext(item, p) {
   const contentDone = p.courseHoursComplete || 0;
   const contentLeft = Math.max(0, (item.hours || 0) - contentDone);
@@ -598,7 +592,19 @@ function buildItemContext(item, p) {
     + `contentLeft=${contentLeft.toFixed(2)}h | realHoursLeft=${realLeft.toFixed(2)}h | realSpent=${realSpent.toFixed(2)}h`;
 }
 
-// ── App ───────────────────────────────────────────────────────────
+// ── Offline queue helpers ─────────────────────────────────────────
+const loadQueue=()=>load(SK_QUEUE,[]);
+const saveQueue=q=>save(SK_QUEUE,q);
+const enqueue=(type,payload)=>{
+  const q=loadQueue();
+  q.push({id:Date.now(),type,payload,ts:new Date().toISOString()});
+  saveQueue(q);
+};
+const dequeue=id=>{
+  const q=loadQueue().filter(x=>x.id!==id);
+  saveQueue(q);
+};
+
 export default function App(){
   const [progress,setProgress]=useState(()=>load(SK_P,{}));
   const [week,setWeek]=useState(()=>{
@@ -611,6 +617,8 @@ export default function App(){
     return f;
   });
   const [weekPlan,setWeekPlan]=useState(()=>load(SK_PLAN,null));
+  // 12-week hours log: array of {weekISO, realH}
+  const [weeklyHours,setWeeklyHours]=useState(()=>load(SK_WEEKLY_HOURS,[]));
   const [view,setView]=useState("today");
   const [logging,setLogging]=useState(null);
   const [logForm,setLogForm]=useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString()});
@@ -618,6 +626,7 @@ export default function App(){
   const [toast,setToast]=useState(null);
   const [aiLoading,setAiLoading]=useState(false);
   const [adaptLoading,setAdaptLoading]=useState(false);
+  const [summaryLoading,setSummaryLoading]=useState(false);
   const [aiResult,setAiResult]=useState(null);
   const [weekNote,setWeekNote]=useState("");
   const [editFocus,setEditFocus]=useState(false);
@@ -629,6 +638,10 @@ export default function App(){
   const [editSession,setEditSession]=useState(null);
   const [editSessionForm,setEditSessionForm]=useState({hours:"",courseHours:"",note:""});
   const [missedDayBanner,setMissedDayBanner]=useState(false);
+  const [offlineQueue,setOfflineQueue]=useState(()=>loadQueue());
+  const [isOnline,setIsOnline]=useState(navigator.onLine);
+  const [weeklySummary,setWeeklySummary]=useState(null);
+  const [markCompleteConfirm,setMarkCompleteConfirm]=useState(null);
   const prevProgressRef=useRef({});
 
   useEffect(()=>save(SK_P,progress),[progress]);
@@ -636,7 +649,18 @@ export default function App(){
   useEffect(()=>save(SK_F,focus),[focus]);
   useEffect(()=>save(SK_LOG,weekLogs),[weekLogs]);
   useEffect(()=>save(SK_PLAN,weekPlan),[weekPlan]);
+  useEffect(()=>save(SK_WEEKLY_HOURS,weeklyHours),[weeklyHours]);
   useEffect(()=>localStorage.setItem(SK_PROFILE,profile),[profile]);
+
+  // Online/offline detection
+  useEffect(()=>{
+    const up=()=>{setIsOnline(true);processQueue();};
+    const dn=()=>setIsOnline(false);
+    window.addEventListener("online",up);
+    window.addEventListener("offline",dn);
+    return()=>{window.removeEventListener("online",up);window.removeEventListener("offline",dn);};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
 
   useEffect(()=>{
     const check=()=>{
@@ -646,7 +670,6 @@ export default function App(){
     check();const t=setInterval(check,60000);return()=>clearInterval(t);
   },[]);
 
-  // Auto-generate on Monday ≥7am if no plan yet
   useEffect(()=>{
     requestNotificationPermission();
     if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
@@ -657,10 +680,14 @@ export default function App(){
     if(isMonday&&isAfter7&&!planExistsThisWeek){
       setTimeout(()=>runFullCheckin(true),1500);
     }
+    // Sunday auto-summary
+    const isSunday=now.getDay()===0;
+    if(isSunday&&!weeklySummary){
+      setTimeout(()=>runSundaySummary(),3000);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
-  // Missed day detection
   useEffect(()=>{
     if(!weekPlan?.days) return;
     const todayIdx=getDayIdx();
@@ -695,7 +722,39 @@ export default function App(){
   const focusIds=[...(focus.courses||[]),...(focus.books||[])];
   const focusItems=focusIds.map(id=>CURRICULUM.find(i=>i.id===id)).filter(Boolean);
 
-  // Today's items from plan
+  // ── Personal bests ────────────────────────────────────────────
+  const bestWeek=weeklyHours.reduce((b,w)=>w.realH>b?w.realH:b,0);
+  const currentStreak=(()=>{
+    let streak=0;
+    for(let i=0;i<weeklyHours.length;i++){
+      if(weeklyHours[i].realH>=WEEKLY_TARGET) streak++;
+      else break;
+    }
+    return streak;
+  })();
+  const longestStreak=(()=>{
+    let max=0,cur=0;
+    [...weeklyHours].reverse().forEach(w=>{if(w.realH>=WEEKLY_TARGET){cur++;max=Math.max(max,cur);}else cur=0;});
+    return max;
+  })();
+
+  // ── Genre balance ─────────────────────────────────────────────
+  const genreBalance=(()=>{
+    const map={};
+    CURRICULUM.forEach(i=>{
+      const p=getP(i.id);
+      if(p.hoursSpent>0){
+        map[i.genre]=(map[i.genre]||0)+(p.hoursSpent||0);
+      }
+    });
+    return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  })();
+
+  // ── Projected finish per active item ─────────────────────────
+  const avgWeeklyH=weeklyHours.length>0
+    ?weeklyHours.slice(0,4).reduce((s,w)=>s+(w.realH||0),0)/Math.min(4,weeklyHours.length)
+    :WEEKLY_TARGET/2;
+
   const todayItems=()=>{
     const todayName=getDayName();
     if(weekPlan&&weekPlan.weekStart===getMonday()&&weekPlan.days){
@@ -710,18 +769,13 @@ export default function App(){
           const targetPct=targetPctAfterSession(item,p,realH);
           const contentDone=p.courseHoursComplete||0;
           const contentLeft=Math.max(0,(item.hours||0)-contentDone);
-          return{...item,
-            allocRealH:realH,
-            contentGain:parseFloat(contentGain.toFixed(2)),
-            targetPct,
-            contentDone:parseFloat(contentDone.toFixed(2)),
-            contentTotal:item.hours,
-            contentLeft:parseFloat(contentLeft.toFixed(2)),
-            planNote:it.focus||null};
+          return{...item,allocRealH:realH,
+            contentGain:parseFloat(contentGain.toFixed(2)),targetPct,
+            contentDone:parseFloat(contentDone.toFixed(2)),contentTotal:item.hours,
+            contentLeft:parseFloat(contentLeft.toFixed(2)),planNote:it.focus||null};
         }).filter(Boolean);
       }
     }
-    // Fallback
     if(weekH>=WEEKLY_TARGET) return[];
     let rem=Math.max(wkRem/Math.max(dLeft,1),1.5);
     return focusItems.filter(i=>getP(i.id).percentComplete<100).reduce((acc,item)=>{
@@ -743,32 +797,47 @@ export default function App(){
     },[]);
   };
 
-  // Build full progress context for AI
   const buildAIContext=()=>{
     const recentHistory=weekLogs.slice(0,4).map((l,i)=>
       `WEEK ${i+1} AGO (${l.date}): ${(l.hoursLogged||0).toFixed(1)}h real. Note:"${l.note||"none"}". Assessment:"${l.assessment||""}". Focus:${l.focusBefore?.join(", ")||""}.`
     ).join("\n");
-
-    // All touched + focus items with full math context
     const touchedAndFocus=CURRICULUM
       .filter(i=>getP(i.id).percentComplete>0||focusIds.includes(i.id))
-      .map(i=>buildItemContext(i,getP(i.id)))
-      .join("\n");
-
-    // Next untouched Core items (for planning new additions)
+      .map(i=>buildItemContext(i,getP(i.id))).join("\n");
     const nextCore=CURRICULUM
       .filter(i=>i.section==="Core"&&getP(i.id).percentComplete===0&&!focusIds.includes(i.id))
       .slice(0,12)
-      .map(i=>{
-        const realH=contentToReal(i,i.hours||0);
-        return `${i.id} "${i.name}" (${i.type}, ${i.genre}): ${i.hours}h content = ${realH}h real`;
-      })
+      .map(i=>{const realH=contentToReal(i,i.hours||0);return `${i.id} "${i.name}" (${i.type}, ${i.genre}): ${i.hours}h content = ${realH}h real`;})
       .join("\n");
-
     return{recentHistory,touchedAndFocus,nextCore};
   };
 
+  // ── Offline queue processor ───────────────────────────────────
+  const processQueue=useCallback(async()=>{
+    const q=loadQueue();
+    if(!q.length||!navigator.onLine) return;
+    for(const item of q){
+      try{
+        if(item.type==="checkin"){
+          await _runCheckin(item.payload.auto,item.payload.prompt,item.payload.weekH,item.payload.wkRem,item.payload.dLeft);
+        } else if(item.type==="adapt"){
+          await _runAdapt(item.payload.contextNote,item.payload.prompt);
+        }
+        dequeue(item.id);
+        setOfflineQueue(loadQueue());
+        toast_("✓ Queued plan synced");
+      }catch(e){break;}
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
   const runFullCheckin=async(auto=false)=>{
+    if(!navigator.onLine){
+      enqueue("checkin",{auto,note:"Queued — will run when online"});
+      setOfflineQueue(loadQueue());
+      toast_("Offline — check-in queued");
+      return;
+    }
     setAiLoading(true);setAiResult(null);
     const{recentHistory,touchedAndFocus,nextCore}=buildAIContext();
 
@@ -821,21 +890,7 @@ Respond ONLY with valid JSON, no markdown:
   "insight": "...",
   "nextMilestone": "...",
   "focusProposal": {"courses": ["A1"], "books": ["B34","B99"], "reasoning": "..."},
-  "days": [
-    {
-      "day": "Mon",
-      "totalDayRealH": 2.5,
-      "items": [
-        {
-          "id": "A1",
-          "realHours": 1.5,
-          "contentHours": 0.75,
-          "targetPct": 44,
-          "focus": "Continue from 38% — nervous system basics, reach ~44%"
-        }
-      ]
-    }
-  ],
+  "days": [{"day":"Mon","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"..."}]}],
   "totalPlannedHours": 20
 }`;
 
@@ -850,12 +905,20 @@ Respond ONLY with valid JSON, no markdown:
       setWeekPlan(plan);
       setAiResult(parsed);
       saveWeekLog(parsed);
+      // Record weekly hours
+      updateWeeklyHours(weekH);
       if(auto) showPlanReadyNotification();
     }catch(e){toast_("Couldn't generate — try again");}
     setAiLoading(false);
   };
 
   const runAdaptPlan=async(contextNote="")=>{
+    if(!navigator.onLine){
+      enqueue("adapt",{contextNote,note:"Queued — will run when online"});
+      setOfflineQueue(loadQueue());
+      toast_("Offline — adapt queued");
+      return;
+    }
     setAdaptLoading(true);
     const{touchedAndFocus,nextCore}=buildAIContext();
     const remainingDays=DAY_NAMES.slice(getDayIdx());
@@ -884,7 +947,7 @@ ${touchedAndFocus||"None."}
 ═══ NEXT UNTOUCHED CORE ITEMS ═══
 ${nextCore}
 
-═══ EXISTING REMAINING PLAN (days not yet passed) ═══
+═══ EXISTING REMAINING PLAN ═══
 ${JSON.stringify(existingRemaining,null,1)}
 
 ═══ INSTRUCTIONS ═══
@@ -908,10 +971,8 @@ Respond ONLY with valid JSON, no markdown:
       const d=await r.json();
       const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
       const parsed=JSON.parse(txt);
-      // Merge: keep past days intact, replace remaining days with adapted plan
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
-      const newPlan={
-        ...weekPlan,
+      const newPlan={...weekPlan,
         days:[...keptDays,...(parsed.days||[])],
         totalPlannedHours:parseFloat((pastRealH+(parsed.totalPlannedHours||0)).toFixed(2)),
         lastAdapted:new Date().toISOString()
@@ -926,32 +987,104 @@ Respond ONLY with valid JSON, no markdown:
     setAdaptLoading(false);
   };
 
+  // ── Mark item complete mid-session ───────────────────────────
+  const markItemComplete=async(item)=>{
+    const p=getP(item.id);
+    const tot=item.hours||1;
+    const remaining=Math.max(0,tot-(p.courseHoursComplete||0));
+    const realH=contentToReal(item,remaining);
+    const today=new Date().toLocaleDateString();
+    // Log remaining content as a final session
+    setProgress(prev=>({...prev,[item.id]:{
+      hoursSpent:(prev[item.id]?.hoursSpent||0)+realH,
+      courseHoursComplete:tot,percentComplete:100,
+      sessions:[...(prev[item.id]?.sessions||[]),
+        {date:today,studyHours:parseFloat(realH.toFixed(2)),courseHours:parseFloat(remaining.toFixed(2)),note:"Marked complete"}]
+    }}));
+    const monDate=new Date(getMonday());
+    const sunDate=new Date(monDate);sunDate.setDate(monDate.getDate()+6);
+    const todayDate=new Date();
+    if(todayDate>=monDate&&todayDate<=sunDate){
+      setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+realH}));
+    }
+    setMarkCompleteConfirm(null);
+    toast_(`✓ ${item.name} marked complete`);
+    // Trigger adapt to pull in successor
+    setTimeout(()=>runAdaptPlan(`${item.id} "${item.name}" was just marked complete mid-week. Swap it out and pull in the next logical curriculum item.`),400);
+  };
+
+  const runSundaySummary=async()=>{
+    if(!navigator.onLine) return;
+    setSummaryLoading(true);
+    const{touchedAndFocus}=buildAIContext();
+    const thisWeekItems=CURRICULUM
+      .filter(i=>{
+        const sessions=getP(i.id).sessions||[];
+        const mon=new Date(getMonday());
+        return sessions.some(s=>{const d=new Date(s.date);return d>=mon;});
+      })
+      .map(i=>{
+        const p=getP(i.id);
+        const weekSessions=(p.sessions||[]).filter(s=>{
+          const d=new Date(s.date),mon=new Date(getMonday());return d>=mon;
+        });
+        const wH=weekSessions.reduce((s,x)=>s+(x.studyHours||0),0);
+        return `${i.id} "${i.name}": ${wH.toFixed(1)}h real this week, now ${p.percentComplete}%`;
+      }).join("\n");
+
+    const prompt=`Write a short Sunday review paragraph (3-4 sentences) for a self-directed learner.
+Be specific about what was accomplished, tone should be grounded and direct — no fluff.
+Weekly hours: ${weekH.toFixed(1)}h / ${WEEKLY_TARGET}h target.
+Items worked this week:\n${thisWeekItems||"None logged."}
+Respond with just the paragraph, no labels or headers.`;
+
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:300,messages:[{role:"user",content:prompt}]})});
+      const d=await r.json();
+      const txt=d.content.map(c=>c.text||"").join("").trim();
+      setWeeklySummary(txt);
+    }catch(e){}
+    setSummaryLoading(false);
+  };
+
+  const updateWeeklyHours=(h)=>{
+    const iso=getWeekISO(0);
+    setWeeklyHours(prev=>{
+      const filtered=prev.filter(w=>w.weekISO!==iso);
+      return [{weekISO:iso,realH:h},...filtered].slice(0,12);
+    });
+  };
+
   const saveWeekLog=result=>{
     const entry={weekStart:week.weekStart,date:new Date().toLocaleDateString(),
       note:weekNote,hoursLogged:weekH,assessment:result.assessment||"",
       insight:result.insight||"",nextMilestone:result.nextMilestone||"",
       focusBefore:[...(focus.courses||[]),...(focus.books||[])]};
     setWeekLogs(logs=>[entry,...logs.filter(l=>l.weekStart!==week.weekStart)].slice(0,MAX_WEEK_LOGS));
+    updateWeeklyHours(weekH);
   };
 
-  const submitLog=()=>{
-    if(!logForm.hours) return;
-    if(!confirmLog){setConfirmLog(true);return;}
-    const realH=parseFloat(logForm.hours);
-    const contentH=logForm.courseHours?parseFloat(logForm.courseHours):realToContent(logging,realH);
+  const submitLog=(quickRealH=null,quickContentH=null)=>{
+    const isQuick=quickRealH!==null;
+    if(!isQuick&&!logForm.hours) return;
+    if(!isQuick&&!confirmLog){setConfirmLog(true);return;}
+    const realH=isQuick?quickRealH:parseFloat(logForm.hours);
+    const contentH=isQuick?quickContentH:(logForm.courseHours?parseFloat(logForm.courseHours):realToContent(logging,realH));
     const id=logging.id,tot=logging.hours||1;
     const prevContent=progress[id]?.courseHoursComplete||0;
     const newContent=Math.min(prevContent+contentH,tot);
     const newPct=Math.round((newContent/tot)*100);
-    const sessionDate=new Date(logForm.date);
+    const sessionDate=isQuick?new Date():new Date(logForm.date);
     const monDate=new Date(getMonday());
     const sunDate=new Date(monDate);sunDate.setDate(monDate.getDate()+6);
     const isThisWeek=sessionDate>=monDate&&sessionDate<=sunDate;
+    const dateStr=isQuick?new Date().toLocaleDateString():logForm.date;
     setProgress(p=>({...p,[id]:{
       hoursSpent:(p[id]?.hoursSpent||0)+realH,
       courseHoursComplete:newContent,percentComplete:newPct,
       sessions:[...(p[id]?.sessions||[]),
-        {date:logForm.date,studyHours:realH,courseHours:parseFloat(contentH.toFixed(3)),note:logForm.note}]
+        {date:dateStr,studyHours:realH,courseHours:parseFloat(contentH.toFixed(3)),note:isQuick?"Quick log":logForm.note}]
     }}));
     if(isThisWeek) setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+realH}));
     setLogging(null);
@@ -1003,11 +1136,9 @@ Respond ONLY with valid JSON, no markdown:
     toast_("✓ Focus updated");
   };
 
-  // Year arc stats — use content hours for completion %
   const totalItems=CURRICULUM.length;
   const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
   const totalSpentRealH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
-  // Est completion: remaining real hours / weekly target
   const totalRealRemaining=CURRICULUM
     .filter(i=>getP(i.id).percentComplete<100)
     .reduce((s,i)=>s+realHoursRemaining(i,getP(i.id)),0);
@@ -1022,6 +1153,19 @@ Respond ONLY with valid JSON, no markdown:
     borderRadius:10,padding:"11px 13px",color:T.text,fontSize:15,
     boxSizing:"border-box",fontFamily:"inherit",outline:"none",boxShadow:shadow.inset};
 
+  // 12-week chart data — last 12 weeks
+  const chartWeeks=(()=>{
+    const weeks=[];
+    for(let i=11;i>=0;i--){
+      const d=new Date();d.setDate(d.getDate()-i*7);
+      const iso=d.toISOString().split('T')[0].slice(0,7);
+      const entry=weeklyHours.find(w=>w.weekISO===iso);
+      weeks.push({label:iso.slice(5),h:entry?.realH||0});
+    }
+    return weeks;
+  })();
+  const chartMax=Math.max(WEEKLY_TARGET,Math.max(...chartWeeks.map(w=>w.h),1));
+
   return(
     <div style={{background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,paddingBottom:88}}>
 
@@ -1029,6 +1173,21 @@ Respond ONLY with valid JSON, no markdown:
         background:T.green,color:"#000",padding:"10px 20px",borderRadius:99,fontWeight:700,
         zIndex:999,fontSize:12,letterSpacing:0.3,boxShadow:`0 4px 24px ${T.green}50`,whiteSpace:"nowrap"}}>
         {toast}</div>}
+
+      {/* Offline indicator */}
+      {(!isOnline||offlineQueue.length>0)&&<div style={{background:isOnline?"#1a1200":"#180808",
+        borderBottom:`1px solid ${isOnline?T.yellow:T.red}30`,
+        padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:10,color:isOnline?T.yellow:T.red,fontWeight:700,letterSpacing:0.5}}>
+          {isOnline?`✓ Back online — ${offlineQueue.length} queued request${offlineQueue.length!==1?"s":""}`:
+          "Offline — AI features queued, logging works normally"}
+        </div>
+        {isOnline&&offlineQueue.length>0&&<button onClick={processQueue}
+          style={{background:"none",border:`1px solid ${T.yellow}30`,color:T.yellow,
+            borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:700}}>
+          Sync now
+        </button>}
+      </div>}
 
       {completionBanner.length>0&&<div style={{background:"#0a150a",borderBottom:`1px solid #1a3a1a`,
         padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1063,7 +1222,7 @@ Respond ONLY with valid JSON, no markdown:
         </div>
       </div>}
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div style={{background:T.surface0,padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
         borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
         boxShadow:"0 4px 24px rgba(0,0,0,0.6)"}}>
@@ -1163,6 +1322,8 @@ Respond ONLY with valid JSON, no markdown:
 
           {today.map(item=>{
             const p=getP(item.id),c=gc(item.genre);
+            const maxR=maxRealPerSession(item);
+            const quickContentH=parseFloat(realToContent(item,maxR).toFixed(3));
             return <Card key={item.id} accent={c} glow style={{marginBottom:10,padding:16}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div style={{flex:1,paddingRight:10}}>
@@ -1186,16 +1347,11 @@ Respond ONLY with valid JSON, no markdown:
                 </div>
               </div>
 
-              {/* Progress + target */}
               <div style={{background:T.surface0,borderRadius:10,padding:"10px 12px",marginBottom:12,
                 border:`1px solid ${T.surface3}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:6}}>
-                  <span style={{color:T.textDim}}>
-                    {item.contentDone.toFixed(2)}h / {item.contentTotal}h content
-                  </span>
-                  <span style={{color:T.textDim}}>
-                    {item.contentLeft.toFixed(2)}h left
-                  </span>
+                  <span style={{color:T.textDim}}>{item.contentDone.toFixed(2)}h / {item.contentTotal}h content</span>
+                  <span style={{color:T.textDim}}>{item.contentLeft.toFixed(2)}h left</span>
                 </div>
                 <Bar pct={p.percentComplete} color={c} height={4} glow/>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5}}>
@@ -1206,11 +1362,24 @@ Respond ONLY with valid JSON, no markdown:
                 </div>
               </div>
 
-              <button onClick={()=>setLogging(item)}
-                style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
-                  color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,
-                  cursor:"pointer",boxShadow:`0 0 12px ${T.blue}10`}}>
-                + Log Session
+              {/* Quick log + full log buttons */}
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <button onClick={()=>submitLog(maxR,quickContentH)}
+                  style={{flex:1,background:`${c}15`,border:`1px solid ${c}30`,
+                    color:c,borderRadius:10,padding:"9px 0",fontSize:11,fontWeight:800,cursor:"pointer"}}>
+                  ⚡ Quick {maxR}h
+                </button>
+                <button onClick={()=>setLogging(item)}
+                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                    color:T.blue,borderRadius:10,padding:"9px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                  + Log Session
+                </button>
+              </div>
+              <button onClick={()=>setMarkCompleteConfirm(item)}
+                style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
+                  color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,
+                  cursor:"pointer",letterSpacing:0.3}}>
+                ✓ Mark Complete &amp; Adapt
               </button>
             </Card>;
           })}
@@ -1226,6 +1395,32 @@ Respond ONLY with valid JSON, no markdown:
           <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
             {planIsFromThisWeek?"This week's plan":"Active focus"} · {weekH.toFixed(1)}h logged
           </div>
+
+          {/* Projected finish per active item */}
+          {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).length>0&&
+          <Card style={{padding:"13px 14px",marginBottom:12}}>
+            <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
+              Projected Finish at Current Pace
+            </div>
+            {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).map(item=>{
+              const realLeft=realHoursRemaining(item,getP(item.id));
+              const weeksToFinish=avgWeeklyH>0?(realLeft/avgWeeklyH):null;
+              const finishDate=weeksToFinish?new Date(Date.now()+weeksToFinish*7*24*60*60*1000)
+                .toLocaleDateString("en-CA",{month:"short",day:"numeric"}):null;
+              const c=gc(item.genre);
+              return <div key={item.id} style={{display:"flex",justifyContent:"space-between",
+                alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.surface2}`}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:600,color:T.text}}>{item.id} — {item.name.slice(0,32)}{item.name.length>32?"…":""}</div>
+                  <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{realLeft.toFixed(1)}h real left · {getP(item.id).percentComplete}% done</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  {finishDate&&<div style={{fontSize:12,fontWeight:800,color:c}}>{finishDate}</div>}
+                  {weeksToFinish&&<div style={{fontSize:9,color:T.textDim}}>{weeksToFinish.toFixed(1)}w</div>}
+                </div>
+              </div>;
+            })}
+          </Card>}
 
           {planIsFromThisWeek&&weekPlan.days&&<Card style={{padding:"13px 14px",marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
@@ -1250,13 +1445,12 @@ Respond ONLY with valid JSON, no markdown:
               </div>
             </div>
             {weekPlan.days.map(day=>{
-              const isPast=DAY_NAMES.indexOf(day.day)<getDayIdx();
               const isToday=day.day===getDayName();
               const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
               return <div key={day.day} style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <div style={{fontSize:11,fontWeight:800,
-                    color:isToday?T.blue:isPast?T.textDim:T.text,
+                    color:isToday?T.blue:T.text,
                     textShadow:isToday?shadow.glow(T.blue):"none"}}>
                     {day.day}{isToday?" — Today":""}
                   </div>
@@ -1376,6 +1570,19 @@ Respond ONLY with valid JSON, no markdown:
             ))}
           </Card>}
 
+          {/* Sunday summary */}
+          {(weeklySummary||summaryLoading)&&<Card accent={T.yellow} style={{padding:"13px 14px",marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{fontSize:9,color:T.yellow,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>
+                Sunday Review
+              </div>
+              {!summaryLoading&&<button onClick={()=>setWeeklySummary(null)}
+                style={{background:"none",border:"none",color:T.textDim,fontSize:11,cursor:"pointer"}}>✕</button>}
+            </div>
+            {summaryLoading?<div style={{fontSize:12,color:T.textDim}}>Generating…</div>
+              :<div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{weeklySummary}</div>}
+          </Card>}
+
           <Card style={{padding:"13px 14px",marginBottom:12}}>
             <div style={{fontSize:11,fontWeight:700,color:T.textMid,letterSpacing:0.5,marginBottom:8}}>
               What happened this week?
@@ -1489,6 +1696,70 @@ Respond ONLY with valid JSON, no markdown:
                 </div>
               ))}
             </div>
+
+            {/* Personal bests */}
+            <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,
+              border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
+                Personal Bests
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                {[[bestWeek.toFixed(1)+"h","Best Week",T.blue],
+                  [currentStreak+"wk","Current Streak",currentStreak>0?T.green:T.textDim],
+                  [longestStreak+"wk","Longest Streak",T.yellow]].map(([v,l,c])=>(
+                  <div key={l} style={{textAlign:"center"}}>
+                    <div style={{fontSize:18,fontWeight:900,color:c,textShadow:c!==T.textDim?`0 0 10px ${c}40`:"none"}}>{v}</div>
+                    <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 12-week chart */}
+            <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,
+              border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
+                12-Week Hours
+              </div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:3,height:56}}>
+                {chartWeeks.map((w,i)=>{
+                  const pct=w.h/chartMax;
+                  const isTarget=w.h>=WEEKLY_TARGET;
+                  const isCurrent=i===11;
+                  return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                    <div style={{width:"100%",background:isTarget?T.green:isCurrent?T.blue:T.surface3,
+                      height:`${Math.max(pct*44,w.h>0?4:1)}px`,borderRadius:"3px 3px 0 0",
+                      boxShadow:isTarget?`0 0 6px ${T.green}60`:isCurrent?`0 0 6px ${T.blue}60`:"none",
+                      transition:"height 0.3s ease"}}/>
+                    <div style={{fontSize:7,color:isCurrent?T.blue:T.textFaint,letterSpacing:-0.3}}>{w.label.slice(3)}</div>
+                  </div>;
+                })}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:T.textDim,marginTop:6}}>
+                <span>12 weeks ago</span>
+                <span style={{color:T.blue}}>This week: {weekH.toFixed(1)}h</span>
+              </div>
+            </div>
+
+            {/* Genre balance */}
+            {genreBalance.length>0&&<div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,
+              border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
+                Genre Balance (real hrs)
+              </div>
+              {genreBalance.map(([genre,h])=>{
+                const c=gc(genre);
+                const pct=h/genreBalance[0][1]*100;
+                return <div key={genre} style={{marginBottom:7}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}>
+                    <span style={{color:c,fontWeight:600}}>{genre}</span>
+                    <span style={{color:T.textDim}}>{h.toFixed(1)}h</span>
+                  </div>
+                  <Bar pct={pct} color={c} height={3}/>
+                </div>;
+              })}
+            </div>}
+
             <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,
               border:`1px solid ${T.border}`,boxShadow:shadow.card}}>
               <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
@@ -1522,7 +1793,7 @@ Respond ONLY with valid JSON, no markdown:
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>{
-                const data={progress,week,focus,weekLogs,profile,weekPlan};
+                const data={progress,week,focus,weekLogs,profile,weekPlan,weeklyHours};
                 const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
                 const url=URL.createObjectURL(blob);
                 const a=document.createElement("a");
@@ -1546,6 +1817,7 @@ Respond ONLY with valid JSON, no markdown:
                       if(d.weekLogs) setWeekLogs(d.weekLogs);
                       if(d.profile) setProfile(d.profile);
                       if(d.weekPlan) setWeekPlan(d.weekPlan);
+                      if(d.weeklyHours) setWeeklyHours(d.weeklyHours);
                       toast_("✓ Data imported");
                     }catch{toast_("Import failed");}
                   };reader.readAsText(file);
@@ -1555,12 +1827,33 @@ Respond ONLY with valid JSON, no markdown:
                 Import JSON
               </button>
             </div>
-            <div style={{fontSize:10,color:T.textDim,marginTop:10,lineHeight:1.5}}>
-              Export before updating the app or clearing browser data.
-            </div>
           </Card>
         </div>}
       </div>
+
+      {/* ── MARK COMPLETE CONFIRM ── */}
+      {markCompleteConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
+        display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}}>
+        <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",padding:24,width:"100%",
+          boxSizing:"border-box",borderTop:`3px solid ${T.green}`,boxShadow:shadow.raised}}>
+          <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>Mark Complete?</div>
+          <div style={{fontSize:12,color:T.textMid,marginBottom:6}}>{markCompleteConfirm.name}</div>
+          <div style={{fontSize:11,color:T.textDim,marginBottom:20,lineHeight:1.5}}>
+            This will log your remaining content hours, mark it 100%, and immediately adapt the plan to pull in the next item.
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setMarkCompleteConfirm(null)}
+              style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Cancel</button>
+            <button onClick={()=>markItemComplete(markCompleteConfirm)}
+              style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
+                borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",
+                boxShadow:`0 0 16px ${T.green}15`}}>
+              Complete &amp; Adapt ✓
+            </button>
+          </div>
+        </div>
+      </div>}
 
       {/* ── EDIT SESSION MODAL ── */}
       {editSession&&(()=>{
@@ -1568,27 +1861,25 @@ Respond ONLY with valid JSON, no markdown:
         const item=CURRICULUM.find(i=>i.id===itemId);
         return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
           display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}}>
-          <div className="slide-up" style={{background:T.surface1,borderRadius:"18px 18px 0 0",
+          <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
             padding:24,width:"100%",boxSizing:"border-box",
             borderTop:`3px solid ${T.blue}`,boxShadow:shadow.raised}}>
             <div style={{fontSize:16,fontWeight:800,letterSpacing:-0.3,marginBottom:3}}>Edit Session</div>
             <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>{item?.name} · session {sessionIdx+1}</div>
             <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,letterSpacing:0.3}}>
-                Real study hours
-              </label>
+              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Real study hours</label>
               <input type="number" min="0.25" max="12" step="0.25" value={editSessionForm.hours}
                 onChange={e=>setEditSessionForm(f=>({...f,hours:e.target.value}))} style={inputSt}/>
             </div>
             <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,letterSpacing:0.3}}>
+              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
                 Content hours {item?.type==="course"?"(real÷2)":"(= real for books)"}
               </label>
               <input type="number" min="0.1" max={item?.hours} step="0.1" value={editSessionForm.courseHours}
                 onChange={e=>setEditSessionForm(f=>({...f,courseHours:e.target.value}))} style={inputSt}/>
             </div>
             <div style={{marginBottom:20}}>
-              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,letterSpacing:0.3}}>Note</label>
+              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Note</label>
               <input value={editSessionForm.note}
                 onChange={e=>setEditSessionForm(f=>({...f,note:e.target.value}))}
                 style={inputSt} placeholder="What did you cover?"/>
@@ -1615,13 +1906,10 @@ Respond ONLY with valid JSON, no markdown:
         const contentDone=p.courseHoursComplete||0;
         const contentLeft=Math.max(0,(logging.hours||0)-contentDone);
         const realH=parseFloat(logForm.hours||0);
-        const contentGain=logForm.courseHours
-          ?parseFloat(logForm.courseHours)
-          :realToContent(logging,realH);
         const previewPct=realH>0?targetPctAfterSession(logging,p,realH):null;
         return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
           display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}}>
-          <div className="slide-up" style={{background:T.surface1,borderRadius:"18px 18px 0 0",
+          <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
             padding:24,width:"100%",boxSizing:"border-box",
             borderTop:`3px solid ${gc(logging.genre)}`,boxShadow:shadow.raised}}>
             <div style={{fontSize:16,fontWeight:800,letterSpacing:-0.3,marginBottom:3}}>{logging.name}</div>
@@ -1636,7 +1924,7 @@ Respond ONLY with valid JSON, no markdown:
               <div>
                 <div style={{background:T.surface0,borderRadius:12,padding:14,marginBottom:16,
                   border:`1px solid ${T.surface3}`,boxShadow:shadow.card}}>
-                  <div style={{fontSize:11,color:T.textDim,marginBottom:6,letterSpacing:0.3}}>Confirm session</div>
+                  <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Confirm session</div>
                   <div style={{fontSize:15,fontWeight:700}}>
                     {logForm.hours}h real study
                     <span style={{color:T.blue}}> · {parseFloat(realToContent(logging,parseFloat(logForm.hours||0)).toFixed(3))}h content</span>
@@ -1650,7 +1938,7 @@ Respond ONLY with valid JSON, no markdown:
                   <button onClick={()=>setConfirmLog(false)}
                     style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
                       color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Edit</button>
-                  <button onClick={submitLog}
+                  <button onClick={()=>submitLog()}
                     style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
                       borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer",
                       boxShadow:`0 0 20px ${T.blue}15`}}>Confirm ✓</button>
@@ -1659,7 +1947,7 @@ Respond ONLY with valid JSON, no markdown:
             ):(
               <div>
                 <div style={{marginBottom:14}}>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,letterSpacing:0.3}}>Session date</label>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Session date</label>
                   <input type="date"
                     value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
                     max={new Date().toLocaleDateString('en-CA')}
@@ -1674,7 +1962,7 @@ Respond ONLY with valid JSON, no markdown:
                   })()}
                 </div>
                 <div style={{marginBottom:14}}>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,letterSpacing:0.3}}>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
                     Real study hours {logging.type==="course"?"(max 1.5h/session)":"(max 2h/session)"}
                   </label>
                   <input type="number" min="0.25" max={maxRealPerSession(logging)} step="0.25"
@@ -1688,8 +1976,8 @@ Respond ONLY with valid JSON, no markdown:
                 </div>
 
                 {logging.type==="course"&&<div style={{marginBottom:14}}>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,letterSpacing:0.3}}>
-                    Override content hours <span style={{color:T.textDim,fontWeight:400}}>(optional — leave blank to auto-calculate)</span>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
+                    Override content hours <span style={{color:T.textDim,fontWeight:400}}>(optional)</span>
                   </label>
                   <input type="number" min="0.1" max={logging.hours} step="0.05"
                     value={logForm.courseHours}
@@ -1698,7 +1986,7 @@ Respond ONLY with valid JSON, no markdown:
                 </div>}
 
                 <div style={{marginBottom:20}}>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,letterSpacing:0.3}}>Note (optional)</label>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Note (optional)</label>
                   <input value={logForm.note}
                     onChange={e=>setLogForm(f=>({...f,note:e.target.value}))}
                     style={inputSt} placeholder="What did you cover?"/>
@@ -1707,7 +1995,7 @@ Respond ONLY with valid JSON, no markdown:
                   <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString()});setConfirmLog(false);}}
                     style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
                       color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Cancel</button>
-                  <button onClick={submitLog}
+                  <button onClick={()=>submitLog()}
                     style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
                       borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer",
                       boxShadow:`0 0 20px ${T.blue}15`}}>Review →</button>
