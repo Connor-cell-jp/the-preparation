@@ -1006,26 +1006,26 @@ Respond ONLY as JSON:
     const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
     const remainingDays=DAY_NAMES.slice(effectiveDayIdx);
     const dLeftEffective=Math.max(0,7-effectiveDayIdx);
-    const freshWeekH=(()=>{
-      const mon=new Date(getMonday());
-      const sun=new Date(mon);sun.setDate(mon.getDate()+6);
-      return CURRICULUM.reduce((total,item)=>{
-        const sessions=progress[item.id]?.sessions||[];
-        return total+sessions.filter(s=>{
-          const d=new Date(s.date);return d>=mon&&d<=sun;
-        }).reduce((s,x)=>s+(x.studyHours||0),0);
-      },0);
-    })();
+    // Use week.hoursLogged directly — it's kept accurate by submitLog and is never stale.
+    const freshWeekH=week.hoursLogged||0;
     const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
-    const pastDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
-    const pastRealH=pastDays.reduce((s,d)=>s+(d.totalDayRealH||d.items?.reduce((ss,i)=>ss+(i.realHours||i.hours||0),0)||0),0);
+
+    // Pre-compute exact per-day budgets so AI has hard targets
+    const maxPerDay=4;
+    const rawEven=freshWkRem/Math.max(dLeftEffective,1);
+    const adaptDayBudgets=remainingDays.map(()=>parseFloat(Math.min(rawEven,maxPerDay).toFixed(2)));
+    const adaptBudgetTotal=parseFloat(adaptDayBudgets.reduce((s,h)=>s+h,0).toFixed(2));
+    const adaptDeficit=parseFloat((freshWkRem-adaptBudgetTotal).toFixed(2));
+    if(adaptDeficit>0&&adaptDayBudgets.length>0) adaptDayBudgets[0]=parseFloat((adaptDayBudgets[0]+adaptDeficit).toFixed(2));
+    const adaptDayBudgetStr=remainingDays.map((d,i)=>`${d}=${adaptDayBudgets[i]}h`).join(", ");
 
     const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
 
 RULES:
 - Courses: 1h content = 2h real. Max 1.5h real/session.
 - Books: 1h content = 1h real. Max 2h real/session.
-- THIS IS CRITICAL: You MUST schedule exactly ${freshWkRem.toFixed(1)}h real total across: ${remainingDays.join(", ")||"none"}. Weekly target is ${WEEKLY_TARGET}h. Hit it exactly.
+- CRITICAL: Schedule EXACTLY ${freshWkRem.toFixed(1)}h real total. Weekly target is ${WEEKLY_TARGET}h, ${freshWeekH.toFixed(1)}h already logged. No buffer. No rounding down.
+- Per-day targets (MUST match exactly): ${adaptDayBudgetStr}
 - Max 4h/day. Vary genres.
 
 TRIGGER: ${contextNote||"Manual adapt — infer reason from plan vs actual."}
@@ -1043,7 +1043,7 @@ NEXT CORE:
 ${nextCore.split('\n').slice(0,4).join('\n')}
 
 Respond ONLY as JSON — totalPlannedHours MUST equal ${freshWkRem.toFixed(1)}:
-{"days":[{"day":"Tue","totalDayRealH":2.5,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(1)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+{"days":[{"day":"Tue","totalDayRealH":${adaptDayBudgets[0]||2},"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(1)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -1055,9 +1055,26 @@ Respond ONLY as JSON — totalPlannedHours MUST equal ${freshWkRem.toFixed(1)}:
       const jsonMatch=txt.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON in response: "+txt.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
+      // Validate and patch: ensure each day's items sum to the pre-computed budget
+      const adaptValidatedDays=(parsed.days||[]).map((day,i)=>{
+        const budget=adaptDayBudgets[i]??adaptDayBudgets[adaptDayBudgets.length-1]??2;
+        const itemSum=parseFloat((day.items||[]).reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
+        if(Math.abs(itemSum-budget)>0.05&&itemSum>0){
+          const scale=budget/itemSum;
+          return{...day,totalDayRealH:budget,items:(day.items||[]).map(it=>{
+            const scaledReal=parseFloat((it.realHours*scale).toFixed(2));
+            const curItem=CURRICULUM.find(ci=>ci.id===it.id);
+            const scaledContent=curItem?parseFloat(realToContent(curItem,scaledReal).toFixed(3)):scaledReal;
+            const p=getP(it.id);
+            const tgt=curItem?targetPctAfterSession(curItem,p,scaledReal):it.targetPct;
+            return{...it,realHours:scaledReal,contentHours:scaledContent,targetPct:tgt};
+          })};
+        }
+        return{...day,totalDayRealH:itemSum};
+      });
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
       const newPlan={...weekPlan,
-        days:[...keptDays,...(parsed.days||[])],
+        days:[...keptDays,...adaptValidatedDays],
         totalPlannedHours:parseFloat((freshWeekH+freshWkRem).toFixed(2)),
         lastAdapted:new Date().toISOString()
       };
