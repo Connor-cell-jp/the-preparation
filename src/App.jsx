@@ -642,13 +642,23 @@ export default function App(){
   const [isOnline,setIsOnline]=useState(navigator.onLine);
   const [weeklySummary,setWeeklySummary]=useState(null);
   const [markCompleteConfirm,setMarkCompleteConfirm]=useState(null);
+  const [bonusItems,setBonusItems]=useState(()=>load("tp_bonus1",[]));
+  const [bonusLoading,setBonusLoading]=useState(false);
+  const [exportReminder,setExportReminder]=useState(false);
   const prevProgressRef=useRef({});
 
   useEffect(()=>save(SK_P,progress),[progress]);
   useEffect(()=>save(SK_W,week),[week]);
   useEffect(()=>save(SK_F,focus),[focus]);
   useEffect(()=>save(SK_LOG,weekLogs),[weekLogs]);
-  useEffect(()=>save(SK_PLAN,weekPlan),[weekPlan]);
+  useEffect(()=>save("tp_bonus1",bonusItems),[bonusItems]);
+
+  // Auto-export reminder every 14 days
+  useEffect(()=>{
+    const last=parseInt(localStorage.getItem("tp_last_export")||"0");
+    const daysSince=(Date.now()-last)/(1000*60*60*24);
+    if(daysSince>=14) setExportReminder(true);
+  },[]);
   useEffect(()=>save(SK_WEEKLY_HOURS,weeklyHours),[weeklyHours]);
   useEffect(()=>localStorage.setItem(SK_PROFILE,profile),[profile]);
 
@@ -1017,7 +1027,41 @@ Respond ONLY with valid JSON, no markdown:
     setTimeout(()=>runAdaptPlan(`${item.id} "${item.name}" was just marked complete mid-week. Swap it out and pull in the next logical curriculum item.`),400);
   };
 
-  const runSundaySummary=async()=>{
+  const runBonusSuggestions=async()=>{
+    if(!navigator.onLine){toast_("Offline — can't generate bonus");return;}
+    setBonusLoading(true);
+    const{touchedAndFocus,nextCore}=buildAIContext();
+    const prompt=`The learner has hit their 20h weekly target. Suggest 1-2 optional bonus sessions for today — these are purely extra, not obligations.
+
+═══ TIME MATH ═══
+- COURSES: 1h content = 2h real. Max 1.5h real per session.
+- BOOKS: 1h content = 1h real. Max 2h real per session.
+
+═══ CURRENT STATUS ═══
+${touchedAndFocus||"None."}
+
+═══ NEXT UNTOUCHED CORE ITEMS ═══
+${nextCore}
+
+Pick 1-2 items that would be high-value to push forward on — either close to finishing or foundational for what comes next. Keep tone light — this is bonus work, not obligation.
+
+Respond ONLY with valid JSON:
+{
+  "items": [
+    {"id":"A1","realHours":1.5,"contentHours":0.75,"focus":"You're 6% from finishing — push through to 100% today if energy is there"}
+  ],
+  "note": "one sentence framing why these are worth doing"
+}`;
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})});
+      const d=await r.json();
+      const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(txt);
+      setBonusItems({items:parsed.items||[],note:parsed.note||"",generatedAt:new Date().toISOString()});
+    }catch(e){toast_("Couldn't generate bonus — try again");}
+    setBonusLoading(false);
+  };
     if(!navigator.onLine) return;
     setSummaryLoading(true);
     const{touchedAndFocus}=buildAIContext();
@@ -1040,14 +1084,20 @@ Respond ONLY with valid JSON, no markdown:
 Be specific about what was accomplished, tone should be grounded and direct — no fluff.
 Weekly hours: ${weekH.toFixed(1)}h / ${WEEKLY_TARGET}h target.
 Items worked this week:\n${thisWeekItems||"None logged."}
-Respond with just the paragraph, no labels or headers.`;
+
+Then on a new line write exactly: ---MONDAY_SEED---
+Then write 2-3 sentences of context that should inform Monday's plan — what to prioritize, what momentum to carry forward, any gaps to address. This will be fed directly into Monday's AI check-in.
+
+Respond with just the paragraph, the separator, then the Monday seed. No labels or headers.`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:300,messages:[{role:"user",content:prompt}]})});
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:400,messages:[{role:"user",content:prompt}]})});
       const d=await r.json();
       const txt=d.content.map(c=>c.text||"").join("").trim();
-      setWeeklySummary(txt);
+      const parts=txt.split("---MONDAY_SEED---");
+      setWeeklySummary(parts[0].trim());
+      if(parts[1]) localStorage.setItem("tp_monday_seed",parts[1].trim());
     }catch(e){}
     setSummaryLoading(false);
   };
@@ -1191,6 +1241,32 @@ Respond with just the paragraph, no labels or headers.`;
             borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:700}}>
           Sync now
         </button>}
+      </div>}
+
+      {exportReminder&&<div style={{background:"#0f0f1a",borderBottom:`1px solid ${T.blue}25`,
+        padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>💾 Time to back up your data</div>
+          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>It's been 2+ weeks since your last export</div>
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>setExportReminder(false)}
+            style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
+              borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>Later</button>
+          <button onClick={()=>{
+            const data={progress,week,focus,weekLogs,profile,weekPlan,weeklyHours};
+            const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+            const url=URL.createObjectURL(blob);
+            const a=document.createElement("a");
+            a.href=url;a.download=`the-preparation-${getTodayISO()}.json`;
+            a.click();URL.revokeObjectURL(url);
+            localStorage.setItem("tp_last_export",String(Date.now()));
+            setExportReminder(false);toast_("✓ Data exported");
+          }} style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
+            padding:"4px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>
+            Export Now
+          </button>
+        </div>
       </div>}
 
       {completionBanner.length>0&&<div style={{background:"#0a150a",borderBottom:`1px solid #1a3a1a`,
@@ -1382,9 +1458,56 @@ Respond with just the paragraph, no labels or headers.`;
             </Card>;
           })}
 
-          {weekH>=WEEKLY_TARGET&&<div style={{textAlign:"center",color:T.green,padding:48,
-            fontSize:15,fontWeight:700,letterSpacing:0.3,textShadow:shadow.glow(T.green)}}>
-            🎯 {WEEKLY_TARGET}h hit. Week complete.
+          {weekH>=WEEKLY_TARGET&&<div>
+            <div style={{textAlign:"center",color:T.green,padding:"32px 0 16px",
+              fontSize:15,fontWeight:700,letterSpacing:0.3,textShadow:shadow.glow(T.green)}}>
+              🎯 {WEEKLY_TARGET}h hit. Week complete.
+            </div>
+            <Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`}}>
+              <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>
+                Bonus Mode
+              </div>
+              <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
+                Weekly plan is locked in. Any session from here is extra — purely your call.
+              </div>
+              {bonusItems?.items?.length>0&&<div>
+                {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic",lineHeight:1.5}}>
+                  {bonusItems.note}
+                </div>}
+                {bonusItems.items.map(it=>{
+                  const item=CURRICULUM.find(i=>i.id===it.id);
+                  if(!item) return null;
+                  const p=getP(it.id);const c=gc(item.genre);
+                  return <div key={it.id} style={{background:T.surface0,borderRadius:10,
+                    padding:"10px 12px",marginBottom:8,borderLeft:`2px solid ${c}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                      <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8}}>{item.name}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:T.blue,flexShrink:0}}>{it.realHours}h</div>
+                    </div>
+                    {it.focus&&<div style={{fontSize:10,color:T.textDim,lineHeight:1.4,marginBottom:8}}>{it.focus}</div>}
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:T.textDim,marginBottom:6}}>
+                      <span>Now: {p.percentComplete}%</span>
+                      {it.targetPct&&<span style={{color:c,fontWeight:700}}>→ {it.targetPct}% if done</span>}
+                    </div>
+                    <button onClick={()=>setLogging(item)}
+                      style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
+                        color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                      + Log Bonus Session
+                    </button>
+                  </div>;
+                })}
+                <button onClick={()=>setBonusItems(null)}
+                  style={{background:"none",border:"none",color:T.textDim,fontSize:10,cursor:"pointer",marginTop:4}}>
+                  Clear suggestions
+                </button>
+              </div>}
+              {(!bonusItems?.items?.length)&&<button onClick={runBonusSuggestions} disabled={bonusLoading}
+                style={{width:"100%",background:T.surface2,border:`1px solid ${T.green}20`,
+                  color:bonusLoading?T.textDim:T.green,borderRadius:10,padding:"10px 0",
+                  fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                {bonusLoading?"Thinking…":"⚡ Suggest Bonus Sessions"}
+              </button>}
+            </Card>
           </div>}
         </div>}
 
@@ -1796,7 +1919,9 @@ Respond with just the paragraph, no labels or headers.`;
                 const url=URL.createObjectURL(blob);
                 const a=document.createElement("a");
                 a.href=url;a.download=`the-preparation-${getTodayISO()}.json`;
-                a.click();URL.revokeObjectURL(url);toast_("✓ Data exported");
+                a.click();URL.revokeObjectURL(url);
+                localStorage.setItem("tp_last_export",String(Date.now()));
+                toast_("✓ Data exported");
               }} style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
                 color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 Export JSON
