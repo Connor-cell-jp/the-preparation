@@ -861,6 +861,8 @@ Respond ONLY with valid JSON, no markdown:
     setAiLoading(false);
   };
 
+  const focusIds=[...(focus.courses||[]),...(focus.books||[])];
+
   const quickFocusUpdate=async()=>{
     setQuickLoading(true);
     const activeProgress=CURRICULUM
