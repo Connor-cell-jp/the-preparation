@@ -967,7 +967,9 @@ Respond ONLY with valid JSON, no markdown:
       const txt=d.content.map(c=>c.text||"").join("").replace(/```json|```/g,"").trim();
       const parsed=JSON.parse(txt);
       const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
-        days:parsed.days,totalPlannedHours:parsed.totalPlannedHours,isBaseplan:true};
+        days:parsed.days,totalPlannedHours:parsed.totalPlannedHours,isBaseplan:true,
+        reasoning:parsed.insight||"",
+        focusReasoning:parsed.focusProposal?.reasoning||""};
       setWeekPlan(plan);
       setAiResult(parsed);
       saveWeekLog(parsed);
@@ -1003,6 +1005,10 @@ Respond ONLY with valid JSON, no markdown:
 ═══ ARC POSITION ═══
 ${arcPosition}
 Velocity: ${velocityTrend}. Rolling avg: ${avgH}h/week.
+
+═══ ORIGINAL PLAN REASONING (respect this unless data contradicts it) ═══
+${weekPlan?.reasoning||"None recorded."}
+Focus logic: ${weekPlan?.focusReasoning||"None recorded."}
 
 ═══ ADAPTATION TRIGGER ═══
 ${contextNote||"Learner requested mid-week adaptation — no specific reason given. Use plan vs actual to infer why."}
