@@ -14,7 +14,6 @@ const targetPctAfterSession = (item, p, sessionRealH) => {
   const contentDone = p.courseHoursComplete || 0;
   const contentGain = realToContent(item, sessionRealH);
   const newContent = Math.min(contentDone + contentGain, item.hours || 1);
-  // Always floor to match how percentComplete is stored — no rounding up
   return Math.floor((newContent / (item.hours || 1)) * 100);
 };
 
@@ -570,7 +569,6 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset}){
   </div>;
 }
 
-// Notification only requested on user gesture — called from the Check-In button
 async function requestNotificationPermission(){
   if(!("Notification" in window)) return false;
   if(Notification.permission==="granted") return true;
@@ -674,7 +672,6 @@ export default function App(){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
-  // Clear stale plan on week rollover
   useEffect(()=>{
     const check=()=>{
       const mon=getMonday();
@@ -684,7 +681,6 @@ export default function App(){
     check();const t=setInterval(check,60000);return()=>clearInterval(t);
   },[]);
 
-  // On mount: auto check-in Monday, auto summary Sunday, register SW — NO notification prompt here
   useEffect(()=>{
     if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
     const now=new Date();
@@ -888,10 +884,8 @@ export default function App(){
       toast_("Offline — check-in queued");
       return;
     }
-    // Request notification permission on user gesture (auto=false means user clicked)
     if(!auto) requestNotificationPermission();
     setAiLoading(true);setAiResult(null);
-    // mondaySeed declared before buildAIContext so it's in scope for the prompt template
     const mondaySeed=localStorage.getItem("tp_monday_seed")||"";
     const{recentHistory,planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
     const todayStr_=new Date().toLocaleDateString();
@@ -969,7 +963,6 @@ Respond ONLY as JSON:
     const dLeftEffective=Math.max(0,7-effectiveDayIdx);
     const pastDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
     const pastRealH=pastDays.reduce((s,d)=>s+(d.totalDayRealH||d.items?.reduce((ss,i)=>ss+(i.realHours||i.hours||0),0)||0),0);
-    const existingRemaining=(weekPlan?.days||[]).filter(d=>remainingDays.includes(d.day));
 
     const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
 
@@ -1003,7 +996,6 @@ Respond ONLY as JSON:
       if(d.error) throw new Error(d.error.message||"API error");
       const raw=d.content.map(c=>c.text||"").join("");
       const txt=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
-      // Extract JSON object if wrapped in extra text
       const jsonMatch=txt.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON in response: "+txt.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
@@ -1642,7 +1634,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               const isFuture=dayIdx>todayIdx;
               if(weekH>=WEEKLY_TARGET&&isFuture) return null;
               const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
-              // Day is "done" if it's past, OR if it's today and every item has been logged today
               const todayStr=new Date().toLocaleDateString();
               const dayDate=new Date(getMonday()+"T12:00:00");
               dayDate.setDate(dayDate.getDate()+dayIdx);
@@ -1661,6 +1652,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   </div>
                   <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h planned</div>
                 </div>
+                {/* ── WEEK TAB ITEM CARDS (FIXED) ── */}
                 {day.items?.map(it=>{
                   const f=CURRICULUM.find(i=>i.id===it.id);
                   const c=gc(f?.genre);
@@ -1668,10 +1660,15 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   const isDone=p.percentComplete>=100;
                   const loggedOnDay=(p.sessions||[]).filter(s=>s.date===dayStr).reduce((s,x)=>s+(x.studyHours||0),0);
                   const wasLogged=loggedOnDay>0;
-                  const isComplete=isDone||(isPast&&wasLogged);
+                  const remainingH=Math.max(0,parseFloat((it.realHours-loggedOnDay).toFixed(2)));
+                  const sessionDoneOnDay=wasLogged;
+                  const isComplete=isDone||(isPast&&wasLogged)||(isToday&&wasLogged&&remainingH===0);
+                  // Always compute target % live from content math, same formula as Today tab
+                  const liveTargetPct=f?targetPctAfterSession(f,p,it.realHours):it.targetPct;
+
                   return <div key={it.id} style={{background:T.surface0,borderRadius:10,
                     padding:"8px 12px",marginBottom:5,
-                    borderLeft:`2px solid ${isComplete?T.green:c}`,
+                    borderLeft:`2px solid ${isComplete?T.green:sessionDoneOnDay&&!isComplete?T.yellow:c}`,
                     boxShadow:shadow.card,opacity:isComplete?0.5:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                       <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,lineHeight:1.3,
@@ -1681,23 +1678,39 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                       <div style={{flexShrink:0,textAlign:"right"}}>
                         {isComplete
                           ?<div style={{fontSize:11,color:T.green,fontWeight:700}}>
-                            {isDone?"Done":`${loggedOnDay}h logged`}
+                            {isDone?"Done":`${loggedOnDay.toFixed(1)}h logged`}
                           </div>
-                          :<div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
-                            {it.realHours}h
-                          </div>}
-                        {!isComplete&&it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
-                          {it.contentHours}h content
-                        </div>}
+                          :sessionDoneOnDay
+                            ?<div>
+                              <div style={{fontSize:13,fontWeight:800,color:T.yellow,textShadow:shadow.glow(T.yellow)}}>
+                                {remainingH}h
+                              </div>
+                              <div style={{fontSize:9,color:T.textDim}}>remaining</div>
+                              <div style={{fontSize:9,color:T.textDim}}>of {it.realHours}h planned</div>
+                            </div>
+                            :<div>
+                              <div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
+                                {it.realHours}h
+                              </div>
+                              {it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
+                                {it.contentHours}h content
+                              </div>}
+                            </div>}
                       </div>
                     </div>
                     {!isComplete&&it.focus&&<div style={{fontSize:10,color:T.textDim,marginTop:3,lineHeight:1.4}}>{it.focus}</div>}
                     <div style={{display:"flex",justifyContent:"space-between",fontSize:9,marginTop:5}}>
-                      <span style={{color:isComplete?T.green:T.textDim,fontWeight:isComplete?700:400}}>{p.percentComplete}%</span>
-                      {!isComplete&&it.targetPct&&<span style={{color:c,fontWeight:700}}>→ target {it.targetPct}%</span>}
-                      {wasLogged&&!isDone&&<span style={{color:T.green,fontSize:9}}>logged today</span>}
+                      <span style={{color:isComplete?T.green:T.textDim,fontWeight:isComplete?700:400}}>
+                        {p.percentComplete}%
+                      </span>
+                      {!isComplete&&<span style={{color:sessionDoneOnDay?T.yellow:c,fontWeight:700}}>
+                        → target {liveTargetPct}%{sessionDoneOnDay&&remainingH>0?` · ${remainingH}h to go`:" after session"}
+                      </span>}
+                      {isComplete&&<span style={{color:T.green,fontWeight:700}}>✓ Complete</span>}
                     </div>
-                    <div style={{marginTop:4}}><Bar pct={p.percentComplete} color={isComplete?T.green:c} height={2}/></div>
+                    <div style={{marginTop:4}}>
+                      <Bar pct={p.percentComplete} color={isComplete?T.green:sessionDoneOnDay?T.yellow:c} height={2}/>
+                    </div>
                   </div>;
                 })}
               </div>;
