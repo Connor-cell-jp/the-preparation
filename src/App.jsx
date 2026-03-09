@@ -1231,7 +1231,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
     }}));
     if(isThisWeek) setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+realH}));
     setLogging(null);
-    setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString()});
+    setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
     setConfirmLog(false);
     toast_(`✓ ${realH}h logged · ${logging.name}${!isThisWeek?" (prev week)":""}`);
   };
@@ -2224,22 +2224,51 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                   </label>
                   <input type="number" min="0.25" max={maxRealPerSession(logging)} step="0.25"
                     value={logForm.hours}
-                    onChange={e=>setLogForm(f=>({...f,hours:e.target.value}))}
+                    onChange={e=>{
+                      const rh=e.target.value;
+                      // Auto-fill content hours when real hours change, but only if user hasn't manually edited content
+                      setLogForm(f=>({...f,hours:rh,
+                        courseHours:f._contentManuallySet?f.courseHours:
+                          rh?parseFloat(realToContent(logging,parseFloat(rh)).toFixed(3)).toString():""
+                      }));
+                    }}
                     style={inputSt} placeholder={logging.type==="course"?"e.g. 1.5":"e.g. 1.0"}/>
                   {realH>0&&<div style={{fontSize:11,color:T.blue,marginTop:5}}>
-                    = {realToContent(logging,realH).toFixed(3)}h content progress
+                    = {realToContent(logging,realH).toFixed(3)}h content at standard ratio
                     {previewPct?` → ${p.percentComplete}% → ${previewPct}%`:""}
                   </div>}
                 </div>
 
                 {logging.type==="course"&&<div style={{marginBottom:14}}>
                   <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
-                    Override content hours <span style={{color:T.textDim,fontWeight:400}}>(optional)</span>
+                    Content hours logged
+                    <span style={{color:T.textDim,fontWeight:400}}> — adjust if ratio wasn't 1:2</span>
                   </label>
                   <input type="number" min="0.1" max={logging.hours} step="0.05"
                     value={logForm.courseHours}
-                    onChange={e=>setLogForm(f=>({...f,courseHours:e.target.value}))}
-                    style={inputSt} placeholder={`Auto: ${realToContent(logging,realH||0).toFixed(2)}h`}/>
+                    onChange={e=>setLogForm(f=>({...f,courseHours:e.target.value,_contentManuallySet:true}))}
+                    onFocus={e=>{
+                      // Pre-fill on first focus if empty
+                      if(!logForm.courseHours&&logForm.hours){
+                        setLogForm(f=>({...f,
+                          courseHours:parseFloat(realToContent(logging,parseFloat(logForm.hours)).toFixed(3)).toString(),
+                          _contentManuallySet:false
+                        }));
+                      }
+                    }}
+                    style={{...inputSt,
+                      border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":T.surface3}`,
+                    }}
+                    placeholder={realH>0?`Standard: ${realToContent(logging,realH).toFixed(3)}h`:"Enter real hours first"}/>
+                  {logForm._contentManuallySet&&logForm.courseHours&&logForm.hours&&<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
+                    ⚡ Custom ratio — {logForm.hours}h real → {logForm.courseHours}h content
+                    {(() => {
+                      const ch = parseFloat(logForm.courseHours);
+                      const tot = logging.hours || 1;
+                      const newPct = Math.round((Math.min((p.courseHoursComplete||0)+ch, tot)/tot)*100);
+                      return ` → ${p.percentComplete}% → ${newPct}%`;
+                    })()}
+                  </div>}
                 </div>}
 
                 <div style={{marginBottom:20}}>
@@ -2249,7 +2278,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                     style={inputSt} placeholder="What did you cover?"/>
                 </div>
                 <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString()});setConfirmLog(false);}}
+                  <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});setConfirmLog(false);}}
                     style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
                       color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Cancel</button>
                   <button onClick={()=>submitLog()}
