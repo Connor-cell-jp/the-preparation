@@ -400,9 +400,8 @@ function getDayIdx(){const d=new Date().getDay();return d===0?6:d-1;}
 function getDayName(){return DAY_NAMES[getDayIdx()];}
 function getRemainingDays(){return 7-getDayIdx();}
 function getTodayISO(){return new Date().toISOString().split('T')[0];}
-function getWeekISO(offsetWeeks=0){
-  const d=new Date();d.setDate(d.getDate()-offsetWeeks*7);
-  return d.toISOString().split('T')[0].slice(0,7);
+function getWeekISO(){
+  const d=new Date();return d.toISOString().split('T')[0].slice(0,7);
 }
 
 const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_LOG="tp_wlog3",SK_PROFILE="tp_profile2";
@@ -535,8 +534,6 @@ function SectionBlock({sec,focusIds,getP,setLogging}){
         const c=gc(item.genre);
         const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
         const realLeft=contentToReal(item,contentLeft);
-        // projected finish weeks
-        const projWeeks = weeklyAvgH => weeklyAvgH>0 ? (realLeft/weeklyAvgH).toFixed(1) : null;
         return <div key={item.id}
           style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
             borderBottom:`1px solid ${T.surface2}`,borderRadius:inFocus?6:0}}>
@@ -592,7 +589,6 @@ function buildItemContext(item, p) {
     + `contentLeft=${contentLeft.toFixed(2)}h | realHoursLeft=${realLeft.toFixed(2)}h | realSpent=${realSpent.toFixed(2)}h`;
 }
 
-// ── Offline queue helpers ─────────────────────────────────────────
 const loadQueue=()=>load(SK_QUEUE,[]);
 const saveQueue=q=>save(SK_QUEUE,q);
 const enqueue=(type,payload)=>{
@@ -617,7 +613,6 @@ export default function App(){
     return f;
   });
   const [weekPlan,setWeekPlan]=useState(()=>load(SK_PLAN,null));
-  // 12-week hours log: array of {weekISO, realH}
   const [weeklyHours,setWeeklyHours]=useState(()=>load(SK_WEEKLY_HOURS,[]));
   const [view,setView]=useState("today");
   const [logging,setLogging]=useState(null);
@@ -652,17 +647,15 @@ export default function App(){
   useEffect(()=>save(SK_F,focus),[focus]);
   useEffect(()=>save(SK_LOG,weekLogs),[weekLogs]);
   useEffect(()=>save("tp_bonus1",bonusItems),[bonusItems]);
+  useEffect(()=>save(SK_WEEKLY_HOURS,weeklyHours),[weeklyHours]);
+  useEffect(()=>localStorage.setItem(SK_PROFILE,profile),[profile]);
 
-  // Auto-export reminder every 14 days
   useEffect(()=>{
     const last=parseInt(localStorage.getItem("tp_last_export")||"0");
     const daysSince=(Date.now()-last)/(1000*60*60*24);
     if(daysSince>=14) setExportReminder(true);
   },[]);
-  useEffect(()=>save(SK_WEEKLY_HOURS,weeklyHours),[weeklyHours]);
-  useEffect(()=>localStorage.setItem(SK_PROFILE,profile),[profile]);
 
-  // Online/offline detection
   useEffect(()=>{
     const up=()=>{setIsOnline(true);processQueue();};
     const dn=()=>setIsOnline(false);
@@ -690,7 +683,6 @@ export default function App(){
     if(isMonday&&isAfter7&&!planExistsThisWeek){
       setTimeout(()=>runFullCheckin(true),1500);
     }
-    // Sunday auto-summary
     const isSunday=now.getDay()===0;
     if(isSunday&&!weeklySummary){
       setTimeout(()=>runSundaySummary(),3000);
@@ -732,7 +724,6 @@ export default function App(){
   const focusIds=[...(focus.courses||[]),...(focus.books||[])];
   const focusItems=focusIds.map(id=>CURRICULUM.find(i=>i.id===id)).filter(Boolean);
 
-  // ── Personal bests ────────────────────────────────────────────
   const bestWeek=weeklyHours.reduce((b,w)=>w.realH>b?w.realH:b,0);
   const currentStreak=(()=>{
     let streak=0;
@@ -748,24 +739,22 @@ export default function App(){
     return max;
   })();
 
-  // ── Genre balance ─────────────────────────────────────────────
   const genreBalance=(()=>{
     const map={};
     CURRICULUM.forEach(i=>{
       const p=getP(i.id);
-      if(p.hoursSpent>0){
-        map[i.genre]=(map[i.genre]||0)+(p.hoursSpent||0);
-      }
+      if(p.hoursSpent>0) map[i.genre]=(map[i.genre]||0)+(p.hoursSpent||0);
     });
     return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);
   })();
 
-  // ── Projected finish per active item ─────────────────────────
   const avgWeeklyH=weeklyHours.length>0
     ?weeklyHours.slice(0,4).reduce((s,w)=>s+(w.realH||0),0)/Math.min(4,weeklyHours.length)
     :WEEKLY_TARGET/2;
 
+  // todayItems: empty when 20h hit so Today tab goes straight to bonus mode
   const todayItems=()=>{
+    if(weekH>=WEEKLY_TARGET) return [];
     const todayName=getDayName();
     if(weekPlan&&weekPlan.weekStart===getMonday()&&weekPlan.days){
       const todayPlan=weekPlan.days.find(d=>d.day===todayName);
@@ -786,7 +775,6 @@ export default function App(){
         }).filter(Boolean);
       }
     }
-    if(weekH>=WEEKLY_TARGET) return[];
     let rem=Math.max(wkRem/Math.max(dLeft,1),1.5);
     return focusItems.filter(i=>getP(i.id).percentComplete<100).reduce((acc,item)=>{
       if(rem<=0) return acc;
@@ -828,10 +816,11 @@ export default function App(){
     if(!q.length||!navigator.onLine) return;
     for(const item of q){
       try{
+        // Re-run the appropriate action based on type
         if(item.type==="checkin"){
-          await _runCheckin(item.payload.auto,item.payload.prompt,item.payload.weekH,item.payload.wkRem,item.payload.dLeft);
+          await runFullCheckin(false);
         } else if(item.type==="adapt"){
-          await _runAdapt(item.payload.contextNote,item.payload.prompt);
+          await runAdaptPlan(item.payload?.contextNote||"");
         }
         dequeue(item.id);
         setOfflineQueue(loadQueue());
@@ -843,13 +832,14 @@ export default function App(){
 
   const runFullCheckin=async(auto=false)=>{
     if(!navigator.onLine){
-      enqueue("checkin",{auto,note:"Queued — will run when online"});
+      enqueue("checkin",{auto});
       setOfflineQueue(loadQueue());
       toast_("Offline — check-in queued");
       return;
     }
     setAiLoading(true);setAiResult(null);
     const{recentHistory,touchedAndFocus,nextCore}=buildAIContext();
+    const mondaySeed=localStorage.getItem("tp_monday_seed")||"";
 
     const prompt=`You are a precision learning coach. You MUST follow the time math rules exactly.
 
@@ -866,11 +856,13 @@ ${profile}
 
 ═══ PAST WEEKS ═══
 ${recentHistory||"No previous check-ins."}
+${mondaySeed?`\n═══ SUNDAY REVIEW CONTEXT (carry forward) ═══\n${mondaySeed}`:""}
 
 ═══ TODAY ═══
 ${getDayName()}, ${new Date().toLocaleDateString()}
 Real hours logged this week so far: ${weekH.toFixed(2)}h / ${WEEKLY_TARGET}h
 Remaining budget: ${wkRem.toFixed(2)}h real over ${dLeft} day(s)
+${weekH>=WEEKLY_TARGET?"NOTE: Learner has already hit 20h this week. Acknowledge this and plan for next week if today is Sunday, otherwise skip plan generation and just give assessment/insight.":""}
 
 ═══ CURRENT FOCUS ═══
 ${focusIds.join(", ")}
@@ -915,8 +907,9 @@ Respond ONLY with valid JSON, no markdown:
       setWeekPlan(plan);
       setAiResult(parsed);
       saveWeekLog(parsed);
-      // Record weekly hours
       updateWeeklyHours(weekH);
+      // Consume monday seed after use
+      localStorage.removeItem("tp_monday_seed");
       if(auto) showPlanReadyNotification();
     }catch(e){toast_("Couldn't generate — try again");}
     setAiLoading(false);
@@ -924,7 +917,7 @@ Respond ONLY with valid JSON, no markdown:
 
   const runAdaptPlan=async(contextNote="")=>{
     if(!navigator.onLine){
-      enqueue("adapt",{contextNote,note:"Queued — will run when online"});
+      enqueue("adapt",{contextNote});
       setOfflineQueue(loadQueue());
       toast_("Offline — adapt queued");
       return;
@@ -997,11 +990,9 @@ Respond ONLY with valid JSON, no markdown:
     setAdaptLoading(false);
   };
 
-  // ── Mark item complete mid-session ───────────────────────────
   const markItemComplete=async(item)=>{
     const p=getP(item.id);
     const tot=item.hours||1;
-    // Only log what's genuinely left — don't add hours if already at 100%
     const contentDone=p.courseHoursComplete||0;
     const contentRemaining=Math.max(0,tot-contentDone);
     const today=new Date().toLocaleDateString();
@@ -1019,7 +1010,6 @@ Respond ONLY with valid JSON, no markdown:
         setWeek(w=>({...w,hoursLogged:(w.hoursLogged||0)+realH}));
       }
     } else {
-      // Already at 100% content-wise, just ensure state is consistent
       setProgress(prev=>({...prev,[item.id]:{...prev[item.id],percentComplete:100}}));
     }
     setMarkCompleteConfirm(null);
@@ -1031,7 +1021,7 @@ Respond ONLY with valid JSON, no markdown:
     if(!navigator.onLine){toast_("Offline — can't generate bonus");return;}
     setBonusLoading(true);
     const{touchedAndFocus,nextCore}=buildAIContext();
-    const prompt=`The learner has hit their 20h weekly target. Suggest 1-2 optional bonus sessions for today — these are purely extra, not obligations.
+    const prompt=`The learner has hit their 20h weekly target. Suggest 1-2 optional bonus sessions for today — purely extra, not obligations.
 
 ═══ TIME MATH ═══
 - COURSES: 1h content = 2h real. Max 1.5h real per session.
@@ -1043,12 +1033,12 @@ ${touchedAndFocus||"None."}
 ═══ NEXT UNTOUCHED CORE ITEMS ═══
 ${nextCore}
 
-Pick 1-2 items that would be high-value to push forward on — either close to finishing or foundational for what comes next. Keep tone light — this is bonus work, not obligation.
+Pick 1-2 items that would be high-value — either close to finishing or foundational for what comes next. Keep tone light — bonus, not obligation.
 
 Respond ONLY with valid JSON:
 {
   "items": [
-    {"id":"A1","realHours":1.5,"contentHours":0.75,"focus":"You're 6% from finishing — push through to 100% today if energy is there"}
+    {"id":"A1","realHours":1.5,"contentHours":0.75,"focus":"..."}
   ],
   "note": "one sentence framing why these are worth doing"
 }`;
@@ -1066,7 +1056,6 @@ Respond ONLY with valid JSON:
   const runSundaySummary=async()=>{
     if(!navigator.onLine) return;
     setSummaryLoading(true);
-    const{touchedAndFocus}=buildAIContext();
     const thisWeekItems=CURRICULUM
       .filter(i=>{
         const sessions=getP(i.id).sessions||[];
@@ -1105,7 +1094,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
   };
 
   const updateWeeklyHours=(h)=>{
-    const iso=getWeekISO(0);
+    const iso=getWeekISO();
     setWeeklyHours(prev=>{
       const filtered=prev.filter(w=>w.weekISO!==iso);
       return [{weekISO:iso,realH:h},...filtered].slice(0,12);
@@ -1209,7 +1198,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
     borderRadius:10,padding:"11px 13px",color:T.text,fontSize:15,
     boxSizing:"border-box",fontFamily:"inherit",outline:"none",boxShadow:shadow.inset};
 
-  // 12-week chart data — last 12 weeks
   const chartWeeks=(()=>{
     const weeks=[];
     for(let i=11;i>=0;i--){
@@ -1230,7 +1218,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
         zIndex:999,fontSize:12,letterSpacing:0.3,boxShadow:`0 4px 24px ${T.green}50`,whiteSpace:"nowrap"}}>
         {toast}</div>}
 
-      {/* Offline indicator */}
       {(!isOnline||offlineQueue.length>0)&&<div style={{background:isOnline?"#1a1200":"#180808",
         borderBottom:`1px solid ${isOnline?T.yellow:T.red}30`,
         padding:"8px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1382,10 +1369,10 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
         {view==="today"&&<div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
             <div style={{fontSize:11,color:T.textDim,letterSpacing:0.3}}>
-              {weekH>=WEEKLY_TARGET?"Target hit — any session is a bonus"
+              {weekH>=WEEKLY_TARGET?"🎯 Target hit — bonus mode"
                 :planIsFromThisWeek?`Plan · ${getDayName()}`:"No plan yet — estimated"}
             </div>
-            {planIsFromThisWeek&&<button onClick={()=>runAdaptPlan()} disabled={adaptLoading}
+            {planIsFromThisWeek&&weekH<WEEKLY_TARGET&&<button onClick={()=>runAdaptPlan()} disabled={adaptLoading}
               style={{background:"none",border:`1px solid ${T.surface3}`,
                 color:adaptLoading?T.textDim:T.blue,borderRadius:8,padding:"4px 10px",
                 fontSize:10,cursor:"pointer",fontWeight:700,letterSpacing:0.3}}>
@@ -1404,8 +1391,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
 
           {today.map(item=>{
             const p=getP(item.id),c=gc(item.genre);
-            const maxR=maxRealPerSession(item);
-            const quickContentH=parseFloat(realToContent(item,maxR).toFixed(3));
             return <Card key={item.id} accent={c} glow style={{marginBottom:10,padding:16}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div style={{flex:1,paddingRight:10}}>
@@ -1460,17 +1445,14 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             </Card>;
           })}
 
+          {/* Bonus mode — shows whenever 20h hit */}
           {weekH>=WEEKLY_TARGET&&<div>
-            <div style={{textAlign:"center",color:T.green,padding:"32px 0 16px",
-              fontSize:15,fontWeight:700,letterSpacing:0.3,textShadow:shadow.glow(T.green)}}>
-              🎯 {WEEKLY_TARGET}h hit. Week complete.
-            </div>
             <Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`}}>
               <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>
                 Bonus Mode
               </div>
               <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
-                Weekly plan is locked in. Any session from here is extra — purely your call.
+                {weekH.toFixed(1)}h logged — weekly plan locked. Any session from here is purely extra.
               </div>
               {bonusItems?.items?.length>0&&<div>
                 {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic",lineHeight:1.5}}>
@@ -1517,6 +1499,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
         {view==="week"&&<div>
           <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
             {planIsFromThisWeek?"This week's plan":"Active focus"} · {weekH.toFixed(1)}h logged
+            {weekH>=WEEKLY_TARGET&&<span style={{color:T.green,fontWeight:700}}> · 🎯 Target hit</span>}
           </div>
 
           {/* Projected finish per active item */}
@@ -1549,33 +1532,44 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <div>
                 <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>
-                  Week Schedule
+                  {weekH>=WEEKLY_TARGET?"Week Plan (Complete)":"Week Schedule"}
                 </div>
                 {weekPlan.lastAdapted&&<div style={{fontSize:9,color:T.textDim,marginTop:2}}>
                   Adapted {new Date(weekPlan.lastAdapted).toLocaleDateString()}
                 </div>}
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <div style={{fontSize:13,fontWeight:900,color:T.green,textShadow:shadow.glow(T.green)}}>
+                <div style={{fontSize:13,fontWeight:900,
+                  color:weekH>=WEEKLY_TARGET?T.green:T.textMid,
+                  textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none"}}>
                   {weekPlan.totalPlannedHours}h
                 </div>
-                <button onClick={()=>runAdaptPlan()} disabled={adaptLoading}
+                {/* Only show Adapt button if week not yet complete */}
+                {weekH<WEEKLY_TARGET&&<button onClick={()=>runAdaptPlan()} disabled={adaptLoading}
                   style={{background:"none",border:`1px solid ${T.surface3}`,
                     color:adaptLoading?T.textDim:T.blue,borderRadius:7,
                     padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:700}}>
                   {adaptLoading?"…":"⚡ Adapt"}
-                </button>
+                </button>}
               </div>
             </div>
             {weekPlan.days.map(day=>{
               const isToday=day.day===getDayName();
+              const dayIdx=DAY_NAMES.indexOf(day.day);
+              const todayIdx=getDayIdx();
+              // Days past target are shown as "bonus" territory if week is complete
+              const isPastToday=dayIdx>todayIdx;
+              const isBonusDay=weekH>=WEEKLY_TARGET&&isPastToday;
               const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
-              return <div key={day.day} style={{marginBottom:14}}>
+              return <div key={day.day} style={{marginBottom:14,opacity:isBonusDay?0.5:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <div style={{fontSize:11,fontWeight:800,
-                    color:isToday?T.blue:T.text,
-                    textShadow:isToday?shadow.glow(T.blue):"none"}}>
-                    {day.day}{isToday?" — Today":""}
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{fontSize:11,fontWeight:800,
+                      color:isToday?T.blue:T.text,
+                      textShadow:isToday?shadow.glow(T.blue):"none"}}>
+                      {day.day}{isToday?" — Today":""}
+                    </div>
+                    {isBonusDay&&<span style={{fontSize:9,color:T.textDim,fontWeight:500,fontStyle:"italic"}}>bonus</span>}
                   </div>
                   <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h real</div>
                 </div>
@@ -1693,7 +1687,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
             ))}
           </Card>}
 
-          {/* Sunday summary */}
           {(weeklySummary||summaryLoading)&&<Card accent={T.yellow} style={{padding:"13px 14px",marginBottom:10}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
               <div style={{fontSize:9,color:T.yellow,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>
@@ -1725,11 +1718,11 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                 {weekPlan.lastAdapted?` · Adapted ${new Date(weekPlan.lastAdapted).toLocaleDateString()}`:""}
               </div>
             </div>
-            <button onClick={()=>runAdaptPlan()} disabled={adaptLoading}
+            {weekH<WEEKLY_TARGET&&<button onClick={()=>runAdaptPlan()} disabled={adaptLoading}
               style={{background:"none",border:`1px solid ${T.blue}30`,color:T.blue,
                 borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>
               {adaptLoading?"…":"⚡ Adapt"}
-            </button>
+            </button>}
           </div>}
 
           <button onClick={()=>runFullCheckin(false)} disabled={aiLoading}
@@ -1820,7 +1813,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               ))}
             </div>
 
-            {/* Personal bests */}
             <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,
               border:`1px solid ${T.border}`}}>
               <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
@@ -1838,7 +1830,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               </div>
             </div>
 
-            {/* 12-week chart */}
             <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,
               border:`1px solid ${T.border}`}}>
               <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
@@ -1864,7 +1855,6 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
               </div>
             </div>
 
-            {/* Genre balance */}
             {genreBalance.length>0&&<div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,
               border:`1px solid ${T.border}`}}>
               <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
