@@ -1233,22 +1233,25 @@ Respond ONLY with valid JSON, no markdown:
                 ))}
               </div>
 
-              {/* Hours counter + items bar */}
+              {/* Hours counter */}
               <div style={{background:"#0c0c0c",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
                 <div style={{fontSize:9,color:"#444",letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Study Hours Logged</div>
                 <div style={{fontSize:28,fontWeight:900,color:"#60a5fa",letterSpacing:-1}}>{totalSpentH.toFixed(1)}<span style={{fontSize:12,color:"#444",fontWeight:400}}> hrs</span></div>
               </div>
+
+              {/* Items bar */}
               <div style={{marginBottom:14}}>
-                <div style={{display:"flex",justifyContent:"space-between",
-                  fontSize:10,color:"#444",marginBottom:5}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"#444",marginBottom:5}}>
                   <span>Items completed</span>
                   <span style={{color:"#888",fontWeight:600}}>{doneItems} of {totalItems}</span>
                 </div>
                 <Bar pct={(doneItems/totalItems)*100} color="#4ade80" height={5}/>
               </div>
-              <div style={{marginBottom:6}}>
-                <div style={{display:"flex",justifyContent:"space-between",
-                  
+
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,paddingTop:10,borderTop:"1px solid #161616"}}>
+                <span style={{color:"#444"}}>Est. completion at 20h/week</span>
+                <span style={{color:"#facc15",fontWeight:700}}>{estDate}</span>
+              </div>
 
               <div style={{display:"flex",justifyContent:"space-between",fontSize:11,
                 paddingTop:10,borderTop:"1px solid #161616"}}>
@@ -1440,4 +1443,3 @@ Respond ONLY with valid JSON, no markdown:
     </div>
   );
 }
-        
