@@ -388,6 +388,17 @@ const gc=g=>{
   return "#94a3b8";
 };
 
+// Round to nearest 0.25h, then format as "1h 30m" / "45m" / "2h"
+const snap25=(h)=>Math.round(h*4)/4;
+const fmtH=(h)=>{
+  const s=snap25(h);
+  const hrs=Math.floor(s);
+  const mins=Math.round((s-hrs)*60);
+  if(hrs===0) return `${mins}m`;
+  if(mins===0) return `${hrs}h`;
+  return `${hrs}h ${mins}m`;
+};
+
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d;}catch{return d;}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
 
@@ -954,22 +965,34 @@ Respond ONLY as JSON:
       if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
 
-      // Validate and patch: ensure each day's items actually sum to the pre-computed budget.
+      // Validate and patch: snap all hours to 0.25, scale if needed, true up last item
       const validatedDays=(parsed.days||[]).map((day,i)=>{
         const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??2;
-        const itemSum=parseFloat((day.items||[]).reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
-        if(Math.abs(itemSum-budget)>0.05&&itemSum>0){
-          const scale=budget/itemSum;
-          return{...day,totalDayRealH:budget,items:(day.items||[]).map(it=>{
-            const scaledReal=parseFloat((it.realHours*scale).toFixed(2));
-            const curItem=CURRICULUM.find(ci=>ci.id===it.id);
-            const scaledContent=curItem?parseFloat(realToContent(curItem,scaledReal).toFixed(3)):scaledReal;
-            const p=getP(it.id);
-            const tgt=curItem?targetPctAfterSession(curItem,p,scaledReal):it.targetPct;
-            return{...it,realHours:scaledReal,contentHours:scaledContent,targetPct:tgt};
-          })};
+        const rawItems=(day.items||[]);
+        const itemSum=parseFloat(rawItems.reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
+        const needsScale=Math.abs(itemSum-budget)>0.05&&itemSum>0;
+        const scale=needsScale?budget/itemSum:1;
+        let snappedItems=rawItems.map(it=>{
+          const scaledReal=snap25(it.realHours*scale);
+          const curItem=CURRICULUM.find(ci=>ci.id===it.id);
+          const scaledContent=curItem?parseFloat(realToContent(curItem,scaledReal).toFixed(3)):scaledReal;
+          const p=getP(it.id);
+          const tgt=curItem?targetPctAfterSession(curItem,p,scaledReal):it.targetPct;
+          return{...it,realHours:scaledReal,contentHours:scaledContent,targetPct:tgt};
+        });
+        // True up: add any rounding gap to the last item
+        const snappedSum=parseFloat(snappedItems.reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
+        const gap=parseFloat((budget-snappedSum).toFixed(2));
+        if(Math.abs(gap)>=0.05&&snappedItems.length>0){
+          const last=snappedItems[snappedItems.length-1];
+          const adj=snap25(last.realHours+gap);
+          const curItem=CURRICULUM.find(ci=>ci.id===last.id);
+          const adjContent=curItem?parseFloat(realToContent(curItem,adj).toFixed(3)):adj;
+          const p=getP(last.id);
+          const tgt=curItem?targetPctAfterSession(curItem,p,adj):last.targetPct;
+          snappedItems[snappedItems.length-1]={...last,realHours:adj,contentHours:adjContent,targetPct:tgt};
         }
-        return{...day,totalDayRealH:itemSum};
+        return{...day,totalDayRealH:budget,items:snappedItems};
       });
 
       const keptDays=(weekPlan?.days||[]).filter(d=>DAY_NAMES.indexOf(d.day)<effectiveDayIdx_);
@@ -1055,22 +1078,33 @@ Respond ONLY as JSON — totalPlannedHours MUST equal ${freshWkRem.toFixed(1)}:
       const jsonMatch=txt.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON in response: "+txt.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
-      // Validate and patch: ensure each day's items sum to the pre-computed budget
+      // Validate and patch: snap to 0.25, scale if needed, true up last item
       const adaptValidatedDays=(parsed.days||[]).map((day,i)=>{
         const budget=adaptDayBudgets[i]??adaptDayBudgets[adaptDayBudgets.length-1]??2;
-        const itemSum=parseFloat((day.items||[]).reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
-        if(Math.abs(itemSum-budget)>0.05&&itemSum>0){
-          const scale=budget/itemSum;
-          return{...day,totalDayRealH:budget,items:(day.items||[]).map(it=>{
-            const scaledReal=parseFloat((it.realHours*scale).toFixed(2));
-            const curItem=CURRICULUM.find(ci=>ci.id===it.id);
-            const scaledContent=curItem?parseFloat(realToContent(curItem,scaledReal).toFixed(3)):scaledReal;
-            const p=getP(it.id);
-            const tgt=curItem?targetPctAfterSession(curItem,p,scaledReal):it.targetPct;
-            return{...it,realHours:scaledReal,contentHours:scaledContent,targetPct:tgt};
-          })};
+        const rawItems=(day.items||[]);
+        const itemSum=parseFloat(rawItems.reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
+        const needsScale=Math.abs(itemSum-budget)>0.05&&itemSum>0;
+        const scale=needsScale?budget/itemSum:1;
+        let snappedItems=rawItems.map(it=>{
+          const scaledReal=snap25(it.realHours*scale);
+          const curItem=CURRICULUM.find(ci=>ci.id===it.id);
+          const scaledContent=curItem?parseFloat(realToContent(curItem,scaledReal).toFixed(3)):scaledReal;
+          const p=getP(it.id);
+          const tgt=curItem?targetPctAfterSession(curItem,p,scaledReal):it.targetPct;
+          return{...it,realHours:scaledReal,contentHours:scaledContent,targetPct:tgt};
+        });
+        const snappedSum=parseFloat(snappedItems.reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
+        const gap=parseFloat((budget-snappedSum).toFixed(2));
+        if(Math.abs(gap)>=0.05&&snappedItems.length>0){
+          const last=snappedItems[snappedItems.length-1];
+          const adj=snap25(last.realHours+gap);
+          const curItem=CURRICULUM.find(ci=>ci.id===last.id);
+          const adjContent=curItem?parseFloat(realToContent(curItem,adj).toFixed(3)):adj;
+          const p=getP(last.id);
+          const tgt=curItem?targetPctAfterSession(curItem,p,adj):last.targetPct;
+          snappedItems[snappedItems.length-1]={...last,realHours:adj,contentHours:adjContent,targetPct:tgt};
         }
-        return{...day,totalDayRealH:itemSum};
+        return{...day,totalDayRealH:budget,items:snappedItems};
       });
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
       const newPlan={...weekPlan,
@@ -1545,13 +1579,13 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                     :<div>
                       <div style={{fontSize:22,fontWeight:900,color:remainingH<item.allocRealH?T.yellow:T.blue,letterSpacing:-1,
                         textShadow:shadow.glow(remainingH<item.allocRealH?T.yellow:T.blue)}}>
-                        {remainingH}h
+                        {fmtH(remainingH)}
                       </div>
                       <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
                         {sessionDoneToday?"remaining":"real study"}
                       </div>
                       {sessionDoneToday&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
-                        of {item.allocRealH}h planned
+                        of {fmtH(item.allocRealH)} planned
                       </div>}
                       {!sessionDoneToday&&item.type==="course"&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>
                         {item.contentGain}h content
@@ -1716,7 +1750,7 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                     {day.day}{isToday?" — Today":""}
                     {isDayDone&&<span style={{marginLeft:6,fontSize:9,color:T.green,fontWeight:700}}>✓</span>}
                   </div>
-                  <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h planned</div>
+                  <div style={{fontSize:10,color:T.textDim}}>{fmtH(dayRealH)} planned</div>
                 </div>
                 {day.items?.map(it=>{
                   const f=CURRICULUM.find(i=>i.id===it.id);
@@ -1746,14 +1780,14 @@ Respond with just the paragraph, the separator, then the Monday seed. No labels 
                           :sessionDoneOnDay
                             ?<div>
                               <div style={{fontSize:13,fontWeight:800,color:T.yellow,textShadow:shadow.glow(T.yellow)}}>
-                                {remainingH}h
+                                {fmtH(remainingH)}
                               </div>
                               <div style={{fontSize:9,color:T.textDim}}>remaining</div>
-                              <div style={{fontSize:9,color:T.textDim}}>of {it.realHours}h planned</div>
+                              <div style={{fontSize:9,color:T.textDim}}>of {fmtH(it.realHours)} planned</div>
                             </div>
                             :<div>
                               <div style={{fontSize:13,fontWeight:800,color:T.blue,textShadow:shadow.glow(T.blue)}}>
-                                {it.realHours}h
+                                {fmtH(it.realHours)}
                               </div>
                               {it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>
                                 {it.contentHours}h content
