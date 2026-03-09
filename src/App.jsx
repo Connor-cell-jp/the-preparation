@@ -1016,11 +1016,7 @@ Respond ONLY as JSON:
     const freshWeekH=week.hoursLogged||0;
     const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
 
-          // Pre-compute per-day budgets for adapt prompt
-    const maxPerDay=4;
-    const adaptDayBudgetStr=remainingDays.join(", ");
-
-    const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
+        const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
 
 RULES:
 - Courses: 1h content = 2h real. Max 1.5h real/session.
