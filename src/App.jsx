@@ -756,10 +756,10 @@ Respond ONLY with valid JSON, no markdown:
   };
 
   const focusIds=[...(focus.courses||[]),...(focus.books||[])];
-  const totalH=CURRICULUM.reduce((s,i)=>s+(i.hours||0),0);
-  const spentH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
-  const contentDoneH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).courseHoursComplete||0),0);
-  const wksLeft=Math.round((totalH-spentH)/WEEKLY_TARGET);
+  const totalItems=CURRICULUM.length;
+  const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
+  const totalSpentH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
+  const wksLeft=Math.round(((totalItems-doneItems)*10)/WEEKLY_TARGET); // rough estimate
   const estDate=new Date(Date.now()+wksLeft*7*24*60*60*1000).toLocaleDateString("en-CA",{year:"numeric",month:"short"});
 
   // ── Style tokens ──────────────────────────────────────────────
@@ -1233,23 +1233,22 @@ Respond ONLY with valid JSON, no markdown:
                 ))}
               </div>
 
-              {/* Dual progress bars */}
-              <div style={{marginBottom:6}}>
-                <div style={{display:"flex",justifyContent:"space-between",
-                  fontSize:10,color:"#444",marginBottom:5}}>
-                  <span>Study hours logged</span>
-                  <span style={{color:"#888",fontWeight:600}}>{spentH.toFixed(1)}h of {totalH}h</span>
-                </div>
-                <Bar pct={(spentH/totalH)*100} color="#60a5fa" height={5}/>
+              {/* Hours counter + items bar */}
+              <div style={{background:"#0c0c0c",borderRadius:10,padding:"12px 14px",marginBottom:12}}>
+                <div style={{fontSize:9,color:"#444",letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Study Hours Logged</div>
+                <div style={{fontSize:28,fontWeight:900,color:"#60a5fa",letterSpacing:-1}}>{totalSpentH.toFixed(1)}<span style={{fontSize:12,color:"#444",fontWeight:400}}> hrs</span></div>
               </div>
               <div style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",
                   fontSize:10,color:"#444",marginBottom:5}}>
-                  <span>Content completed</span>
-                  <span style={{color:"#888",fontWeight:600}}>{contentDoneH.toFixed(1)}h of {totalH}h</span>
+                  <span>Items completed</span>
+                  <span style={{color:"#888",fontWeight:600}}>{doneItems} of {totalItems}</span>
                 </div>
-                <Bar pct={(contentDoneH/totalH)*100} color="#4ade80" height={5}/>
+                <Bar pct={(doneItems/totalItems)*100} color="#4ade80" height={5}/>
               </div>
+              <div style={{marginBottom:6}}>
+                <div style={{display:"flex",justifyContent:"space-between",
+                  
 
               <div style={{display:"flex",justifyContent:"space-between",fontSize:11,
                 paddingTop:10,borderTop:"1px solid #161616"}}>
@@ -1441,3 +1440,4 @@ Respond ONLY with valid JSON, no markdown:
     </div>
   );
 }
+        
