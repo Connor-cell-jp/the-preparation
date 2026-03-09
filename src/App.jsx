@@ -1446,6 +1446,60 @@ Respond ONLY with valid JSON, no markdown:
               <SectionBlock key={sec.label} sec={sec} focusIds={focusIds}
                 getP={getP} setLogging={setLogging}/>
             ))}
+
+            {/* Export / Import */}
+            <Card style={{padding:"14px 16px",marginTop:8}}>
+              <div style={{fontSize:9,fontWeight:700,color:T.textDim,
+                textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>
+                Data Backup
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn-press" onClick={()=>{
+                  const data={progress,week,focus,weekLogs,profile};
+                  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+                  const url=URL.createObjectURL(blob);
+                  const a=document.createElement("a");
+                  a.href=url;
+                  a.download=`the-preparation-${new Date().toISOString().split("T")[0]}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast_("✓ Data exported");
+                }} style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                  color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,
+                  fontWeight:700,cursor:"pointer",letterSpacing:0.3}}>
+                  Export JSON
+                </button>
+                <button className="btn-press" onClick={()=>{
+                  const inp=document.createElement("input");
+                  inp.type="file";inp.accept=".json";
+                  inp.onchange=e=>{
+                    const file=e.target.files[0];
+                    if(!file) return;
+                    const reader=new FileReader();
+                    reader.onload=ev=>{
+                      try{
+                        const d=JSON.parse(ev.target.result);
+                        if(d.progress) setProgress(d.progress);
+                        if(d.week)     setWeek(d.week);
+                        if(d.focus)    setFocus(d.focus);
+                        if(d.weekLogs) setWeekLogs(d.weekLogs);
+                        if(d.profile)  setProfile(d.profile);
+                        toast_("✓ Data imported");
+                      }catch{toast_("Import failed — invalid file");}
+                    };
+                    reader.readAsText(file);
+                  };
+                  inp.click();
+                }} style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                  color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,
+                  fontWeight:700,cursor:"pointer",letterSpacing:0.3}}>
+                  Import JSON
+                </button>
+              </div>
+              <div style={{fontSize:10,color:T.textDim,marginTop:10,lineHeight:1.5}}>
+                Export before updating the app or clearing browser data. Import restores everything exactly.
+              </div>
+            </Card>
           </div>
         )}
       </div>
