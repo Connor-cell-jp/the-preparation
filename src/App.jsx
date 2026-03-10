@@ -430,10 +430,10 @@ function getWeekISO(){ return new Date().toISOString().split('T')[0].slice(0,7);
 function isSunday(){ return new Date().getDay()===0; }
 function isMonday(){ return new Date().getDay()===1; }
 
-const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_REVIEWS="tp_reviews1",SK_PROFILE="tp_profile2";
+const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_REVIEWS="tp_reviews2",SK_PROFILE="tp_profile2";
 const SK_PLAN="tp_plan2",SK_QUEUE="tp_queue1",SK_WEEKLY_HOURS="tp_wkhours1",SK_CUSTOM="tp_custom1";
 const SK_SUNDAY_DONE="tp_sundaydone1";
-const MAX_REVIEWS=12;
+const MAX_REVIEWS=20;
 
 const DEFAULT_PROFILE=`LEARNER: Connor, 18, Kamloops BC. Self-directed 4-year curriculum called The Preparation.
 
@@ -464,6 +464,118 @@ const shadow={
   inset:"inset 0 2px 8px rgba(0,0,0,0.6)",
 };
 
+// ── Global animation styles ───────────────────────────────────────────────────
+const GLOBAL_CSS = `
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  @keyframes splashBloom {
+    0%   { opacity:0; transform:scale(0.6); }
+    60%  { opacity:1; transform:scale(1.05); }
+    100% { opacity:1; transform:scale(1); }
+  }
+  @keyframes splashPulse {
+    0%   { opacity:0.55; }
+    100% { opacity:1; }
+  }
+  @keyframes splashOut {
+    to { opacity:0; }
+  }
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(10px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity:0; }
+    to   { opacity:1; }
+  }
+  @keyframes slideInRight {
+    from { transform:translateX(100%); opacity:0; }
+    to   { transform:translateX(0);    opacity:1; }
+  }
+  @keyframes slideInUp {
+    from { transform:translateY(100%); opacity:0; }
+    to   { transform:translateY(0);    opacity:1; }
+  }
+  @keyframes toastIn {
+    from { opacity:0; transform:translateX(-50%) translateY(-8px) scale(0.95); }
+    to   { opacity:1; transform:translateX(-50%) translateY(0)    scale(1); }
+  }
+  .btn-press { transition: transform 0.12s ease, opacity 0.12s ease; }
+  .btn-press:active { transform: scale(0.96); opacity:0.85; }
+  .tab-content { animation: fadeUp 0.22s ease both; }
+  input, textarea { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+  input:focus, textarea:focus { border-color: #60a5fa60 !important; box-shadow: 0 0 0 3px #60a5fa12; outline:none; }
+`;
+
+// ── Splash Screen ─────────────────────────────────────────────────────────────
+function SplashScreen({ onDone }) {
+  const [phase, setPhase] = useState("in");
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase("pulse"), 400);
+    const t2 = setTimeout(() => setPhase("out"),  1900);
+    const t3 = setTimeout(() => onDone(),          2450);
+    return () => [t1,t2,t3].forEach(clearTimeout);
+  }, []);
+  return (
+    <div style={{
+      position:"fixed",inset:0,zIndex:9999,background:"#141414",
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      animation: phase==="out" ? "splashOut 0.55s ease forwards" : "none",
+      pointerEvents:"none",
+    }}>
+      {/* White bloom behind text */}
+      <div style={{
+        position:"absolute",width:280,height:280,borderRadius:"50%",
+        background:"radial-gradient(circle, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 40%, transparent 70%)",
+        animation: phase==="in" ? "none" : "splashBloom 0.7s ease forwards",
+        opacity: phase==="in" ? 0 : 1,
+        transition:"opacity 0.4s ease",
+      }}/>
+      {/* Outer soft glow ring */}
+      <div style={{
+        position:"absolute",width:420,height:420,borderRadius:"50%",
+        background:"radial-gradient(circle, rgba(96,165,250,0.04) 0%, transparent 65%)",
+        animation: phase==="in" ? "none" : "splashBloom 1s ease 0.1s forwards",
+        opacity: phase==="in" ? 0 : 1,
+      }}/>
+      <div style={{
+        position:"relative",textAlign:"center",
+        animation: phase==="in"
+          ? "none"
+          : phase==="pulse"
+          ? "splashBloom 0.5s ease forwards"
+          : "none",
+        opacity: phase==="in" ? 0 : 1,
+        transition:"opacity 0.4s ease",
+      }}>
+        <div style={{
+          fontSize:11,letterSpacing:7,textTransform:"uppercase",
+          color:"rgba(255,255,255,0.35)",fontFamily:T.fontUI,fontWeight:700,marginBottom:14,
+          animation: phase==="pulse" ? "splashPulse 1s ease-in-out infinite alternate" : "none",
+        }}>
+          THE
+        </div>
+        <div style={{
+          fontSize:34,fontWeight:800,letterSpacing:-1,color:"#f0f0f0",
+          fontFamily:T.fontUI,lineHeight:1,marginBottom:10,
+          animation: phase==="pulse" ? "splashPulse 1s ease-in-out infinite alternate" : "none",
+        }}>
+          PREPARATION
+        </div>
+        <div style={{
+          fontSize:10,letterSpacing:5,textTransform:"uppercase",
+          color:"rgba(255,255,255,0.2)",fontFamily:T.fontUI,fontWeight:600,
+        }}>
+          LEARNING TRACKER
+        </div>
+        <div style={{
+          width:40,height:1,margin:"18px auto 0",
+          background:"linear-gradient(90deg, transparent, rgba(96,165,250,0.5), transparent)",
+        }}/>
+      </div>
+    </div>
+  );
+}
+
 function Pill({color,label}){
   return <span style={{display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:600,
     color,background:`${color}15`,borderRadius:20,padding:"2px 8px",
@@ -482,52 +594,57 @@ function Card({children,style={},accent,glow=false}){
     ...(accent?{borderLeft:`3px solid ${accent}`}:{}),
     ...style}}>{children}</div>;
 }
-
 function StarRating({value,onChange}){
   return <div style={{display:"flex",gap:6}}>
     {[1,2,3,4,5].map(s=>(
-      <button key={s} onClick={()=>onChange(s)}
+      <button key={s} onClick={()=>onChange(s)} className="btn-press"
         style={{background:"none",border:"none",fontSize:28,cursor:"pointer",
           color:s<=value?T.yellow:T.surface3,
           textShadow:s<=value?`0 0 10px ${T.yellow}80`:"none",
-          transition:"all 0.15s",padding:"2px 4px"}}>
+          transition:"color 0.15s, text-shadow 0.15s",padding:"2px 4px"}}>
         ★
       </button>
     ))}
   </div>;
 }
-
 function SessionHistory({item,sessions,onEdit}){
   const [open,setOpen]=useState(false);
   return <div style={{marginTop:10}}>
-    <button onClick={()=>setOpen(o=>!o)}
+    <button onClick={()=>setOpen(o=>!o)} className="btn-press"
       style={{background:"none",border:"none",color:open?T.blue:T.textDim,fontSize:10,
         cursor:"pointer",display:"flex",alignItems:"center",gap:5,padding:"2px 0",
         letterSpacing:0.5,fontWeight:600,textTransform:"uppercase",transition:"color 0.2s"}}>
-      <span style={{fontSize:8}}>{open?"▲":"▼"}</span>Log History
+      <span style={{fontSize:8,transition:"transform 0.2s",display:"inline-block",transform:open?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
+      Log History
       <span style={{color:T.textFaint,fontWeight:400,textTransform:"none",letterSpacing:0}}>({sessions.length})</span>
     </button>
-    {open&&<div style={{marginTop:8,borderLeft:`1px solid ${T.surface3}`,paddingLeft:12}}>
-      {sessions.map((s,i)=>(
-        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-          padding:"7px 0",borderBottom:`1px solid ${T.surface2}`}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:11,color:T.textMid,fontWeight:500}}>{s.date}</div>
-            <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-              {s.studyHours}h real · {s.courseHours}h content{s.note?` · ${s.note}`:""}
+    <div style={{
+      overflow:"hidden",
+      maxHeight:open?"600px":"0",
+      transition:"max-height 0.3s ease",
+    }}>
+      <div style={{marginTop:8,borderLeft:`1px solid ${T.surface3}`,paddingLeft:12}}>
+        {sessions.map((s,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+            padding:"7px 0",borderBottom:`1px solid ${T.surface2}`,
+            animation:`fadeUp 0.15s ease ${i*0.04}s both`}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:11,color:T.textMid,fontWeight:500}}>{s.date}</div>
+              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+                {s.studyHours}h real · {s.courseHours}h content{s.note?` · ${s.note}`:""}
+              </div>
             </div>
+            <button onClick={()=>onEdit(i)} className="btn-press"
+              style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
+                borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:600,marginLeft:10}}>
+              Edit
+            </button>
           </div>
-          <button onClick={()=>onEdit(i)}
-            style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
-              borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:600,marginLeft:10}}>
-            Edit
-          </button>
-        </div>
-      ))}
-    </div>}
+        ))}
+      </div>
+    </div>
   </div>;
 }
-
 function SectionBlock({sec,focusIds,getP,setLogging,onReset}){
   const [open,setOpen]=useState(false);
   const done=sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
@@ -537,8 +654,8 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset}){
   const pct=totalContentH>0?Math.round((doneContentH/totalContentH)*100):0;
   return <div style={{background:T.surface1,border:`1px solid ${T.border}`,
     borderTop:`1px solid ${T.borderLight}`,borderRadius:14,marginBottom:8,
-    overflow:"hidden",boxShadow:shadow.card}}>
-    <div onClick={()=>setOpen(o=>!o)}
+    overflow:"hidden",boxShadow:shadow.card,transition:"box-shadow 0.2s"}}>
+    <div onClick={()=>setOpen(o=>!o)} className="btn-press"
       style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div>
         <div style={{fontSize:13,fontWeight:700,letterSpacing:0.1}}>{sec.label}</div>
@@ -546,53 +663,59 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset}){
       </div>
       <div style={{display:"flex",alignItems:"center",gap:14}}>
         <div style={{textAlign:"right"}}>
-          <div style={{fontSize:16,fontWeight:900,color:pct>0?T.blue:T.textFaint,
-            textShadow:pct>0?shadow.glow(T.blue):"none"}}>{pct}%</div>
+          <div style={{fontSize:16,fontWeight:900,color:pct>0?T.blue:T.textFaint}}>{pct}%</div>
           <div style={{fontSize:9,color:T.textDim,marginTop:1}}>{done} done · {active} active</div>
         </div>
-        <div style={{color:T.textFaint,fontSize:11}}>{open?"▲":"▼"}</div>
+        <div style={{color:T.textFaint,fontSize:11,transition:"transform 0.2s",transform:open?"rotate(180deg)":"rotate(0deg)"}}>▼</div>
       </div>
     </div>
     <Bar pct={pct} style={{margin:"0 16px 10px",height:3}} glow={pct>0}/>
-    {open&&<div style={{padding:"0 12px 12px"}}>
-      {sec.items.map(item=>{
-        const p=getP(item.id),inFocus=focusIds.includes(item.id);
-        const isDone=p.percentComplete>=100,isTouched=p.percentComplete>0&&!isDone;
-        const c=gc(item.genre);
-        const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
-        const realLeft=contentToReal(item,contentLeft);
-        return <div key={item.id}
-          style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
-            borderBottom:`1px solid ${T.surface2}`}}>
-          <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
-            background:isDone?T.green:isTouched?c:inFocus?"#f472b6":T.surface3,
-            boxShadow:isDone||isTouched?`0 0 6px ${isDone?T.green:c}60`:"none"}}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:11,fontWeight:isDone||isTouched?600:400,
-              color:isDone?T.green:isTouched?T.text:T.textDim,
-              overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-              <span style={{color:T.textDim,marginRight:5}}>{item.id}</span>{item.name}
+    <div style={{
+      overflow:"hidden",
+      maxHeight:open?"9999px":"0",
+      transition:"max-height 0.35s ease",
+    }}>
+      <div style={{padding:"0 12px 12px"}}>
+        {sec.items.map(item=>{
+          const p=getP(item.id),inFocus=focusIds.includes(item.id);
+          const isDone=p.percentComplete>=100,isTouched=p.percentComplete>0&&!isDone;
+          const c=gc(item.genre);
+          const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
+          const realLeft=contentToReal(item,contentLeft);
+          return <div key={item.id}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
+              borderBottom:`1px solid ${T.surface2}`}}>
+            <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
+              background:isDone?T.green:isTouched?c:inFocus?"#f472b6":T.surface3,
+              boxShadow:isDone||isTouched?`0 0 6px ${isDone?T.green:c}60`:"none",
+              transition:"background 0.3s, box-shadow 0.3s"}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:11,fontWeight:isDone||isTouched?600:400,
+                color:isDone?T.green:isTouched?T.text:T.textDim,
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                <span style={{color:T.textDim,marginRight:5}}>{item.id}</span>{item.name}
+              </div>
+              <div style={{fontSize:9,color:T.textFaint,marginTop:2}}>
+                {item.hours}h content{item.genre?` · ${item.genre}`:""}
+                {!isDone&&isTouched?` · ${realLeft.toFixed(1)}h real left`:""}
+                {inFocus?" · 🎯":""}
+                {item.custom?" · custom":""}
+              </div>
             </div>
-            <div style={{fontSize:9,color:T.textFaint,marginTop:2}}>
-              {item.hours}h content{item.genre?` · ${item.genre}`:""}
-              {!isDone&&isTouched?` · ${realLeft.toFixed(1)}h real left`:""}
-              {inFocus?" · 🎯":""}
-              {item.custom?" · custom":""}
+            <div style={{flexShrink:0,textAlign:"right",display:"flex",alignItems:"center",gap:6}}>
+              {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c}}>{p.percentComplete}%</div>}
+              {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
+              {isDone&&<button onClick={()=>onReset(item)} className="btn-press"
+                style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
+                  borderRadius:7,padding:"3px 8px",fontSize:9,cursor:"pointer",fontWeight:600}}>Reset</button>}
+              {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
+                style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
+                  borderRadius:7,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:600}}>Log</button>}
             </div>
-          </div>
-          <div style={{flexShrink:0,textAlign:"right",display:"flex",alignItems:"center",gap:6}}>
-            {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c,textShadow:`0 0 8px ${c}40`}}>{p.percentComplete}%</div>}
-            {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
-            {isDone&&<button onClick={()=>onReset(item)}
-              style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
-                borderRadius:7,padding:"3px 8px",fontSize:9,cursor:"pointer",fontWeight:600}}>Reset</button>}
-            {!isDone&&<button onClick={()=>setLogging(item)}
-              style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
-                borderRadius:7,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:600}}>Log</button>}
-          </div>
-        </div>;
-      })}
-    </div>}
+          </div>;
+        })}
+      </div>
+    </div>
   </div>;
 }
 
@@ -605,7 +728,6 @@ function sendNotification(title,body,tag){
   if(Notification.permission==="granted")
     new Notification(title,{body,icon:"/icon.png",tag});
 }
-
 function buildItemContext(item,p){
   const contentDone=p.courseHoursComplete||0;
   const contentLeft=Math.max(0,(item.hours||0)-contentDone);
@@ -614,7 +736,6 @@ function buildItemContext(item,p){
     +`totalContent=${item.hours}h|contentDone=${contentDone.toFixed(2)}h|pct=${p.percentComplete}%|`
     +`contentLeft=${contentLeft.toFixed(2)}h|realLeft=${realLeft.toFixed(2)}h|realSpent=${(p.hoursSpent||0).toFixed(2)}h`;
 }
-
 const callAI=async(prompt,max_tokens=1500,model="claude-haiku-4-5-20251001")=>{
   const r=await fetch("/api/chat",{
     method:"POST",headers:{"Content-Type":"application/json"},
@@ -624,13 +745,11 @@ const callAI=async(prompt,max_tokens=1500,model="claude-haiku-4-5-20251001")=>{
   if(d.error) throw new Error(d.error.message||"API error");
   return d.content.map(c=>c.text||"").join("");
 };
-
 const loadQueue=()=>load(SK_QUEUE,[]);
 const saveQueue=q=>save(SK_QUEUE,q);
 const enqueue=(type,payload)=>{const q=loadQueue();q.push({id:Date.now(),type,payload,ts:new Date().toISOString()});saveQueue(q);};
 const dequeue=id=>saveQueue(loadQueue().filter(x=>x.id!==id));
 
-// ── Reconcile week hours from actual session data ─────────────────────────────
 function reconcileWeekHours(progress){
   const mon=new Date(getMonday()),sun=new Date(mon);sun.setDate(mon.getDate()+6);
   let total=0;
@@ -643,7 +762,209 @@ function reconcileWeekHours(progress){
   return parseFloat(total.toFixed(2));
 }
 
+// ── Side Panel ────────────────────────────────────────────────────────────────
+function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onImport, onClearAll,
+  customItems, newItem, setNewItem, addCustomItem, removeCustomItem, getP }) {
+  const [section, setSection] = useState("settings"); // "settings" | "history"
+  const inputSt = {width:"100%",background:T.surface0,border:`1px solid ${T.surface3}`,
+    borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,
+    boxSizing:"border-box",fontFamily:"inherit"};
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position:"fixed",inset:0,zIndex:200,
+        background:"rgba(0,0,0,0.6)",backdropFilter:"blur(3px)",
+        opacity:open?1:0,pointerEvents:open?"auto":"none",
+        transition:"opacity 0.28s ease",
+      }}/>
+      {/* Panel */}
+      <div style={{
+        position:"fixed",top:0,right:0,bottom:0,width:"min(88vw,360px)",
+        background:T.surface0,zIndex:201,
+        borderLeft:`1px solid ${T.border}`,
+        boxShadow:"-8px 0 40px rgba(0,0,0,0.7)",
+        display:"flex",flexDirection:"column",
+        transform:open?"translateX(0)":"translateX(100%)",
+        transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)",
+        overflowY:"auto",
+      }}>
+        {/* Panel header */}
+        <div style={{padding:"calc(env(safe-area-inset-top) + 18px) 18px 0",
+          borderBottom:`1px solid ${T.border}`,paddingBottom:14,flexShrink:0}}>
+          <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:18,fontWeight:800,letterSpacing:-0.3}}>Learning Tracker</div>
+            <button onClick={onClose} className="btn-press"
+              style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.textMid,
+                borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
+          </div>
+          {/* Sub-tabs */}
+          <div style={{display:"flex",gap:0,marginTop:14}}>
+            {[["settings","Settings"],["history","Review History"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setSection(k)} className="btn-press"
+                style={{flex:1,padding:"8px 0",background:"none",border:"none",
+                  borderBottom:section===k?`2px solid ${T.blue}`:"2px solid transparent",
+                  color:section===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
+                  textTransform:"uppercase",letterSpacing:0.8,transition:"color 0.2s, border-color 0.2s"}}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{flex:1,overflowY:"auto",padding:"16px 18px 40px"}}>
+          {section==="settings"&&<div style={{animation:"fadeUp 0.2s ease both"}}>
+            {/* Profile */}
+            <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Learning Profile</div>
+            <Card style={{padding:"13px 14px",marginBottom:20}}>
+              <textarea value={profile} onChange={e=>setProfile(e.target.value)}
+                style={{...inputSt,fontSize:11,height:160,resize:"none",lineHeight:1.6}}/>
+            </Card>
+
+            {/* Data */}
+            <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
+            <Card style={{padding:"13px 14px",marginBottom:20}}>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <button onClick={onExport} className="btn-press"
+                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                    color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Export JSON</button>
+                <button onClick={onImport} className="btn-press"
+                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                    color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Import JSON</button>
+              </div>
+              <button onClick={onClearAll} className="btn-press"
+                style={{width:"100%",background:"#180a0a",border:`1px solid ${T.red}20`,
+                  color:T.red,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Clear All Data</button>
+            </Card>
+
+            {/* Add custom item */}
+            <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Add Custom Item</div>
+            <Card style={{padding:"13px 14px",marginBottom:12}}>
+              <div style={{marginBottom:10}}>
+                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Title *</label>
+                <input value={newItem.name} onChange={e=>setNewItem(n=>({...n,name:e.target.value}))}
+                  style={inputSt} placeholder="e.g. Introduction to Philosophy"/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                <div>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Content Hours *</label>
+                  <input type="number" min="0.5" step="0.5" value={newItem.hours}
+                    onChange={e=>setNewItem(n=>({...n,hours:e.target.value}))}
+                    style={inputSt} placeholder="e.g. 12"/>
+                </div>
+                <div>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Genre *</label>
+                  <input value={newItem.genre} onChange={e=>setNewItem(n=>({...n,genre:e.target.value}))}
+                    style={inputSt} placeholder="e.g. Philosophy"/>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+                <div>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Type</label>
+                  <div style={{display:"flex",gap:6}}>
+                    {["course","book"].map(t=>(
+                      <button key={t} onClick={()=>setNewItem(n=>({...n,type:t}))} className="btn-press"
+                        style={{flex:1,background:newItem.type===t?`${T.blue}20`:T.surface2,
+                          border:`1px solid ${newItem.type===t?T.blue+"50":T.surface3}`,
+                          color:newItem.type===t?T.blue:T.textDim,
+                          borderRadius:8,padding:"7px 0",fontSize:11,cursor:"pointer",fontWeight:700,
+                          textTransform:"capitalize",transition:"all 0.18s"}}>
+                        {t}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Section</label>
+                  <div style={{display:"flex",gap:6}}>
+                    {["Core","Optional"].map(s=>(
+                      <button key={s} onClick={()=>setNewItem(n=>({...n,section:s}))} className="btn-press"
+                        style={{flex:1,background:newItem.section===s?`${T.green}20`:T.surface2,
+                          border:`1px solid ${newItem.section===s?T.green+"50":T.surface3}`,
+                          color:newItem.section===s?T.green:T.textDim,
+                          borderRadius:8,padding:"7px 0",fontSize:11,cursor:"pointer",fontWeight:700,
+                          transition:"all 0.18s"}}>
+                        {s}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {newItem.type==="course"&&newItem.hours&&<div style={{fontSize:11,color:T.blue,marginBottom:10}}>
+                = {(parseFloat(newItem.hours||0)*2).toFixed(0)}h real study time
+              </div>}
+              <button onClick={addCustomItem} className="btn-press"
+                style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
+                  borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                Add to Curriculum
+              </button>
+            </Card>
+
+            {customItems.length>0&&<>
+              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
+                Custom Items ({customItems.length})
+              </div>
+              {customItems.map(item=>{
+                const p=getP(item.id),c=gc(item.genre);
+                return <Card key={item.id} accent={c} style={{padding:"10px 14px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{flex:1,minWidth:0,paddingRight:10}}>
+                      <div style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        <span style={{color:T.textDim,marginRight:5}}>{item.id}</span>{item.name}
+                      </div>
+                      <div style={{fontSize:9,color:T.textDim,marginTop:3}}>
+                        {item.type} · {item.section} · {item.genre} · {item.hours}h · {p.percentComplete}%
+                      </div>
+                    </div>
+                    <button onClick={()=>removeCustomItem(item.id)} className="btn-press"
+                      style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
+                        borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:600,flexShrink:0}}>
+                      Remove</button>
+                  </div>
+                  {p.percentComplete>0&&<Bar pct={p.percentComplete} color={c} height={2} style={{marginTop:8}}/>}
+                </Card>;
+              })}
+            </>}
+          </div>}
+
+          {section==="history"&&<div style={{animation:"fadeUp 0.2s ease both"}}>
+            {reviews.length===0
+              ?<div style={{textAlign:"center",padding:"40px 0",color:T.textDim,fontSize:13}}>
+                No reviews yet — write your first Sunday review.
+              </div>
+              :reviews.map((r,i)=>(
+                <Card key={i} style={{padding:"14px 16px",marginBottom:10,
+                  animation:`fadeUp 0.18s ease ${i*0.06}s both`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:T.text}}>{r.date}</div>
+                      <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+                        {(r.hoursLogged||0).toFixed(1)}h logged
+                        {r.completedCount>0?` · ${r.completedCount} completed`:""}
+                      </div>
+                    </div>
+                    <div style={{fontSize:13,color:T.yellow}}>
+                      {"★".repeat(r.stars||0)}{"☆".repeat(5-(r.stars||0))}
+                    </div>
+                  </div>
+                  {r.summary&&<div style={{fontSize:12,color:T.textMid,lineHeight:1.6,
+                    background:T.surface0,borderRadius:10,padding:"10px 12px",
+                    borderLeft:`2px solid ${T.blue}40`}}>
+                    {r.summary}
+                  </div>}
+                  {r.rawNote&&<div style={{fontSize:10,color:T.textDim,marginTop:8,fontStyle:"italic"}}>
+                    "{r.rawNote}"
+                  </div>}
+                </Card>
+              ))}
+          </div>}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function App(){
+  const [splash,setSplash]=useState(true);
   const [customItems,setCustomItems]=useState(()=>load(SK_CUSTOM,[]));
   const CURRICULUM=[...BASE_CURRICULUM,...customItems];
   const SECTIONS=[
@@ -665,9 +986,10 @@ export default function App(){
   });
   const [weekPlan,setWeekPlan]   =useState(()=>{const p=load(SK_PLAN,null);return p?.weekStart===getMonday()?p:null;});
   const [weeklyHours,setWeeklyHours]=useState(()=>load(SK_WEEKLY_HOURS,[]));
-  const [reviews,setReviews]     =useState(()=>load(SK_REVIEWS,[]));// unified week review log
+  const [reviews,setReviews]     =useState(()=>load(SK_REVIEWS,[]));
   const [profile,setProfile]     =useState(()=>localStorage.getItem(SK_PROFILE)||DEFAULT_PROFILE);
   const [view,setView]           =useState("today");
+  const [sideOpen,setSideOpen]   =useState(false);
   const [logging,setLogging]     =useState(null);
   const [logForm,setLogForm]     =useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
   const [confirmLog,setConfirmLog]=useState(false);
@@ -675,10 +997,11 @@ export default function App(){
   const [aiLoading,setAiLoading] =useState(false);
   const [adaptLoading,setAdaptLoading]=useState(false);
   const [adaptNote,setAdaptNote] =useState("");
+  const [planGuidance,setPlanGuidance]=useState("");
   const [aiResult,setAiResult]   =useState(null);
   const [editFocus,setEditFocus] =useState(false);
   const [completionBanner,setCompletionBanner]=useState([]);
-  const [graduationProposal,setGraduationProposal]=useState(null);// auto-graduation
+  const [graduationProposal,setGraduationProposal]=useState(null);
   const [editSession,setEditSession]=useState(null);
   const [editSessionForm,setEditSessionForm]=useState({hours:"",courseHours:"",note:""});
   const [missedDayBanner,setMissedDayBanner]=useState(false);
@@ -688,13 +1011,10 @@ export default function App(){
   const [bonusItems,setBonusItems]=useState(()=>load("tp_bonus1",[]));
   const [bonusLoading,setBonusLoading]=useState(false);
   const [exportReminder,setExportReminder]=useState(false);
-  const [showSettings,setShowSettings]=useState(false);
   const [newItem,setNewItem]     =useState({name:"",hours:"",type:"course",section:"Core",genre:""});
-  const [editProfile,setEditProfile]=useState(false);
-  const [showReviews,setShowReviews]=useState(false);
-  // Sunday review modal
   const [showSundayReview,setShowSundayReview]=useState(false);
   const [sundayForm,setSundayForm]=useState({stars:0,note:""});
+  const [sundaySubmitting,setSundaySubmitting]=useState(false);
   const prevProgressRef=useRef({});
 
   useEffect(()=>save(SK_P,progress),[progress]);
@@ -707,7 +1027,6 @@ export default function App(){
   useEffect(()=>save(SK_PLAN,weekPlan),[weekPlan]);
   useEffect(()=>save(SK_CUSTOM,customItems),[customItems]);
 
-  // Reconcile week hours on mount and when progress changes (fixes drift bug)
   useEffect(()=>{
     const reconciled=reconcileWeekHours(progress);
     setWeek(w=>{
@@ -739,14 +1058,11 @@ export default function App(){
     check();const t=setInterval(check,60000);return()=>clearInterval(t);
   },[]);
 
-  // Sunday review & Monday plan notifications
   useEffect(()=>{
     if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
     requestNotificationPermission();
     const now=new Date();
     const todayISO=getTodayISO();
-
-    // Sunday evening — show review modal if not done today
     if(isSunday()){
       const doneSunday=load(SK_SUNDAY_DONE,null);
       if(doneSunday!==todayISO&&now.getHours()>=18){
@@ -754,7 +1070,6 @@ export default function App(){
         sendNotification("The Preparation","Time to review your week ✍️","sunday-review");
       }
     }
-    // Monday morning — auto-plan if no plan yet
     if(isMonday()&&now.getHours()>=7&&!(weekPlan?.weekStart===getMonday())){
       sendNotification("The Preparation","Ready to plan your week? Open the app →","monday-plan");
       setTimeout(()=>runPlanWeek(true),1500);
@@ -776,7 +1091,6 @@ export default function App(){
     if(!logged) setMissedDayBanner(true);
   },[]);
 
-  // Completion banner + auto-graduation
   useEffect(()=>{
     const prev=prevProgressRef.current;
     const newlyDone=Object.entries(progress)
@@ -784,18 +1098,13 @@ export default function App(){
       .map(([id])=>id);
     if(newlyDone.length>0){
       setCompletionBanner(b=>[...new Set([...b,...newlyDone])]);
-      // Auto-graduation: for each newly completed Core item, find next untouched Core item in same genre or sequence
       newlyDone.forEach(id=>{
         const item=CURRICULUM.find(i=>i.id===id);
         if(!item||item.section!=="Core") return;
         const isInFocus=(focus.courses||[]).includes(id)||(focus.books||[]).includes(id);
         if(!isInFocus) return;
-        // Find next untouched Core item
         const nextItem=CURRICULUM.find(i=>
-          i.section==="Core"&&
-          (getP(i.id).percentComplete||0)===0&&
-          i.id!==id&&
-          i.type===item.type
+          i.section==="Core"&&(getP(i.id).percentComplete||0)===0&&i.id!==id&&i.type===item.type
         );
         if(nextItem) setGraduationProposal({completed:item,next:nextItem});
       });
@@ -832,10 +1141,9 @@ export default function App(){
           const targetPct=targetPctAfterSession(item,p,realH);
           const contentDone=p.courseHoursComplete||0;
           const contentLeft=Math.max(0,(item.hours||0)-contentDone);
-          return{...item,allocRealH:realH,
-            contentGain:parseFloat(contentGain.toFixed(2)),targetPct,
-            contentDone:parseFloat(contentDone.toFixed(2)),contentTotal:item.hours,
-            contentLeft:parseFloat(contentLeft.toFixed(2))};
+          return{...item,allocRealH:realH,contentGain:parseFloat(contentGain.toFixed(2)),
+            targetPct,contentDone:parseFloat(contentDone.toFixed(2)),
+            contentTotal:item.hours,contentLeft:parseFloat(contentLeft.toFixed(2))};
         }).filter(Boolean);
       }
     }
@@ -857,13 +1165,11 @@ export default function App(){
     },[]);
   };
 
-  // ── Build AI context using reviews as unified memory ──────────────────────
+  // ── AI context using review summaries ────────────────────────────────────
   const buildAIContext=()=>{
-    // Rich review history — pass last 4 in full
-    const reviewHistory=reviews.slice(0,4).map((r,i)=>
-      `WEEK ${i+1} AGO (${r.date}, ${r.hoursLogged?.toFixed(1)||0}h, ${r.stars||"?"}★): "${r.note||"none"}"`
+    const reviewHistory=reviews.slice(0,6).map((r,i)=>
+      `REVIEW ${i+1} (${r.date}, ${r.hoursLogged?.toFixed(1)||0}h, ${r.stars||"?"}★): ${r.summary||r.note||"no summary"}`
     ).join("\n");
-
     let planVsActual="No plan this week yet.";
     if(weekPlan?.days){
       const pastDays=weekPlan.days.filter(d=>DAY_NAMES.indexOf(d.day)<getDayIdx());
@@ -916,7 +1222,6 @@ export default function App(){
     }
   },[]);
 
-  // ── PLAN WEEK (Monday, once) ─────────────────────────────────────────────
   const runPlanWeek=async(auto=false)=>{
     if(!navigator.onLine){enqueue("plan",{auto});setOfflineQueue(loadQueue());toast_("Offline — plan queued");return;}
     setAiLoading(true);setAiResult(null);
@@ -929,10 +1234,6 @@ export default function App(){
     const effectiveWkRem=Math.max(0,WEEKLY_TARGET-weekH);
     if(effectiveDLeft===0||effectiveWkRem===0){toast_("Week complete");setAiLoading(false);return;}
     const dayBudgets=distributeDays(effectiveWkRem,remainingDayNames);
-
-    // Last review as seed context
-    const lastReview=reviews[0];
-    const reviewSeed=lastReview?`LAST WEEK REVIEW (${lastReview.stars}★): "${lastReview.note||"none"}"`:"No review yet.";
 
     const prompt=`Learning coach. Plan this learner's week. Respond ONLY with valid JSON.
 
@@ -948,10 +1249,10 @@ WEEK BUDGET:
 
 PROFILE: ${profile.split('\n').slice(0,6).join(' ')}
 ARC: ${arcPosition} Velocity: ${velocityTrend}. Avg: ${avgH}h/wk.
-${reviewSeed}
+${planGuidance?`GUIDANCE FROM LEARNER: ${planGuidance}`:""}
 FOCUS (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(",")}
 
-WEEK HISTORY (last 4):
+REVIEW HISTORY (last 6 weeks, AI-summarized):
 ${reviewHistory||"None yet."}
 
 ACTIVE ITEMS:
@@ -985,15 +1286,13 @@ JSON only — no "focus" field on items:
       const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
         days:[...keptDays,...validatedDays],totalPlannedHours:effectiveWkRem,
         reasoning:parsed.insight||"",focusReasoning:parsed.focusProposal?.reasoning||""};
-      setWeekPlan(plan);
-      setAiResult(parsed);
+      setWeekPlan(plan);setAiResult(parsed);
       updateWeeklyHours(weekH);
       if(auto) sendNotification("The Preparation","Your week plan is ready — 20h scheduled.","weekly-plan");
     }catch(e){console.error(e);toast_("Couldn't generate — try again");}
     setAiLoading(false);
   };
 
-  // ── ADAPT PLAN ──────────────────────────────────────────────────────────
   const runAdaptPlan=async(contextNote="")=>{
     if(!navigator.onLine){enqueue("adapt",{note:contextNote});setOfflineQueue(loadQueue());toast_("Offline — adapt queued");return;}
     setAdaptLoading(true);
@@ -1007,7 +1306,6 @@ JSON only — no "focus" field on items:
     const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
     if(dLeftEffective===0||freshWkRem===0){toast_("Week complete");setAdaptLoading(false);return;}
     const dayBudgets=distributeDays(freshWkRem,remainingDays);
-
     const prompt=`Learning coach. Adapt remaining week plan. JSON only.
 
 RULES:
@@ -1027,7 +1325,6 @@ NEXT CORE: ${nextCore.split('\n').slice(0,4).join(' | ')}
 
 JSON only — no "focus" on items:
 {"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44}]}],"totalPlannedHours":${freshWkRem.toFixed(2)},"note":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
-
     try{
       const raw=await callAI(prompt,1500);
       const jsonMatch=raw.match(/\{[\s\S]*\}/);
@@ -1059,25 +1356,35 @@ JSON only — no "focus" on items:
     setAdaptLoading(false);
   };
 
-  const saveSundayReview=()=>{
+  // ── Sunday review: AI summarizes then stores ──────────────────────────────
+  const saveSundayReview=async()=>{
     if(!sundayForm.stars){toast_("Pick a star rating first");return;}
+    setSundaySubmitting(true);
+    const completedThisWeek=CURRICULUM.filter(i=>{
+      const sessions=(progress[i.id]?.sessions||[]);
+      const mon=new Date(getMonday());
+      return sessions.some(s=>new Date(s.date)>=mon)&&(progress[i.id]?.percentComplete||0)>=100;
+    }).map(i=>i.id);
+
+    let summary=sundayForm.note||"";
+    if(sundayForm.note.trim()&&navigator.onLine){
+      try{
+        const sumPrompt=`Summarize this learner's weekly review in 2-3 concise sentences for future AI context. Keep key facts: hours, what went well, what didn't, energy/mood signals. Raw review: "${sundayForm.note}" | Hours: ${weekH.toFixed(1)}h | Stars: ${sundayForm.stars}/5 | Completed: ${completedThisWeek.join(",")||"none"}. Respond with only the summary, no preamble.`;
+        summary=await callAI(sumPrompt,200);
+      }catch(e){summary=sundayForm.note;}
+    }
+
     const entry={
       weekStart:getMonday(),date:new Date().toLocaleDateString(),
-      stars:sundayForm.stars,note:sundayForm.note,
-      hoursLogged:weekH,
-      focusIds:[...(focus.courses||[]),...(focus.books||[])],
-      completedThisWeek:CURRICULUM.filter(i=>{
-        const sessions=(progress[i.id]?.sessions||[]);
-        const mon=new Date(getMonday());
-        return sessions.some(s=>new Date(s.date)>=mon)&&(progress[i.id]?.percentComplete||0)>=100;
-      }).map(i=>i.id)
+      stars:sundayForm.stars,rawNote:sundayForm.note,summary,
+      hoursLogged:weekH,focusIds:[...(focus.courses||[]),...(focus.books||[])],
+      completedCount:completedThisWeek.length,
     };
     setReviews(prev=>[entry,...prev.filter(r=>r.weekStart!==getMonday())].slice(0,MAX_REVIEWS));
     updateWeeklyHours(weekH);
     save(SK_SUNDAY_DONE,getTodayISO());
-    setShowSundayReview(false);
-    setSundayForm({stars:0,note:""});
-    toast_("✓ Week reviewed");
+    setShowSundayReview(false);setSundayForm({stars:0,note:""});setSundaySubmitting(false);
+    toast_("✓ Week reviewed & summarized");
   };
 
   const markItemComplete=async(item)=>{
@@ -1096,8 +1403,7 @@ JSON only — no "focus" on items:
     } else {
       setProgress(prev=>({...prev,[item.id]:{...prev[item.id],percentComplete:100}}));
     }
-    setMarkCompleteConfirm(null);
-    toast_(`✓ ${item.name} complete`);
+    setMarkCompleteConfirm(null);toast_(`✓ ${item.name} complete`);
     setTimeout(()=>runAdaptPlan(`${item.id} "${item.name}" marked complete. Swap it out and pull in next logical item.`),400);
   };
 
@@ -1139,7 +1445,6 @@ STATUS:${touchedAndFocus||"None."} NEXT CORE:${nextCore}
       sessions:[...(p[id]?.sessions||[]),
         {date:dateStr,studyHours:realH,courseHours:parseFloat(contentH.toFixed(3)),note:isQuick?"Quick log":logForm.note}]
     }}));
-    // week hours now reconciled via useEffect — no manual setWeek needed
     setLogging(null);
     setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
     setConfirmLog(false);
@@ -1167,7 +1472,6 @@ STATUS:${touchedAndFocus||"None."} NEXT CORE:${nextCore}
     setProgress(p=>({...p,[itemId]:{...p[itemId],sessions,
       courseHoursComplete:newContentTotal,hoursSpent:newSpent,
       percentComplete:Math.round((newContentTotal/tot)*100)}}));
-    // week hours reconcile via useEffect
     setEditSession(null);toast_("Session updated");
   };
   const deleteSession=()=>{
@@ -1188,8 +1492,6 @@ STATUS:${touchedAndFocus||"None."} NEXT CORE:${nextCore}
     setAiResult(r=>({...r,focusProposal:null}));
     toast_("✓ Focus updated");
   };
-
-  // Custom items — collision-safe IDs
   const addCustomItem=()=>{
     const{name,hours,type,section,genre}=newItem;
     if(!name.trim()||!hours||!genre.trim()){toast_("Fill in name, hours, and genre");return;}
@@ -1202,15 +1504,13 @@ STATUS:${touchedAndFocus||"None."} NEXT CORE:${nextCore}
     toast_(`✓ Added ${id}: ${name}`);
   };
   const removeCustomItem=id=>{setCustomItems(prev=>prev.filter(i=>i.id!==id));toast_("Item removed");};
-
   const doExport=()=>{
     const data={progress,week,focus,reviews,profile,weekPlan,weeklyHours,customItems};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;
     a.download=`the-preparation-${getTodayISO()}.json`;a.click();URL.revokeObjectURL(url);
-    localStorage.setItem("tp_last_export",String(Date.now()));
-    toast_("✓ Exported");
+    localStorage.setItem("tp_last_export",String(Date.now()));toast_("✓ Exported");
   };
   const doImport=()=>{
     const inp=document.createElement("input");inp.type="file";inp.accept=".json";
@@ -1273,1022 +1573,881 @@ STATUS:${touchedAndFocus||"None."} NEXT CORE:${nextCore}
   const chartMax=Math.max(WEEKLY_TARGET,Math.max(...chartWeeks.map(w=>w.h),1));
 
   return(
-    <div style={{background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,paddingBottom:88}}>
-      <div style={{height:"env(safe-area-inset-top)",background:T.surface0}}/>
+    <>
+      <style>{GLOBAL_CSS}</style>
+      {splash&&<SplashScreen onDone={()=>setSplash(false)}/>}
 
-      {toast&&<div style={{position:"fixed",top:`calc(env(safe-area-inset-top) + 12px)`,left:"50%",transform:"translateX(-50%)",
-        background:T.green,color:"#000",padding:"10px 20px",borderRadius:99,fontWeight:700,
-        zIndex:999,fontSize:12,letterSpacing:0.3,boxShadow:`0 4px 24px ${T.green}50`,whiteSpace:"nowrap"}}>
-        {toast}</div>}
+      <div style={{background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,paddingBottom:88,
+        opacity:splash?0:1,transition:"opacity 0.4s ease 0.1s"}}>
+        <div style={{height:"env(safe-area-inset-top)",background:T.surface0}}/>
 
-      {/* Floating Settings */}
-      <button onClick={()=>setShowSettings(true)}
-        style={{position:"fixed",bottom:100,right:16,width:44,height:44,borderRadius:"50%",
-          background:T.surface2,border:`1px solid ${T.surface3}`,color:T.textMid,
-          fontSize:18,cursor:"pointer",zIndex:60,boxShadow:"0 4px 16px rgba(0,0,0,0.5)",
-          display:"flex",alignItems:"center",justifyContent:"center"}}>⚙</button>
+        {toast&&<div style={{position:"fixed",top:`calc(env(safe-area-inset-top) + 12px)`,
+          left:"50%",transform:"translateX(-50%)",
+          background:T.green,color:"#000",padding:"10px 20px",borderRadius:99,fontWeight:700,
+          zIndex:500,fontSize:12,letterSpacing:0.3,boxShadow:`0 4px 24px ${T.green}50`,
+          whiteSpace:"nowrap",animation:"toastIn 0.25s ease both"}}>
+          {toast}</div>}
 
-      {/* Sunday Review button (visible on Sundays if not done) */}
-      {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&!showSundayReview&&
-        <button onClick={()=>setShowSundayReview(true)}
-          style={{position:"fixed",bottom:152,right:16,width:44,height:44,borderRadius:"50%",
-            background:`${T.yellow}20`,border:`1px solid ${T.yellow}50`,color:T.yellow,
-            fontSize:16,cursor:"pointer",zIndex:60,boxShadow:`0 4px 16px ${T.yellow}30`,
-            display:"flex",alignItems:"center",justifyContent:"center"}}>✍</button>}
+        {/* Side panel */}
+        <SidePanel
+          open={sideOpen} onClose={()=>setSideOpen(false)}
+          reviews={reviews} profile={profile} setProfile={setProfile}
+          onExport={doExport} onImport={doImport} onClearAll={doClearAll}
+          customItems={customItems} newItem={newItem} setNewItem={setNewItem}
+          addCustomItem={addCustomItem} removeCustomItem={removeCustomItem} getP={getP}
+        />
 
-      {(!isOnline||offlineQueue.length>0)&&<div style={{background:isOnline?"#1a1200":"#180808",
-        borderBottom:`1px solid ${isOnline?T.yellow:T.red}30`,
-        padding:"8px 16px",paddingTop:`calc(env(safe-area-inset-top) + 8px)`,
-        display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{fontSize:10,color:isOnline?T.yellow:T.red,fontWeight:700,letterSpacing:0.5}}>
-          {isOnline?`✓ Back online — ${offlineQueue.length} queued`:"Offline — AI features queued"}
-        </div>
-        {isOnline&&offlineQueue.length>0&&<button onClick={processQueue}
-          style={{background:"none",border:`1px solid ${T.yellow}30`,color:T.yellow,
-            borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:700}}>
-          Sync now</button>}
-      </div>}
+        {/* Sunday review button (floating, only Sundays) */}
+        {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&!showSundayReview&&
+          <button onClick={()=>setShowSundayReview(true)} className="btn-press"
+            style={{position:"fixed",bottom:100,right:16,width:44,height:44,borderRadius:"50%",
+              background:`${T.yellow}20`,border:`1px solid ${T.yellow}50`,color:T.yellow,
+              fontSize:16,cursor:"pointer",zIndex:60,boxShadow:`0 4px 16px ${T.yellow}30`,
+              display:"flex",alignItems:"center",justifyContent:"center",animation:"fadeIn 0.3s ease both"}}>✍</button>}
 
-      {exportReminder&&<div style={{background:"#0f0f1a",borderBottom:`1px solid ${T.blue}25`,
-        padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>💾 Time to back up</div>
-          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>2+ weeks since last export</div>
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setExportReminder(false)}
-            style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-              borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>Later</button>
-          <button onClick={()=>{doExport();setExportReminder(false);}}
-            style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
-              padding:"4px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Export Now</button>
-        </div>
-      </div>}
-
-      {completionBanner.length>0&&<div style={{background:"#0a150a",borderBottom:`1px solid #1a3a1a`,
-        padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
-            🎯 {completionBanner.length} item{completionBanner.length>1?"s":""} completed
+        {(!isOnline||offlineQueue.length>0)&&<div style={{background:isOnline?"#1a1200":"#180808",
+          borderBottom:`1px solid ${isOnline?T.yellow:T.red}30`,
+          padding:"8px 16px",paddingTop:`calc(env(safe-area-inset-top) + 8px)`,
+          display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:10,color:isOnline?T.yellow:T.red,fontWeight:700,letterSpacing:0.5}}>
+            {isOnline?`✓ Back online — ${offlineQueue.length} queued`:"Offline — AI features queued"}
           </div>
-          <div style={{fontSize:10,color:"#2a5a2a",marginTop:2}}>
-            {completionBanner.map(id=>CURRICULUM.find(i=>i.id===id)?.name||id).join(", ")}
-          </div>
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setCompletionBanner([])}
-            style={{background:"none",border:`1px solid #1a3a1a`,color:"#2a5a2a",
-              borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>✕</button>
-          <button onClick={()=>{setView("ai");setCompletionBanner([]);}}
-            style={{background:T.green,border:"none",color:"#000",borderRadius:8,padding:"6px 12px",
-              fontSize:11,fontWeight:800,cursor:"pointer",boxShadow:`0 0 16px ${T.green}40`}}>
-            Check-In →</button>
-        </div>
-      </div>}
-
-      {/* Auto-graduation proposal */}
-      {graduationProposal&&<div style={{background:"#0a1220",borderBottom:`1px solid ${T.blue}30`,
-        padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>
-            🎓 {graduationProposal.completed.id} complete — ready to advance
-          </div>
-          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-            Add {graduationProposal.next.id} "{graduationProposal.next.name}" to focus?
-          </div>
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setGraduationProposal(null)}
-            style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-              borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Skip</button>
-          <button onClick={()=>{
-            const key=graduationProposal.next.type==="course"?"courses":"books";
-            setFocus(f=>({...f,[key]:[...(f[key]||[]).filter(id=>id!==graduationProposal.completed.id),graduationProposal.next.id],manual:false}));
-            setGraduationProposal(null);toast_(`✓ ${graduationProposal.next.id} added to focus`);
-          }} style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
-            padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>
-            Add to Focus</button>
-        </div>
-      </div>}
-
-      {missedDayBanner&&<div style={{background:"#1a1200",borderBottom:`1px solid #3a2a00`,
-        padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>⚠ Missed session yesterday</div>
-          <div style={{fontSize:10,color:"#5a4a00",marginTop:2}}>Redistribute those hours?</div>
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setMissedDayBanner(false)}
-            style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-              borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Skip</button>
-          <button onClick={()=>{setMissedDayBanner(false);runAdaptPlan("Missed yesterday — redistribute hours.");}}
-            style={{background:T.yellow,border:"none",color:"#000",borderRadius:7,
-              padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Adapt →</button>
-        </div>
-      </div>}
-
-      {/* ── Sticky Header ── */}
-      <div style={{background:T.surface0,padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
-        borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
-        boxShadow:"0 4px 24px rgba(0,0,0,0.6)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-          <div>
-            <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
-            <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.5}}>Learning Tracker</div>
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
-              color:weekH>=WEEKLY_TARGET?T.green:T.text,
-              textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none"}}>
-              {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
-            </div>
-            <div style={{fontSize:9,color:T.textDim,marginTop:1}}>{getDayName()} · {dLeft}d left</div>
-          </div>
-        </div>
-        <Bar pct={(weekH/WEEKLY_TARGET)*100} color={weekH>=WEEKLY_TARGET?T.green:T.blue} height={3} glow style={{marginBottom:4}}/>
-        <div style={{fontSize:9,color:T.textDim,marginBottom:14,textAlign:"right",letterSpacing:0.3}}>
-          {weekH>=WEEKLY_TARGET?"✓ Target hit":`${(wkRem/Math.max(dLeft,1)).toFixed(1)}h/day to finish`}
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={{display:"flex",flexWrap:"wrap",gap:5,flex:1,paddingRight:8}}>
-            {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
-              <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
-            ))}
-          </div>
-          <button onClick={()=>setEditFocus(e=>!e)}
-            style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-              borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer",letterSpacing:0.3,flexShrink:0}}>
-            {editFocus?"Done":"Edit Focus"}
-          </button>
-        </div>
-        <div style={{display:"flex"}}>
-          {[["today","Today"],["week","Week"],["ai","Check-In"],["arc","Year Arc"]].map(([k,l])=>(
-            <button key={k} onClick={()=>setView(k)}
-              style={{flex:1,padding:"10px 2px",background:"none",border:"none",
-                borderBottom:view===k?`2px solid ${T.blue}`:"2px solid transparent",
-                color:view===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
-                textTransform:"uppercase",letterSpacing:1,transition:"color 0.2s",
-                textShadow:view===k?shadow.glow(T.blue):"none"}}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {editFocus&&<div style={{background:T.surface0,padding:"14px 16px",borderBottom:`1px solid ${T.border}`}}>
-        <div style={{fontSize:10,fontWeight:700,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:12}}>
-          Manual Focus Override
-        </div>
-        {[["COURSES","courses","course"],["BOOKS","books","book"]].map(([label,key,type])=>(
-          <div key={key} style={{marginBottom:12}}>
-            <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:7}}>{label}</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {CURRICULUM.filter(i=>i.type===type&&getP(i.id).percentComplete<100).map(i=>{
-                const on=(focus[key]||[]).includes(i.id),c=gc(i.genre);
-                return <button key={i.id}
-                  onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
-                  style={{background:on?`${c}15`:T.surface2,border:`1px solid ${on?c+"40":T.surface3}`,
-                    color:on?c:T.textDim,borderRadius:20,padding:"4px 10px",fontSize:10,
-                    cursor:"pointer",fontWeight:on?700:400,transition:"all 0.2s"}}>
-                  {i.id}{i.custom?" ✦":""}
-                </button>;
-              })}
-            </div>
-          </div>
-        ))}
-      </div>}
-
-      <div style={{padding:"16px 14px"}}>
-
-        {/* ══ TODAY ══ */}
-        {view==="today"&&<div>
-          <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-            {weekH>=WEEKLY_TARGET?"🎯 Target hit — bonus mode":planIsFromThisWeek?`Plan · ${getDayName()}`:"No plan yet — estimated"}
-          </div>
-
-          {today.length===0&&weekH<WEEKLY_TARGET&&<Card style={{padding:20,textAlign:"center",marginBottom:10}}>
-            <div style={{fontSize:13,color:T.textMid,marginBottom:8}}>No plan for today yet</div>
-            <button onClick={()=>setView("ai")}
-              style={{background:T.surface2,border:`1px solid ${T.blue}30`,color:T.blue,
-                borderRadius:10,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              Go to Check-In →
-            </button>
-          </Card>}
-
-          {today.map(item=>{
-            const p=getP(item.id),c=gc(item.genre);
-            const isDone=p.percentComplete>=100;
-            const todayStr=new Date().toLocaleDateString();
-            const loggedTodayH=(p.sessions||[]).filter(s=>s.date===todayStr).reduce((s,x)=>s+(x.studyHours||0),0);
-            const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
-            const sessionDoneToday=loggedTodayH>0;
-            const isComplete=isDone||(sessionDoneToday&&remainingH===0);
-            return <Card key={item.id} accent={isComplete?T.green:c} glow style={{marginBottom:10,padding:16,opacity:isComplete?0.6:1}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-                <div style={{flex:1,paddingRight:10}}>
-                  <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
-                    {item.type==="course"?"Course":"Book"}
-                    {sessionDoneToday&&!isComplete&&<span style={{marginLeft:8,color:T.blue}}>· {loggedTodayH}h logged</span>}
-                    {isComplete&&<span style={{marginLeft:8,color:T.green}}>· ✓ Complete</span>}
-                  </div>
-                  <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
-                  <div style={{marginTop:7}}><Pill color={isComplete?T.green:c} label={item.genre||item.id}/></div>
-                </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  {isComplete
-                    ?<div style={{fontSize:22,fontWeight:900,color:T.green,textShadow:shadow.glow(T.green)}}>✓</div>
-                    :<div>
-                      <div style={{fontSize:22,fontWeight:900,color:remainingH<item.allocRealH?T.yellow:T.blue,
-                        textShadow:shadow.glow(remainingH<item.allocRealH?T.yellow:T.blue)}}>
-                        {remainingH}h
-                      </div>
-                      <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{sessionDoneToday?"remaining":"real study"}</div>
-                      {sessionDoneToday&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>of {item.allocRealH}h planned</div>}
-                      {!sessionDoneToday&&item.type==="course"&&<div style={{fontSize:10,color:T.textDim,marginTop:1}}>{item.contentGain}h content</div>}
-                    </div>}
-                </div>
-              </div>
-              <div style={{background:T.surface0,borderRadius:10,padding:"10px 12px",marginBottom:12,border:`1px solid ${T.surface3}`}}>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:6}}>
-                  <span style={{color:T.textDim}}>{(p.courseHoursComplete||0).toFixed(2)}h / {item.contentTotal}h content</span>
-                  <span style={{color:T.textDim}}>{item.contentLeft.toFixed(2)}h left</span>
-                </div>
-                <Bar pct={p.percentComplete} color={isComplete?T.green:sessionDoneToday?T.yellow:c} height={4} glow/>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5}}>
-                  <span style={{color:T.textMid,fontWeight:600}}>Now: {p.percentComplete}%</span>
-                  {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700}}>
-                    Target: {item.targetPct}%{sessionDoneToday?` · ${remainingH}h to go`:" after session"}
-                  </span>}
-                  {isComplete&&<span style={{color:T.green,fontWeight:700}}>✓ Done</span>}
-                </div>
-              </div>
-              {!isComplete&&<div style={{marginBottom:8}}>
-                <button onClick={()=>setLogging(item)}
-                  style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
-                    color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                  {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
-                </button>
-              </div>}
-              {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)}
-                style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
-                  color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                ✓ Mark Complete &amp; Adapt
-              </button>}
-            </Card>;
-          })}
-
-          {weekH>=WEEKLY_TARGET&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`}}>
-            <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>Bonus Mode</div>
-            <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
-              {weekH.toFixed(1)}h logged — target hit. Any session from here is extra.
-            </div>
-            {bonusItems?.items?.length>0&&<div>
-              {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic"}}>{bonusItems.note}</div>}
-              {bonusItems.items.map(it=>{
-                const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
-                const p=getP(it.id),c=gc(item.genre);
-                return <div key={it.id} style={{background:T.surface0,borderRadius:10,
-                  padding:"10px 12px",marginBottom:8,borderLeft:`2px solid ${c}`}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                    <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8}}>{item.name}</div>
-                    <div style={{fontSize:13,fontWeight:800,color:T.blue,flexShrink:0}}>{it.realHours}h</div>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:T.textDim,marginBottom:6}}>
-                    <span>Now: {p.percentComplete}%</span>
-                    {it.targetPct&&<span style={{color:c,fontWeight:700}}>→ {it.targetPct}%</span>}
-                  </div>
-                  <button onClick={()=>setLogging(item)}
-                    style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
-                      color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                    + Log Bonus Session
-                  </button>
-                </div>;
-              })}
-              <button onClick={()=>setBonusItems(null)}
-                style={{background:"none",border:"none",color:T.textDim,fontSize:10,cursor:"pointer",marginTop:4}}>
-                Clear suggestions</button>
-            </div>}
-            {(!bonusItems?.items?.length)&&<button onClick={runBonusSuggestions} disabled={bonusLoading}
-              style={{width:"100%",background:T.surface2,border:`1px solid ${T.green}20`,
-                color:bonusLoading?T.textDim:T.green,borderRadius:10,padding:"10px 0",
-                fontSize:12,fontWeight:700,cursor:"pointer"}}>
-              {bonusLoading?"Thinking…":"⚡ Suggest Bonus Sessions"}
-            </button>}
-          </Card>}
+          {isOnline&&offlineQueue.length>0&&<button onClick={processQueue} className="btn-press"
+            style={{background:"none",border:`1px solid ${T.yellow}30`,color:T.yellow,
+              borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:700}}>
+            Sync now</button>}
         </div>}
 
-        {/* ══ WEEK ══ */}
-        {view==="week"&&<div>
-          <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-            {planIsFromThisWeek?"This week's plan":"Active focus"} · {weekH.toFixed(1)}h logged
-            {weekH>=WEEKLY_TARGET&&<span style={{color:T.green,fontWeight:700}}> · 🎯 Target hit</span>}
+        {exportReminder&&<div style={{background:"#0f0f1a",borderBottom:`1px solid ${T.blue}25`,
+          padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
+          animation:"fadeUp 0.25s ease both"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>💾 Time to back up</div>
+            <div style={{fontSize:10,color:T.textDim,marginTop:2}}>2+ weeks since last export</div>
           </div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>setExportReminder(false)} className="btn-press"
+              style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
+                borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>Later</button>
+            <button onClick={()=>{doExport();setExportReminder(false);}} className="btn-press"
+              style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
+                padding:"4px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Export Now</button>
+          </div>
+        </div>}
 
-          {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).length>0&&
-          <Card style={{padding:"13px 14px",marginBottom:12}}>
-            <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
-              Projected Finish at Current Pace
+        {completionBanner.length>0&&<div style={{background:"#0a150a",borderBottom:`1px solid #1a3a1a`,
+          padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
+          animation:"fadeUp 0.25s ease both"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
+              🎯 {completionBanner.length} item{completionBanner.length>1?"s":""} completed
             </div>
-            {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).map(item=>{
-              const realLeft=realHoursRemaining(item,getP(item.id));
-              const weeksToFinish=avgWeeklyH>0?realLeft/avgWeeklyH:null;
-              const finishDate=weeksToFinish?new Date(Date.now()+weeksToFinish*7*24*60*60*1000)
-                .toLocaleDateString("en-CA",{month:"short",day:"numeric"}):null;
-              const c=gc(item.genre);
-              return <div key={item.id} style={{display:"flex",justifyContent:"space-between",
-                alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.surface2}`}}>
-                <div>
-                  <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name.slice(0,32)}{item.name.length>32?"…":""}</div>
-                  <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{realLeft.toFixed(1)}h real left · {getP(item.id).percentComplete}%</div>
-                </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  {finishDate&&<div style={{fontSize:12,fontWeight:800,color:c}}>{finishDate}</div>}
-                  {weeksToFinish&&<div style={{fontSize:9,color:T.textDim}}>{weeksToFinish.toFixed(1)}w</div>}
-                </div>
-              </div>;
-            })}
-          </Card>}
+            <div style={{fontSize:10,color:"#2a5a2a",marginTop:2}}>
+              {completionBanner.map(id=>CURRICULUM.find(i=>i.id===id)?.name||id).join(", ")}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>setCompletionBanner([])} className="btn-press"
+              style={{background:"none",border:`1px solid #1a3a1a`,color:"#2a5a2a",
+                borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>✕</button>
+            <button onClick={()=>{setView("ai");setCompletionBanner([]);}} className="btn-press"
+              style={{background:T.green,border:"none",color:"#000",borderRadius:8,padding:"6px 12px",
+                fontSize:11,fontWeight:800,cursor:"pointer"}}>Check-In →</button>
+          </div>
+        </div>}
 
-          {planIsFromThisWeek&&weekPlan.days&&<Card style={{padding:"13px 14px",marginBottom:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        {graduationProposal&&<div style={{background:"#0a1220",borderBottom:`1px solid ${T.blue}30`,
+          padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
+          animation:"fadeUp 0.25s ease both"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>
+              🎓 {graduationProposal.completed.id} complete
+            </div>
+            <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+              Add {graduationProposal.next.id} "{graduationProposal.next.name}"?
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>setGraduationProposal(null)} className="btn-press"
+              style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
+                borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Skip</button>
+            <button onClick={()=>{
+              const key=graduationProposal.next.type==="course"?"courses":"books";
+              setFocus(f=>({...f,[key]:[...(f[key]||[]).filter(id=>id!==graduationProposal.completed.id),graduationProposal.next.id],manual:false}));
+              setGraduationProposal(null);toast_(`✓ ${graduationProposal.next.id} added to focus`);
+            }} className="btn-press"
+              style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
+                padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>
+              Add to Focus</button>
+          </div>
+        </div>}
+
+        {missedDayBanner&&<div style={{background:"#1a1200",borderBottom:`1px solid #3a2a00`,
+          padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
+          animation:"fadeUp 0.25s ease both"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>⚠ Missed session yesterday</div>
+            <div style={{fontSize:10,color:"#5a4a00",marginTop:2}}>Redistribute those hours?</div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>setMissedDayBanner(false)} className="btn-press"
+              style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
+                borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Skip</button>
+            <button onClick={()=>{setMissedDayBanner(false);runAdaptPlan("Missed yesterday — redistribute hours.");}} className="btn-press"
+              style={{background:T.yellow,border:"none",color:"#000",borderRadius:7,
+                padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Adapt →</button>
+          </div>
+        </div>}
+
+        {/* ── Sticky Header ── */}
+        <div style={{background:T.surface0,padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
+          borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
+          boxShadow:"0 4px 24px rgba(0,0,0,0.6)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+              {/* Hamburger */}
+              <button onClick={()=>setSideOpen(true)} className="btn-press"
+                style={{background:"none",border:"none",cursor:"pointer",padding:"4px 2px",
+                  display:"flex",flexDirection:"column",gap:5,marginTop:6,flexShrink:0}}>
+                {[0,1,2].map(i=>(
+                  <div key={i} style={{width:22,height:2,background:T.textMid,borderRadius:99,
+                    transition:`transform 0.2s ease ${i*0.03}s, opacity 0.2s ease`}}/>
+                ))}
+              </button>
               <div>
+                <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
+                <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.5}}>Learning Tracker</div>
+              </div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
+                color:weekH>=WEEKLY_TARGET?T.green:T.text,
+                textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none",
+                transition:"color 0.4s ease"}}>
+                {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
+              </div>
+              <div style={{fontSize:9,color:T.textDim,marginTop:1}}>{getDayName()} · {dLeft}d left</div>
+            </div>
+          </div>
+          <Bar pct={(weekH/WEEKLY_TARGET)*100} color={weekH>=WEEKLY_TARGET?T.green:T.blue} height={3} glow style={{marginBottom:4}}/>
+          <div style={{fontSize:9,color:T.textDim,marginBottom:14,textAlign:"right",letterSpacing:0.3}}>
+            {weekH>=WEEKLY_TARGET?"✓ Target hit":`${(wkRem/Math.max(dLeft,1)).toFixed(1)}h/day to finish`}
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,flex:1,paddingRight:8}}>
+              {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
+                <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
+              ))}
+            </div>
+            <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
+              style={{background:"none",border:`1px solid ${editFocus?T.blue+"40":T.surface3}`,
+                color:editFocus?T.blue:T.textDim,
+                borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer",letterSpacing:0.3,
+                flexShrink:0,transition:"all 0.2s"}}>
+              {editFocus?"Done":"Edit Focus"}
+            </button>
+          </div>
+          <div style={{display:"flex"}}>
+            {[["today","Today"],["week","Week"],["ai","Check-In"],["arc","Year Arc"]].map(([k,l])=>(
+              <button key={k} onClick={()=>setView(k)} className="btn-press"
+                style={{flex:1,padding:"10px 2px",background:"none",border:"none",
+                  borderBottom:view===k?`2px solid ${T.blue}`:"2px solid transparent",
+                  color:view===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
+                  textTransform:"uppercase",letterSpacing:1,
+                  transition:"color 0.2s, border-color 0.2s"}}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {editFocus&&<div style={{background:T.surface0,padding:"14px 16px",borderBottom:`1px solid ${T.border}`,
+          animation:"fadeUp 0.2s ease both"}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:12}}>
+            Manual Focus Override
+          </div>
+          {[["COURSES","courses","course"],["BOOKS","books","book"]].map(([label,key,type])=>(
+            <div key={key} style={{marginBottom:12}}>
+              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:7}}>{label}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                {CURRICULUM.filter(i=>i.type===type&&getP(i.id).percentComplete<100).map(i=>{
+                  const on=(focus[key]||[]).includes(i.id),c=gc(i.genre);
+                  return <button key={i.id} className="btn-press"
+                    onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
+                    style={{background:on?`${c}15`:T.surface2,border:`1px solid ${on?c+"40":T.surface3}`,
+                      color:on?c:T.textDim,borderRadius:20,padding:"4px 10px",fontSize:10,
+                      cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>
+                    {i.id}{i.custom?" ✦":""}
+                  </button>;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>}
+
+        <div style={{padding:"16px 14px"}}>
+
+          {/* ══ TODAY ══ */}
+          {view==="today"&&<div className="tab-content">
+            <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
+              {weekH>=WEEKLY_TARGET?"🎯 Target hit — bonus mode":planIsFromThisWeek?`Plan · ${getDayName()}`:"No plan yet — estimated"}
+            </div>
+            {today.length===0&&weekH<WEEKLY_TARGET&&<Card style={{padding:20,textAlign:"center",marginBottom:10}}>
+              <div style={{fontSize:13,color:T.textMid,marginBottom:8}}>No plan for today yet</div>
+              <button onClick={()=>setView("ai")} className="btn-press"
+                style={{background:T.surface2,border:`1px solid ${T.blue}30`,color:T.blue,
+                  borderRadius:10,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                Go to Check-In →
+              </button>
+            </Card>}
+            {today.map((item,idx)=>{
+              const p=getP(item.id),c=gc(item.genre);
+              const isDone=p.percentComplete>=100;
+              const todayStr=new Date().toLocaleDateString();
+              const loggedTodayH=(p.sessions||[]).filter(s=>s.date===todayStr).reduce((s,x)=>s+(x.studyHours||0),0);
+              const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
+              const sessionDoneToday=loggedTodayH>0;
+              const isComplete=isDone||(sessionDoneToday&&remainingH===0);
+              return <Card key={item.id} accent={isComplete?T.green:c} glow
+                style={{marginBottom:10,padding:16,opacity:isComplete?0.6:1,
+                  animation:`fadeUp 0.2s ease ${idx*0.07}s both`,transition:"opacity 0.3s"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                  <div style={{flex:1,paddingRight:10}}>
+                    <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
+                      {item.type==="course"?"Course":"Book"}
+                      {sessionDoneToday&&!isComplete&&<span style={{marginLeft:8,color:T.blue}}>· {loggedTodayH}h logged</span>}
+                      {isComplete&&<span style={{marginLeft:8,color:T.green}}>· ✓ Complete</span>}
+                    </div>
+                    <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
+                    <div style={{marginTop:7}}><Pill color={isComplete?T.green:c} label={item.genre||item.id}/></div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    {isComplete
+                      ?<div style={{fontSize:22,fontWeight:900,color:T.green}}>✓</div>
+                      :<div>
+                        <div style={{fontSize:22,fontWeight:900,
+                          color:remainingH<item.allocRealH?T.yellow:T.blue,
+                          transition:"color 0.3s"}}>
+                          {remainingH}h
+                        </div>
+                        <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{sessionDoneToday?"remaining":"real study"}</div>
+                      </div>}
+                  </div>
+                </div>
+                <div style={{background:T.surface0,borderRadius:10,padding:"10px 12px",marginBottom:12,border:`1px solid ${T.surface3}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:6}}>
+                    <span style={{color:T.textDim}}>{(p.courseHoursComplete||0).toFixed(2)}h / {item.contentTotal}h</span>
+                    <span style={{color:T.textDim}}>{item.contentLeft.toFixed(2)}h left</span>
+                  </div>
+                  <Bar pct={p.percentComplete} color={isComplete?T.green:sessionDoneToday?T.yellow:c} height={4} glow/>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5}}>
+                    <span style={{color:T.textMid,fontWeight:600}}>{p.percentComplete}%</span>
+                    {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700}}>
+                      → {item.targetPct}%
+                    </span>}
+                  </div>
+                </div>
+                {!isComplete&&<div style={{marginBottom:8}}>
+                  <button onClick={()=>setLogging(item)} className="btn-press"
+                    style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
+                      color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                    {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
+                  </button>
+                </div>}
+                {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)} className="btn-press"
+                  style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
+                    color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                  ✓ Mark Complete &amp; Adapt
+                </button>}
+              </Card>;
+            })}
+            {weekH>=WEEKLY_TARGET&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`,
+              animation:"fadeUp 0.2s ease both"}}>
+              <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>Bonus Mode</div>
+              <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
+                {weekH.toFixed(1)}h logged — target hit.
+              </div>
+              {bonusItems?.items?.length>0&&<div>
+                {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic"}}>{bonusItems.note}</div>}
+                {bonusItems.items.map(it=>{
+                  const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
+                  const p=getP(it.id),c=gc(item.genre);
+                  return <div key={it.id} style={{background:T.surface0,borderRadius:10,
+                    padding:"10px 12px",marginBottom:8,borderLeft:`2px solid ${c}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                      <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8}}>{item.name}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:T.blue,flexShrink:0}}>{it.realHours}h</div>
+                    </div>
+                    <button onClick={()=>setLogging(item)} className="btn-press"
+                      style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
+                        color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                      + Log Bonus Session
+                    </button>
+                  </div>;
+                })}
+                <button onClick={()=>setBonusItems(null)} className="btn-press"
+                  style={{background:"none",border:"none",color:T.textDim,fontSize:10,cursor:"pointer",marginTop:4}}>
+                  Clear suggestions</button>
+              </div>}
+              {(!bonusItems?.items?.length)&&<button onClick={runBonusSuggestions} disabled={bonusLoading} className="btn-press"
+                style={{width:"100%",background:T.surface2,border:`1px solid ${T.green}20`,
+                  color:bonusLoading?T.textDim:T.green,borderRadius:10,padding:"10px 0",
+                  fontSize:12,fontWeight:700,cursor:"pointer",transition:"color 0.2s"}}>
+                {bonusLoading?"Thinking…":"⚡ Suggest Bonus Sessions"}
+              </button>}
+            </Card>}
+          </div>}
+
+          {/* ══ WEEK ══ */}
+          {view==="week"&&<div className="tab-content">
+            <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
+              {planIsFromThisWeek?"This week's plan":"Active focus"} · {weekH.toFixed(1)}h logged
+              {weekH>=WEEKLY_TARGET&&<span style={{color:T.green,fontWeight:700}}> · 🎯 Target hit</span>}
+            </div>
+            {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).length>0&&
+            <Card style={{padding:"13px 14px",marginBottom:12}}>
+              <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
+                Projected Finish
+              </div>
+              {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).map(item=>{
+                const realLeft=realHoursRemaining(item,getP(item.id));
+                const weeksToFinish=avgWeeklyH>0?realLeft/avgWeeklyH:null;
+                const finishDate=weeksToFinish?new Date(Date.now()+weeksToFinish*7*24*60*60*1000)
+                  .toLocaleDateString("en-CA",{month:"short",day:"numeric"}):null;
+                const c=gc(item.genre);
+                return <div key={item.id} style={{display:"flex",justifyContent:"space-between",
+                  alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.surface2}`}}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name.slice(0,32)}{item.name.length>32?"…":""}</div>
+                    <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{realLeft.toFixed(1)}h real left · {getP(item.id).percentComplete}%</div>
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    {finishDate&&<div style={{fontSize:12,fontWeight:800,color:c}}>{finishDate}</div>}
+                    {weeksToFinish&&<div style={{fontSize:9,color:T.textDim}}>{weeksToFinish.toFixed(1)}w</div>}
+                  </div>
+                </div>;
+              })}
+            </Card>}
+            {planIsFromThisWeek&&weekPlan.days&&<Card style={{padding:"13px 14px",marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>
                   {weekH>=WEEKLY_TARGET?"Week Plan (Complete)":"Week Schedule"}
                 </div>
-                {weekPlan.lastAdapted&&<div style={{fontSize:9,color:T.textDim,marginTop:2}}>
-                  Adapted {new Date(weekPlan.lastAdapted).toLocaleDateString()}
-                </div>}
-              </div>
-              <div style={{fontSize:13,fontWeight:900,color:weekH>=WEEKLY_TARGET?T.green:T.textMid,
-                textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none"}}>
-                {weekH.toFixed(1)}h logged
-              </div>
-            </div>
-            {weekPlan.days.map(day=>{
-              const isToday=day.day===getDayName();
-              const dayIdx=DAY_NAMES.indexOf(day.day);
-              const todayIdx=getDayIdx();
-              const isPast=dayIdx<todayIdx,isFuture=dayIdx>todayIdx;
-              if(weekH>=WEEKLY_TARGET&&isFuture) return null;
-              const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
-              const dayDate=new Date(getMonday()+"T12:00:00");
-              dayDate.setDate(dayDate.getDate()+dayIdx);
-              const dayStr=dayDate.toLocaleDateString();
-              const isDayDone=isPast||(isToday&&(day.items||[]).every(it=>getP(it.id).percentComplete>=100));
-              return <div key={day.day} style={{marginBottom:14,opacity:isDayDone&&!isToday?0.45:1}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <div style={{fontSize:11,fontWeight:800,
-                    color:isToday?T.blue:isPast?T.textMid:T.text,textShadow:isToday?shadow.glow(T.blue):"none"}}>
-                    {day.day}{isToday?" — Today":""}
-                    {isDayDone&&<span style={{marginLeft:6,fontSize:9,color:T.green,fontWeight:700}}>✓</span>}
-                  </div>
-                  <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h planned</div>
+                <div style={{fontSize:13,fontWeight:900,color:weekH>=WEEKLY_TARGET?T.green:T.textMid,transition:"color 0.4s"}}>
+                  {weekH.toFixed(1)}h
                 </div>
-                {day.items?.map(it=>{
-                  const f=CURRICULUM.find(i=>i.id===it.id);
-                  const c=gc(f?.genre);
-                  const p=getP(it.id);
-                  const isDone=p.percentComplete>=100;
-                  const loggedOnDay=(p.sessions||[]).filter(s=>s.date===dayStr).reduce((s,x)=>s+(x.studyHours||0),0);
-                  const wasLogged=loggedOnDay>0;
-                  const remainingH=Math.max(0,parseFloat((it.realHours-loggedOnDay).toFixed(2)));
-                  const isComplete=isDone||(isPast&&wasLogged)||(isToday&&wasLogged&&remainingH===0);
-                  const liveTargetPct=f?targetPctAfterSession(f,p,it.realHours):it.targetPct;
-                  return <div key={it.id} style={{background:T.surface0,borderRadius:10,
-                    padding:"8px 12px",marginBottom:5,
-                    borderLeft:`2px solid ${isComplete?T.green:wasLogged&&!isComplete?T.yellow:c}`,
-                    boxShadow:shadow.card,opacity:isComplete?0.5:1}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                      <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,lineHeight:1.3,color:isComplete?T.green:T.text}}>
-                        {isComplete&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
-                      </div>
-                      <div style={{flexShrink:0,textAlign:"right"}}>
-                        {isComplete
-                          ?<div style={{fontSize:11,color:T.green,fontWeight:700}}>{isDone?"Done":`${loggedOnDay.toFixed(1)}h logged`}</div>
-                          :wasLogged
-                            ?<div><div style={{fontSize:13,fontWeight:800,color:T.yellow}}>{remainingH}h</div>
-                              <div style={{fontSize:9,color:T.textDim}}>remaining of {it.realHours}h</div></div>
-                            :<div><div style={{fontSize:13,fontWeight:800,color:T.blue}}>{it.realHours}h</div>
-                              {it.contentHours&&f?.type==="course"&&<div style={{fontSize:9,color:T.textDim}}>{it.contentHours}h content</div>}</div>}
-                      </div>
+              </div>
+              {weekPlan.days.map(day=>{
+                const isToday=day.day===getDayName();
+                const dayIdx=DAY_NAMES.indexOf(day.day);
+                const todayIdx=getDayIdx();
+                const isPast=dayIdx<todayIdx,isFuture=dayIdx>todayIdx;
+                if(weekH>=WEEKLY_TARGET&&isFuture) return null;
+                const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
+                const dayDate=new Date(getMonday()+"T12:00:00");
+                dayDate.setDate(dayDate.getDate()+dayIdx);
+                const dayStr=dayDate.toLocaleDateString();
+                return <div key={day.day} style={{marginBottom:14,opacity:isPast&&!isToday?0.45:1,transition:"opacity 0.3s"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                    <div style={{fontSize:11,fontWeight:800,
+                      color:isToday?T.blue:isPast?T.textMid:T.text,transition:"color 0.2s"}}>
+                      {day.day}{isToday?" — Today":""}
                     </div>
-                    <div style={{display:"flex",justifyContent:"space-between",fontSize:9,marginTop:5}}>
-                      <span style={{color:isComplete?T.green:T.textDim,fontWeight:isComplete?700:400}}>{p.percentComplete}%</span>
-                      {!isComplete&&<span style={{color:wasLogged?T.yellow:c,fontWeight:700}}>
-                        → target {liveTargetPct}%{wasLogged&&remainingH>0?` · ${remainingH}h to go`:" after session"}
-                      </span>}
-                      {isComplete&&<span style={{color:T.green,fontWeight:700}}>✓</span>}
-                    </div>
-                    <Bar pct={p.percentComplete} color={isComplete?T.green:wasLogged?T.yellow:c} height={2} style={{marginTop:4}}/>
-                  </div>;
-                })}
-              </div>;
-            })}
-            {weekH>=WEEKLY_TARGET&&<div style={{textAlign:"center",padding:"12px 0 4px",
-              fontSize:11,color:T.green,fontWeight:700,textShadow:shadow.glow(T.green)}}>
-              🎯 {weekH.toFixed(1)}h — week done.
-            </div>}
-          </Card>}
-
-          <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
-            Log Sessions
-          </div>
-          {focusItems.filter(i=>getP(i.id).percentComplete<100).map(item=>{
-            const p=getP(item.id),sessions=p.sessions||[],c=gc(item.genre);
-            const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
-            const realLeft=contentToReal(item,contentLeft);
-            return <Card key={item.id} accent={c} style={{marginBottom:10,padding:"13px 14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div style={{flex:1,minWidth:0,paddingRight:10}}>
-                  <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>
-                    {item.type==="course"?"Course":"Book"}
+                    <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h</div>
                   </div>
-                  <div style={{fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
-                  <div style={{fontSize:9,color:T.textDim,marginTop:2}}>
-                    {item.id} · {(p.courseHoursComplete||0).toFixed(2)}h/{item.hours}h · {realLeft.toFixed(1)}h real left
-                  </div>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:15,fontWeight:800,color:c}}>{p.percentComplete}%</div>
-                    <div style={{fontSize:9,color:T.textDim,marginTop:1}}>{realLeft.toFixed(1)}h left</div>
-                  </div>
-                  <button onClick={()=>setLogging(item)}
-                    style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
-                      borderRadius:8,padding:"7px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>Log</button>
-                </div>
-              </div>
-              <Bar pct={p.percentComplete} color={c} glow/>
-              {sessions.length>0&&<SessionHistory item={item} sessions={sessions} onEdit={idx=>openEditSession(item.id,idx)}/>}
-            </Card>;
-          })}
-        </div>}
-
-        {/* ══ CHECK-IN ══ */}
-        {view==="ai"&&<div>
-          <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-            Plan once Monday · Adapt anytime · Review Sunday
-          </div>
-
-          {/* Profile */}
-          <Card style={{padding:"13px 14px",marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontSize:11,fontWeight:700,color:T.textMid,letterSpacing:0.5}}>Learning Profile</div>
-              <button onClick={()=>setEditProfile(e=>!e)}
-                style={{background:"none",border:"none",color:T.textDim,fontSize:11,cursor:"pointer",fontWeight:600}}>
-                {editProfile?"Done":"Edit"}
-              </button>
-            </div>
-            {editProfile&&<textarea value={profile} onChange={e=>setProfile(e.target.value)}
-              style={{...inputSt,fontSize:11,height:200,resize:"none",marginTop:10,lineHeight:1.6}}/>}
-          </Card>
-
-          {/* Week History */}
-          {reviews.length>0&&<Card style={{padding:"13px 14px",marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:showReviews?10:0}}>
-              <div style={{fontSize:11,fontWeight:700,color:T.textMid,letterSpacing:0.5}}>
-                Week Reviews <span style={{color:T.textDim,fontWeight:400}}>({reviews.length})</span>
-              </div>
-              <button onClick={()=>setShowReviews(s=>!s)}
-                style={{background:"none",border:"none",color:T.textDim,fontSize:11,cursor:"pointer",fontWeight:600}}>
-                {showReviews?"Hide":"Show"}
-              </button>
-            </div>
-            {showReviews&&reviews.map((r,i)=>(
-              <div key={i} style={{borderTop:`1px solid ${T.surface2}`,paddingTop:10,marginTop:8}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,alignItems:"center"}}>
-                  <div style={{fontSize:10,fontWeight:700,color:T.blue}}>{r.date}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{fontSize:10,color:T.yellow}}>{"★".repeat(r.stars||0)}{"☆".repeat(5-(r.stars||0))}</div>
-                    <div style={{fontSize:10,fontWeight:700,color:r.hoursLogged>=WEEKLY_TARGET?T.green:T.textMid}}>
-                      {(r.hoursLogged||0).toFixed(1)}h
-                    </div>
-                  </div>
-                </div>
-                {r.note&&<div style={{fontSize:11,color:T.textMid,lineHeight:1.5}}>{r.note}</div>}
-              </div>
-            ))}
-          </Card>}
-
-          {/* Sunday Review button in Check-In too */}
-          {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&
-          <button onClick={()=>setShowSundayReview(true)}
-            style={{width:"100%",background:`${T.yellow}10`,border:`1px solid ${T.yellow}30`,
-              color:T.yellow,borderRadius:10,padding:13,fontSize:13,fontWeight:800,
-              cursor:"pointer",marginBottom:12,letterSpacing:0.3}}>
-            ✍ Write This Week's Review
-          </button>}
-
-          {/* Plan Week */}
-          {planIsFromThisWeek&&<div style={{background:T.surface1,borderRadius:12,padding:"10px 14px",
-            marginBottom:12,border:`1px solid ${T.green}20`,
-            display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontSize:10,fontWeight:700,color:T.green,letterSpacing:0.5}}>✓ Week plan active</div>
-              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-                Generated {new Date(weekPlan.generatedAt).toLocaleDateString()} · {weekPlan.totalPlannedHours}h
-                {weekPlan.lastAdapted?` · Adapted ${new Date(weekPlan.lastAdapted).toLocaleDateString()}`:""}
-              </div>
-            </div>
-          </div>}
-
-          <button onClick={()=>runPlanWeek(false)} disabled={aiLoading}
-            style={{width:"100%",background:aiLoading?T.surface1:T.surface2,
-              border:`1px solid ${aiLoading?T.surface3:T.blue+"40"}`,
-              color:aiLoading?T.textDim:T.blue,borderRadius:10,padding:13,fontSize:14,
-              fontWeight:800,cursor:aiLoading?"default":"pointer",marginBottom:12,
-              letterSpacing:0.3,boxShadow:aiLoading?"none":`0 0 20px ${T.blue}15`,transition:"all 0.2s"}}>
-            {aiLoading?"Thinking…":planIsFromThisWeek?"↺ Replan Week":"📅 Plan Week"}
-          </button>
-
-          {/* Adapt */}
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
-              Adapt Plan
-            </div>
-            <textarea value={adaptNote} onChange={e=>setAdaptNote(e.target.value)}
-              placeholder="Optional: finished A1 early, took Wednesday off, feeling behind..."
-              style={{...inputSt,fontSize:12,resize:"none",height:60,lineHeight:1.5,marginBottom:8}}/>
-            <button onClick={()=>runAdaptPlan(adaptNote)} disabled={adaptLoading||!planIsFromThisWeek}
-              style={{width:"100%",background:adaptLoading?T.surface1:T.surface2,
-                border:`1px solid ${adaptLoading||!planIsFromThisWeek?T.surface3:T.orange+"40"}`,
-                color:adaptLoading?T.textDim:!planIsFromThisWeek?T.textDim:T.orange,
-                borderRadius:10,padding:12,fontSize:13,fontWeight:800,
-                cursor:adaptLoading||!planIsFromThisWeek?"default":"pointer",
-                letterSpacing:0.3,transition:"all 0.2s"}}>
-              {adaptLoading?"Adapting…":"⚡ Adapt Remaining Week"}
-            </button>
-            {!planIsFromThisWeek&&<div style={{fontSize:10,color:T.textDim,marginTop:6,textAlign:"center"}}>
-              Plan your week first, then adapt as needed
-            </div>}
-          </div>
-
-          {aiResult&&<div>
-            {[["assessment",T.blue,"Assessment"],["insight",T.pink,"Insight"],["nextMilestone",T.green,"Next Milestone"]]
-              .map(([k,c,label])=>aiResult[k]&&<Card key={k} accent={c} style={{padding:"13px 14px",marginBottom:10}}>
-                <div style={{fontSize:9,color:c,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7,fontWeight:700}}>{label}</div>
-                <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult[k]}</div>
-              </Card>)}
-
-            {aiResult.quickNote&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.orange}20`}}>
-              <div style={{fontSize:9,color:T.orange,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7,fontWeight:700}}>Adapt Note</div>
-              <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult.quickNote}</div>
-            </Card>}
-
-            {aiResult.focusProposal&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.pink}20`}}>
-              <div style={{fontSize:9,color:T.pink,textTransform:"uppercase",letterSpacing:1.5,
-                marginBottom:12,fontWeight:700}}>Proposed Focus Update</div>
-              {[["COURSES","courses"],["BOOKS","books"]].map(([label,key])=>(
-                <div key={key} style={{marginBottom:12}}>
-                  <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>{label}</div>
-                  {(aiResult.focusProposal[key]||[]).map(id=>{
-                    const item=CURRICULUM.find(i=>i.id===id);
-                    const p=getP(id);const current=(focus[key]||[]).includes(id);
-                    return item?<div key={id} style={{display:"flex",alignItems:"center",gap:10,
-                      padding:"7px 0",borderBottom:`1px solid ${T.surface2}`}}>
-                      <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,
-                        background:current?T.surface3:T.green,boxShadow:!current?`0 0 6px ${T.green}60`:"none"}}/>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name}</div>
-                        <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
-                          {item.genre} · {p.percentComplete}% · {realHoursRemaining(item,p).toFixed(1)}h real left
+                  {day.items?.map(it=>{
+                    const f=CURRICULUM.find(i=>i.id===it.id);
+                    const c=gc(f?.genre);
+                    const p=getP(it.id);
+                    const isDone=p.percentComplete>=100;
+                    const loggedOnDay=(p.sessions||[]).filter(s=>s.date===dayStr).reduce((s,x)=>s+(x.studyHours||0),0);
+                    const wasLogged=loggedOnDay>0;
+                    const remainingH=Math.max(0,parseFloat((it.realHours-loggedOnDay).toFixed(2)));
+                    const isComplete=isDone||(isPast&&wasLogged)||(isToday&&wasLogged&&remainingH===0);
+                    const liveTargetPct=f?targetPctAfterSession(f,p,it.realHours):it.targetPct;
+                    return <div key={it.id} style={{background:T.surface0,borderRadius:10,
+                      padding:"8px 12px",marginBottom:5,
+                      borderLeft:`2px solid ${isComplete?T.green:wasLogged&&!isComplete?T.yellow:c}`,
+                      opacity:isComplete?0.5:1,transition:"opacity 0.3s, border-color 0.3s"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                        <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,lineHeight:1.3,
+                          color:isComplete?T.green:T.text,transition:"color 0.3s"}}>
+                          {isComplete&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
+                        </div>
+                        <div style={{flexShrink:0,textAlign:"right"}}>
+                          {!isComplete&&<div style={{fontSize:13,fontWeight:800,
+                            color:wasLogged?T.yellow:T.blue,transition:"color 0.3s"}}>
+                            {wasLogged?`${remainingH}h`:it.realHours+"h"}
+                          </div>}
+                          {isComplete&&<div style={{fontSize:11,color:T.green,fontWeight:700}}>✓</div>}
                         </div>
                       </div>
-                      {!current&&<span style={{fontSize:9,color:T.green,fontWeight:700}}>NEW</span>}
-                    </div>:null;
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:9,marginTop:5}}>
+                        <span style={{color:T.textDim}}>{p.percentComplete}%</span>
+                        {!isComplete&&<span style={{color:wasLogged?T.yellow:c,fontWeight:700}}>→ {liveTargetPct}%</span>}
+                      </div>
+                      <Bar pct={p.percentComplete} color={isComplete?T.green:wasLogged?T.yellow:c} height={2} style={{marginTop:4}}/>
+                    </div>;
                   })}
-                </div>
-              ))}
-              {aiResult.focusProposal.reasoning&&<div style={{fontSize:11,color:T.textMid,marginBottom:14,
-                lineHeight:1.6,fontStyle:"italic"}}>{aiResult.focusProposal.reasoning}</div>}
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>setAiResult(r=>({...r,focusProposal:null}))}
-                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                    color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Keep Current</button>
-                <button onClick={()=>applyFocusProposal(aiResult.focusProposal)}
-                  style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
-                    borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
-                  Apply New Focus ✓</button>
-              </div>
+                </div>;
+              })}
             </Card>}
-          </div>}
-        </div>}
-
-        {/* ══ YEAR ARC ══ */}
-        {view==="arc"&&<div>
-          <Card style={{marginBottom:16,padding:16}}>
-            <div style={{fontSize:9,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:14}}>
-              Curriculum Overview
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
-              {[[doneItems,"Completed",T.green],
-                [CURRICULUM.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length,"In Progress",T.blue],
-                [CURRICULUM.filter(i=>getP(i.id).percentComplete===0).length,"Untouched",T.textDim],
-                [totalItems,"Total Items",T.textMid]].map(([v,l,c])=>(
-                <div key={l} style={{background:T.surface0,borderRadius:12,padding:"12px 14px",
-                  border:`1px solid ${T.border}`,boxShadow:shadow.card}}>
-                  <div style={{fontSize:24,fontWeight:900,color:c,letterSpacing:-1}}>{v}</div>
-                  <div style={{fontSize:10,color:T.textDim,marginTop:2,letterSpacing:0.3}}>{l}</div>
+            <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Log Sessions</div>
+            {focusItems.filter(i=>getP(i.id).percentComplete<100).map((item,idx)=>{
+              const p=getP(item.id),sessions=p.sessions||[],c=gc(item.genre);
+              const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
+              const realLeft=contentToReal(item,contentLeft);
+              return <Card key={item.id} accent={c} style={{marginBottom:10,padding:"13px 14px",
+                animation:`fadeUp 0.18s ease ${idx*0.06}s both`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{flex:1,minWidth:0,paddingRight:10}}>
+                    <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>
+                      {item.type==="course"?"Course":"Book"}
+                    </div>
+                    <div style={{fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
+                    <div style={{fontSize:9,color:T.textDim,marginTop:2}}>
+                      {item.id} · {(p.courseHoursComplete||0).toFixed(2)}h/{item.hours}h · {realLeft.toFixed(1)}h real left
+                    </div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:15,fontWeight:800,color:c}}>{p.percentComplete}%</div>
+                    </div>
+                    <button onClick={()=>setLogging(item)} className="btn-press"
+                      style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
+                        borderRadius:8,padding:"7px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>Log</button>
+                  </div>
                 </div>
-              ))}
+                <Bar pct={p.percentComplete} color={c} glow/>
+                {sessions.length>0&&<SessionHistory item={item} sessions={sessions} onEdit={idx=>openEditSession(item.id,idx)}/>}
+              </Card>;
+            })}
+          </div>}
+
+          {/* ══ CHECK-IN ══ */}
+          {view==="ai"&&<div className="tab-content">
+            <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
+              Plan Monday · Adapt anytime · Review Sunday
             </div>
-            <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
-              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Personal Bests</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                {[[bestWeek.toFixed(1)+"h","Best Week",T.blue],
-                  [currentStreak+"wk","Current Streak",currentStreak>0?T.green:T.textDim],
-                  [longestStreak+"wk","Longest Streak",T.yellow]].map(([v,l,c])=>(
-                  <div key={l} style={{textAlign:"center"}}>
-                    <div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div>
-                    <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{l}</div>
+
+            {/* Sunday review prompt */}
+            {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&
+            <button onClick={()=>setShowSundayReview(true)} className="btn-press"
+              style={{width:"100%",background:`${T.yellow}10`,border:`1px solid ${T.yellow}30`,
+                color:T.yellow,borderRadius:10,padding:13,fontSize:13,fontWeight:800,
+                cursor:"pointer",marginBottom:12,letterSpacing:0.3,transition:"all 0.2s"}}>
+              ✍ Write This Week's Review
+            </button>}
+
+            {planIsFromThisWeek&&<div style={{background:T.surface1,borderRadius:12,padding:"10px 14px",
+              marginBottom:12,border:`1px solid ${T.green}20`,animation:"fadeUp 0.2s ease both",
+              display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:10,fontWeight:700,color:T.green,letterSpacing:0.5}}>✓ Week plan active</div>
+                <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+                  {new Date(weekPlan.generatedAt).toLocaleDateString()} · {weekPlan.totalPlannedHours}h
+                  {weekPlan.lastAdapted?` · Adapted ${new Date(weekPlan.lastAdapted).toLocaleDateString()}`:""}
+                </div>
+              </div>
+            </div>}
+
+            {/* Guidance input */}
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",
+                fontWeight:700,display:"block",marginBottom:7}}>
+                Guidance for AI (optional)
+              </label>
+              <textarea value={planGuidance} onChange={e=>setPlanGuidance(e.target.value)}
+                placeholder="e.g. focus more on books this week, skip geology, I want to push harder on A1..."
+                style={{...inputSt,fontSize:12,resize:"none",height:56,lineHeight:1.5,padding:"10px 12px"}}/>
+            </div>
+
+            <button onClick={()=>runPlanWeek(false)} disabled={aiLoading} className="btn-press"
+              style={{width:"100%",background:aiLoading?T.surface1:T.surface2,
+                border:`1px solid ${aiLoading?T.surface3:T.blue+"40"}`,
+                color:aiLoading?T.textDim:T.blue,borderRadius:10,padding:13,fontSize:14,
+                fontWeight:800,cursor:aiLoading?"default":"pointer",marginBottom:12,
+                letterSpacing:0.3,transition:"all 0.2s"}}>
+              {aiLoading?"Thinking…":planIsFromThisWeek?"↺ Replan Week":"📅 Plan Week"}
+            </button>
+
+            {/* Adapt */}
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
+                Adapt Plan
+              </div>
+              <textarea value={adaptNote} onChange={e=>setAdaptNote(e.target.value)}
+                placeholder="finished A1 early, took Wednesday off, feeling behind..."
+                style={{...inputSt,fontSize:12,resize:"none",height:56,lineHeight:1.5,marginBottom:8}}/>
+              <button onClick={()=>runAdaptPlan(adaptNote)} disabled={adaptLoading||!planIsFromThisWeek} className="btn-press"
+                style={{width:"100%",background:adaptLoading?T.surface1:T.surface2,
+                  border:`1px solid ${adaptLoading||!planIsFromThisWeek?T.surface3:T.orange+"40"}`,
+                  color:adaptLoading?T.textDim:!planIsFromThisWeek?T.textDim:T.orange,
+                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,
+                  cursor:adaptLoading||!planIsFromThisWeek?"default":"pointer",transition:"all 0.2s"}}>
+                {adaptLoading?"Adapting…":"⚡ Adapt Remaining Week"}
+              </button>
+              {!planIsFromThisWeek&&<div style={{fontSize:10,color:T.textDim,marginTop:6,textAlign:"center"}}>
+                Plan your week first, then adapt as needed
+              </div>}
+            </div>
+
+            {aiResult&&<div style={{animation:"fadeUp 0.2s ease both"}}>
+              {[["assessment",T.blue,"Assessment"],["insight",T.pink,"Insight"],["nextMilestone",T.green,"Next Milestone"]]
+                .map(([k,c,label])=>aiResult[k]&&<Card key={k} accent={c} style={{padding:"13px 14px",marginBottom:10}}>
+                  <div style={{fontSize:9,color:c,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7,fontWeight:700}}>{label}</div>
+                  <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult[k]}</div>
+                </Card>)}
+              {aiResult.quickNote&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.orange}20`}}>
+                <div style={{fontSize:9,color:T.orange,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7,fontWeight:700}}>Adapt Note</div>
+                <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult.quickNote}</div>
+              </Card>}
+              {aiResult.focusProposal&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.pink}20`}}>
+                <div style={{fontSize:9,color:T.pink,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12,fontWeight:700}}>
+                  Proposed Focus Update
+                </div>
+                {[["COURSES","courses"],["BOOKS","books"]].map(([label,key])=>(
+                  <div key={key} style={{marginBottom:12}}>
+                    <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>{label}</div>
+                    {(aiResult.focusProposal[key]||[]).map(id=>{
+                      const item=CURRICULUM.find(i=>i.id===id);
+                      const p=getP(id);const current=(focus[key]||[]).includes(id);
+                      return item?<div key={id} style={{display:"flex",alignItems:"center",gap:10,
+                        padding:"7px 0",borderBottom:`1px solid ${T.surface2}`}}>
+                        <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,
+                          background:current?T.surface3:T.green}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name}</div>
+                          <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
+                            {item.genre} · {p.percentComplete}% · {realHoursRemaining(item,p).toFixed(1)}h real left
+                          </div>
+                        </div>
+                        {!current&&<span style={{fontSize:9,color:T.green,fontWeight:700}}>NEW</span>}
+                      </div>:null;
+                    })}
+                  </div>
+                ))}
+                {aiResult.focusProposal.reasoning&&<div style={{fontSize:11,color:T.textMid,marginBottom:14,
+                  lineHeight:1.6,fontStyle:"italic"}}>{aiResult.focusProposal.reasoning}</div>}
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>setAiResult(r=>({...r,focusProposal:null}))} className="btn-press"
+                    style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                      color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Keep Current</button>
+                  <button onClick={()=>applyFocusProposal(aiResult.focusProposal)} className="btn-press"
+                    style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
+                      borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                    Apply New Focus ✓</button>
+                </div>
+              </Card>}
+            </div>}
+          </div>}
+
+          {/* ══ YEAR ARC ══ */}
+          {view==="arc"&&<div className="tab-content">
+            <Card style={{marginBottom:16,padding:16}}>
+              <div style={{fontSize:9,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:14}}>
+                Curriculum Overview
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:16}}>
+                {[[doneItems,"Completed",T.green],
+                  [CURRICULUM.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length,"In Progress",T.blue],
+                  [CURRICULUM.filter(i=>getP(i.id).percentComplete===0).length,"Untouched",T.textDim],
+                  [totalItems,"Total Items",T.textMid]].map(([v,l,c],i)=>(
+                  <div key={l} style={{background:T.surface0,borderRadius:12,padding:"12px 14px",
+                    border:`1px solid ${T.border}`,animation:`fadeUp 0.18s ease ${i*0.05}s both`}}>
+                    <div style={{fontSize:24,fontWeight:900,color:c,letterSpacing:-1}}>{v}</div>
+                    <div style={{fontSize:10,color:T.textDim,marginTop:2,letterSpacing:0.3}}>{l}</div>
                   </div>
                 ))}
               </div>
-            </div>
-            <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
-              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>12-Week Hours</div>
-              <div style={{display:"flex",alignItems:"flex-end",gap:3,height:56}}>
-                {chartWeeks.map((w,i)=>{
-                  const pct=w.h/chartMax,isTarget=w.h>=WEEKLY_TARGET,isCurrent=i===11;
-                  return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                    <div style={{width:"100%",background:isTarget?T.green:isCurrent?T.blue:T.surface3,
-                      height:`${Math.max(pct*44,w.h>0?4:1)}px`,borderRadius:"3px 3px 0 0",transition:"height 0.3s"}}/>
-                    <div style={{fontSize:7,color:isCurrent?T.blue:T.textFaint}}>{w.label.slice(3)}</div>
+              <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Personal Bests</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                  {[[bestWeek.toFixed(1)+"h","Best Week",T.blue],
+                    [currentStreak+"wk","Current Streak",currentStreak>0?T.green:T.textDim],
+                    [longestStreak+"wk","Longest Streak",T.yellow]].map(([v,l,c])=>(
+                    <div key={l} style={{textAlign:"center"}}>
+                      <div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div>
+                      <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>12-Week Hours</div>
+                <div style={{display:"flex",alignItems:"flex-end",gap:3,height:56}}>
+                  {chartWeeks.map((w,i)=>{
+                    const pct=w.h/chartMax,isTarget=w.h>=WEEKLY_TARGET,isCurrent=i===11;
+                    return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                      <div style={{width:"100%",background:isTarget?T.green:isCurrent?T.blue:T.surface3,
+                        height:`${Math.max(pct*44,w.h>0?4:1)}px`,borderRadius:"3px 3px 0 0",
+                        transition:"height 0.5s ease, background 0.3s"}}/>
+                      <div style={{fontSize:7,color:isCurrent?T.blue:T.textFaint}}>{w.label.slice(3)}</div>
+                    </div>;
+                  })}
+                </div>
+              </div>
+              {genreBalance.length>0&&<div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Genre Balance</div>
+                {genreBalance.map(([genre,h])=>{
+                  const c=gc(genre),pct=h/genreBalance[0][1]*100;
+                  return <div key={genre} style={{marginBottom:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}>
+                      <span style={{color:c,fontWeight:600}}>{genre}</span><span style={{color:T.textDim}}>{h.toFixed(1)}h</span>
+                    </div>
+                    <Bar pct={pct} color={c} height={3}/>
                   </div>;
                 })}
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:T.textDim,marginTop:6}}>
-                <span>12 weeks ago</span><span style={{color:T.blue}}>This week: {weekH.toFixed(1)}h</span>
-              </div>
-            </div>
-            {genreBalance.length>0&&<div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
-              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Genre Balance (real hrs)</div>
-              {genreBalance.map(([genre,h])=>{
-                const c=gc(genre),pct=h/genreBalance[0][1]*100;
-                return <div key={genre} style={{marginBottom:7}}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3}}>
-                    <span style={{color:c,fontWeight:600}}>{genre}</span><span style={{color:T.textDim}}>{h.toFixed(1)}h</span>
-                  </div>
-                  <Bar pct={pct} color={c} height={3}/>
-                </div>;
-              })}
-            </div>}
-            <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
-              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Real Study Hours</div>
-              <div style={{fontSize:28,fontWeight:900,color:T.blue,letterSpacing:-1,textShadow:shadow.glow(T.blue)}}>
-                {totalSpentRealH.toFixed(1)}<span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
-              </div>
-            </div>
-            <div style={{marginBottom:14}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textDim,marginBottom:5}}>
-                <span>Items completed</span><span style={{color:T.textMid,fontWeight:600}}>{doneItems} of {totalItems}</span>
-              </div>
-              <Bar pct={(doneItems/totalItems)*100} color={T.green} height={5} glow/>
-            </div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:11,paddingTop:10,borderTop:`1px solid ${T.surface2}`}}>
-              <span style={{color:T.textDim}}>Est. completion at 20h/week</span>
-              <span style={{color:T.yellow,fontWeight:700,textShadow:shadow.glow(T.yellow)}}>{estDate}</span>
-            </div>
-          </Card>
-
-          {SECTIONS.map(sec=>(
-            <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP} setLogging={setLogging}
-              onReset={item=>{
-                if(!window.confirm(`Reset "${item.name}" to 0%?`)) return;
-                setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});
-                setCompletionBanner(b=>b.filter(id=>id!==item.id));
-              }}
-            />
-          ))}
-        </div>}
-      </div>
-
-      {/* ══ SUNDAY REVIEW MODAL ══ */}
-      {showSundayReview&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",
-        display:"flex",alignItems:"flex-end",zIndex:150,backdropFilter:"blur(4px)"}}>
-        <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",padding:24,width:"100%",
-          boxSizing:"border-box",borderTop:`3px solid ${T.yellow}`,boxShadow:shadow.raised}}>
-          <div style={{fontSize:17,fontWeight:800,letterSpacing:-0.3,marginBottom:4}}>Week Review</div>
-          <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>
-            {weekH.toFixed(1)}h logged · {doneItems} items done total · takes 30 seconds
-          </div>
-          <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:T.textMid,marginBottom:10,fontWeight:600}}>How was this week?</div>
-            <StarRating value={sundayForm.stars} onChange={s=>setSundayForm(f=>({...f,stars:s}))}/>
-          </div>
-          <div style={{marginBottom:20}}>
-            <div style={{fontSize:11,color:T.textMid,marginBottom:8,fontWeight:600}}>
-              What happened? <span style={{color:T.textDim,fontWeight:400}}>(optional but powerful)</span>
-            </div>
-            <textarea value={sundayForm.note} onChange={e=>setSundayForm(f=>({...f,note:e.target.value}))}
-              placeholder="Energy this week, what you finished, what got skipped, anything that affected study..."
-              style={{...inputSt,fontSize:12,resize:"none",height:90,lineHeight:1.5}}/>
-          </div>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setShowSundayReview(false)}
-              style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Later</button>
-            <button onClick={saveSundayReview}
-              style={{flex:2,background:"#1a1200",border:`1px solid ${T.yellow}30`,color:T.yellow,
-                borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",
-                boxShadow:`0 0 16px ${T.yellow}15`}}>Save Review ✓</button>
-          </div>
-        </div>
-      </div>}
-
-      {/* ══ SETTINGS MODAL ══ */}
-      {showSettings&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",
-        zIndex:200,overflowY:"auto",backdropFilter:"blur(4px)"}}>
-        <div style={{background:T.surface1,minHeight:"100%",padding:"0 0 40px"}}>
-          <div style={{position:"sticky",top:0,background:T.surface1,
-            borderBottom:`1px solid ${T.border}`,padding:"16px 16px 12px",
-            display:"flex",justifyContent:"space-between",alignItems:"center",zIndex:10}}>
-            <div style={{fontSize:16,fontWeight:800}}>Settings</div>
-            <button onClick={()=>setShowSettings(false)}
-              style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.textMid,
-                borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:700}}>Done</button>
-          </div>
-          <div style={{padding:"16px 16px 0"}}>
-            <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
-            <Card style={{padding:"13px 14px",marginBottom:20}}>
-              <div style={{display:"flex",gap:8,marginBottom:8}}>
-                <button onClick={doExport}
-                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                    color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Export JSON</button>
-                <button onClick={doImport}
-                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                    color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Import JSON</button>
-              </div>
-              <button onClick={doClearAll}
-                style={{width:"100%",background:"#180a0a",border:`1px solid ${T.red}20`,
-                  color:T.red,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Clear All Data</button>
-            </Card>
-
-            <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Add Custom Course or Book</div>
-            <Card style={{padding:"13px 14px",marginBottom:12}}>
-              <div style={{marginBottom:10}}>
-                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Title *</label>
-                <input value={newItem.name} onChange={e=>setNewItem(n=>({...n,name:e.target.value}))}
-                  style={{...inputSt,fontSize:13}} placeholder="e.g. Introduction to Philosophy"/>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                <div>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Content Hours *</label>
-                  <input type="number" min="0.5" step="0.5" value={newItem.hours}
-                    onChange={e=>setNewItem(n=>({...n,hours:e.target.value}))}
-                    style={{...inputSt,fontSize:13}} placeholder="e.g. 12"/>
-                </div>
-                <div>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Genre *</label>
-                  <input value={newItem.genre} onChange={e=>setNewItem(n=>({...n,genre:e.target.value}))}
-                    style={{...inputSt,fontSize:13}} placeholder="e.g. Philosophy"/>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-                <div>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Type</label>
-                  <div style={{display:"flex",gap:6}}>
-                    {["course","book"].map(t=>(
-                      <button key={t} onClick={()=>setNewItem(n=>({...n,type:t}))}
-                        style={{flex:1,background:newItem.type===t?`${T.blue}20`:T.surface2,
-                          border:`1px solid ${newItem.type===t?T.blue+"50":T.surface3}`,
-                          color:newItem.type===t?T.blue:T.textDim,
-                          borderRadius:8,padding:"8px 0",fontSize:11,cursor:"pointer",fontWeight:700,textTransform:"capitalize"}}>
-                        {t}</button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Section</label>
-                  <div style={{display:"flex",gap:6}}>
-                    {["Core","Optional"].map(s=>(
-                      <button key={s} onClick={()=>setNewItem(n=>({...n,section:s}))}
-                        style={{flex:1,background:newItem.section===s?`${T.green}20`:T.surface2,
-                          border:`1px solid ${newItem.section===s?T.green+"50":T.surface3}`,
-                          color:newItem.section===s?T.green:T.textDim,
-                          borderRadius:8,padding:"8px 0",fontSize:11,cursor:"pointer",fontWeight:700}}>
-                        {s}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {newItem.type==="course"&&newItem.hours&&<div style={{fontSize:11,color:T.blue,marginBottom:10}}>
-                = {(parseFloat(newItem.hours||0)*2).toFixed(0)}h real study time (1:2 ratio)
               </div>}
-              <button onClick={addCustomItem}
-                style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                  borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer"}}>
-                Add to Curriculum
-              </button>
-            </Card>
-
-            {customItems.length>0&&<>
-              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
-                Custom Items ({customItems.length})
+              <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Real Study Hours</div>
+                <div style={{fontSize:28,fontWeight:900,color:T.blue,letterSpacing:-1}}>
+                  {totalSpentRealH.toFixed(1)}<span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
+                </div>
               </div>
-              {customItems.map(item=>{
-                const p=getP(item.id),c=gc(item.genre);
-                return <Card key={item.id} accent={c} style={{padding:"10px 14px",marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{flex:1,minWidth:0,paddingRight:10}}>
-                      <div style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        <span style={{color:T.textDim,marginRight:5}}>{item.id}</span>{item.name}
-                      </div>
-                      <div style={{fontSize:9,color:T.textDim,marginTop:3}}>
-                        {item.type} · {item.section} · {item.genre} · {item.hours}h · {p.percentComplete}%
-                      </div>
-                    </div>
-                    <button onClick={()=>removeCustomItem(item.id)}
-                      style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
-                        borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:600,flexShrink:0}}>
-                      Remove</button>
-                  </div>
-                  {p.percentComplete>0&&<Bar pct={p.percentComplete} color={c} height={2} style={{marginTop:8}}/>}
-                </Card>;
-              })}
-            </>}
-          </div>
+              <div style={{marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textDim,marginBottom:5}}>
+                  <span>Items completed</span><span style={{color:T.textMid,fontWeight:600}}>{doneItems} of {totalItems}</span>
+                </div>
+                <Bar pct={(doneItems/totalItems)*100} color={T.green} height={5} glow/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,paddingTop:10,borderTop:`1px solid ${T.surface2}`}}>
+                <span style={{color:T.textDim}}>Est. completion at 20h/week</span>
+                <span style={{color:T.yellow,fontWeight:700}}>{estDate}</span>
+              </div>
+            </Card>
+            {SECTIONS.map(sec=>(
+              <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP} setLogging={setLogging}
+                onReset={item=>{
+                  if(!window.confirm(`Reset "${item.name}" to 0%?`)) return;
+                  setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});
+                  setCompletionBanner(b=>b.filter(id=>id!==item.id));
+                }}
+              />
+            ))}
+          </div>}
         </div>
-      </div>}
 
-      {/* ══ MARK COMPLETE ══ */}
-      {markCompleteConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
-        display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}}>
-        <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",padding:24,width:"100%",
-          boxSizing:"border-box",borderTop:`3px solid ${T.green}`,boxShadow:shadow.raised}}>
-          <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>Mark Complete?</div>
-          <div style={{fontSize:12,color:T.textMid,marginBottom:6}}>{markCompleteConfirm.name}</div>
-          <div style={{fontSize:11,color:T.textDim,marginBottom:20,lineHeight:1.5}}>
-            Logs remaining hours, marks 100%, and adapts the plan.
-          </div>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setMarkCompleteConfirm(null)}
-              style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Cancel</button>
-            <button onClick={()=>markItemComplete(markCompleteConfirm)}
-              style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
-                borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
-              Complete &amp; Adapt ✓</button>
-          </div>
-        </div>
-      </div>}
-
-      {/* ══ EDIT SESSION ══ */}
-      {editSession&&(()=>{
-        const{itemId,sessionIdx}=editSession;
-        const item=CURRICULUM.find(i=>i.id===itemId);
-        return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
-          display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}}>
-          <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
-            padding:24,width:"100%",boxSizing:"border-box",
-            borderTop:`3px solid ${T.blue}`,boxShadow:shadow.raised}}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:3}}>Edit Session</div>
-            <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>{item?.name} · session {sessionIdx+1}</div>
-            <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Real study hours</label>
-              <input type="number" min="0.25" max="12" step="0.25" value={editSessionForm.hours}
-                onChange={e=>setEditSessionForm(f=>({...f,hours:e.target.value}))} style={inputSt}/>
-            </div>
-            <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
-                Content hours {item?.type==="course"?"(real÷2)":"(= real for books)"}
-              </label>
-              <input type="number" min="0.1" max={item?.hours} step="0.1" value={editSessionForm.courseHours}
-                onChange={e=>setEditSessionForm(f=>({...f,courseHours:e.target.value}))} style={inputSt}/>
+        {/* ══ SUNDAY REVIEW MODAL ══ */}
+        {showSundayReview&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",
+          display:"flex",alignItems:"flex-end",zIndex:150,backdropFilter:"blur(4px)",
+          animation:"fadeIn 0.2s ease both"}}>
+          <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",padding:24,width:"100%",
+            boxSizing:"border-box",borderTop:`3px solid ${T.yellow}`,boxShadow:shadow.raised,
+            animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both"}}>
+            <div style={{fontSize:17,fontWeight:800,letterSpacing:-0.3,marginBottom:4}}>Week Review</div>
+            <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>
+              {weekH.toFixed(1)}h logged · AI will summarize &amp; store for future plans
             </div>
             <div style={{marginBottom:20}}>
-              <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Note</label>
-              <input value={editSessionForm.note} onChange={e=>setEditSessionForm(f=>({...f,note:e.target.value}))}
-                style={inputSt} placeholder="What did you cover?"/>
+              <div style={{fontSize:11,color:T.textMid,marginBottom:10,fontWeight:600}}>How was this week?</div>
+              <StarRating value={sundayForm.stars} onChange={s=>setSundayForm(f=>({...f,stars:s}))}/>
+            </div>
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:T.textMid,marginBottom:8,fontWeight:600}}>
+                What happened? <span style={{color:T.textDim,fontWeight:400}}>(optional — AI summarizes it)</span>
+              </div>
+              <textarea value={sundayForm.note} onChange={e=>setSundayForm(f=>({...f,note:e.target.value}))}
+                placeholder="Energy, what you finished, what got skipped, anything that affected study..."
+                style={{...inputSt,fontSize:12,resize:"none",height:90,lineHeight:1.5}}/>
             </div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={deleteSession}
-                style={{flex:1,background:"#180a0a",border:`1px solid ${T.red}30`,color:T.red,
-                  borderRadius:10,padding:12,fontSize:13,fontWeight:700,cursor:"pointer"}}>Delete</button>
-              <button onClick={()=>setEditSession(null)}
+              <button onClick={()=>setShowSundayReview(false)} className="btn-press"
+                style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                  color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Later</button>
+              <button onClick={saveSundayReview} disabled={sundaySubmitting} className="btn-press"
+                style={{flex:2,background:"#1a1200",border:`1px solid ${T.yellow}30`,color:sundaySubmitting?T.textDim:T.yellow,
+                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",transition:"all 0.2s"}}>
+                {sundaySubmitting?"Summarizing…":"Save &amp; Summarize ✓"}</button>
+            </div>
+          </div>
+        </div>}
+
+        {/* ══ MARK COMPLETE ══ */}
+        {markCompleteConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
+          display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)",
+          animation:"fadeIn 0.2s ease both"}}>
+          <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",padding:24,width:"100%",
+            boxSizing:"border-box",borderTop:`3px solid ${T.green}`,boxShadow:shadow.raised,
+            animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both"}}>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>Mark Complete?</div>
+            <div style={{fontSize:12,color:T.textMid,marginBottom:6}}>{markCompleteConfirm.name}</div>
+            <div style={{fontSize:11,color:T.textDim,marginBottom:20,lineHeight:1.5}}>
+              Logs remaining hours, marks 100%, and adapts the plan.
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setMarkCompleteConfirm(null)} className="btn-press"
                 style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
                   color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Cancel</button>
-              <button onClick={saveEditSession}
-                style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>Save ✓</button>
+              <button onClick={()=>markItemComplete(markCompleteConfirm)} className="btn-press"
+                style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
+                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                Complete &amp; Adapt ✓</button>
             </div>
           </div>
-        </div>;
-      })()}
+        </div>}
 
-      {/* ══ LOG MODAL ══ */}
-      {logging&&(()=>{
-        const p=getP(logging.id);
-        const contentDone=p.courseHoursComplete||0;
-        const contentLeft=Math.max(0,(logging.hours||0)-contentDone);
-        const realH=parseFloat(logForm.hours||0);
-        const previewPct=realH>0?targetPctAfterSession(logging,p,realH):null;
-        return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
-          display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)"}}>
-          <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
-            padding:24,width:"100%",boxSizing:"border-box",
-            borderTop:`3px solid ${gc(logging.genre)}`,boxShadow:shadow.raised}}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:3}}>{logging.name}</div>
-            <div style={{fontSize:11,color:T.textDim,marginBottom:4}}>
-              {logging.id} · {logging.type==="course"?"Course (1h content = 2h real)":"Book (1:1)"}
+        {/* ══ EDIT SESSION ══ */}
+        {editSession&&(()=>{
+          const{itemId,sessionIdx}=editSession;
+          const item=CURRICULUM.find(i=>i.id===itemId);
+          return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
+            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)",
+            animation:"fadeIn 0.2s ease both"}}>
+            <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
+              padding:24,width:"100%",boxSizing:"border-box",
+              borderTop:`3px solid ${T.blue}`,boxShadow:shadow.raised,
+              animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both"}}>
+              <div style={{fontSize:16,fontWeight:800,marginBottom:3}}>Edit Session</div>
+              <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>{item?.name} · session {sessionIdx+1}</div>
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Real study hours</label>
+                <input type="number" min="0.25" max="12" step="0.25" value={editSessionForm.hours}
+                  onChange={e=>setEditSessionForm(f=>({...f,hours:e.target.value}))} style={inputSt}/>
+              </div>
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
+                  Content hours {item?.type==="course"?"(real÷2)":"(= real for books)"}
+                </label>
+                <input type="number" min="0.1" max={item?.hours} step="0.1" value={editSessionForm.courseHours}
+                  onChange={e=>setEditSessionForm(f=>({...f,courseHours:e.target.value}))} style={inputSt}/>
+              </div>
+              <div style={{marginBottom:20}}>
+                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Note</label>
+                <input value={editSessionForm.note} onChange={e=>setEditSessionForm(f=>({...f,note:e.target.value}))}
+                  style={inputSt} placeholder="What did you cover?"/>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={deleteSession} className="btn-press"
+                  style={{flex:1,background:"#180a0a",border:`1px solid ${T.red}30`,color:T.red,
+                    borderRadius:10,padding:12,fontSize:13,fontWeight:700,cursor:"pointer"}}>Delete</button>
+                <button onClick={()=>setEditSession(null)} className="btn-press"
+                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                    color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                <button onClick={saveEditSession} className="btn-press"
+                  style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
+                    borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>Save ✓</button>
+              </div>
             </div>
-            <div style={{fontSize:11,color:T.textDim,marginBottom:16}}>
-              {contentDone.toFixed(2)}h / {logging.hours}h content · {p.percentComplete}% · {contentLeft.toFixed(2)}h left
-            </div>
-            {confirmLog?(
-              <div>
-                <div style={{background:T.surface0,borderRadius:12,padding:14,marginBottom:16,border:`1px solid ${T.surface3}`}}>
-                  <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Confirm session</div>
-                  <div style={{fontSize:15,fontWeight:700}}>
-                    {logForm.hours}h real
-                    <span style={{color:T.blue}}> · {parseFloat(realToContent(logging,parseFloat(logForm.hours||0)).toFixed(3))}h content</span>
+          </div>;
+        })()}
+
+        {/* ══ LOG MODAL ══ */}
+        {logging&&(()=>{
+          const p=getP(logging.id);
+          const contentDone=p.courseHoursComplete||0;
+          const contentLeft=Math.max(0,(logging.hours||0)-contentDone);
+          const realH=parseFloat(logForm.hours||0);
+          const previewPct=realH>0?targetPctAfterSession(logging,p,realH):null;
+          return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
+            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)",
+            animation:"fadeIn 0.2s ease both"}}>
+            <div style={{background:T.surface1,borderRadius:"18px 18px 0 0",
+              padding:24,width:"100%",boxSizing:"border-box",
+              borderTop:`3px solid ${gc(logging.genre)}`,boxShadow:shadow.raised,
+              animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both"}}>
+              <div style={{fontSize:16,fontWeight:800,marginBottom:3}}>{logging.name}</div>
+              <div style={{fontSize:11,color:T.textDim,marginBottom:4}}>
+                {logging.id} · {logging.type==="course"?"Course (1h content = 2h real)":"Book (1:1)"}
+              </div>
+              <div style={{fontSize:11,color:T.textDim,marginBottom:16}}>
+                {contentDone.toFixed(2)}h / {logging.hours}h · {p.percentComplete}% · {contentLeft.toFixed(2)}h left
+              </div>
+              {confirmLog?(
+                <div style={{animation:"fadeUp 0.18s ease both"}}>
+                  <div style={{background:T.surface0,borderRadius:12,padding:14,marginBottom:16,border:`1px solid ${T.surface3}`}}>
+                    <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Confirm session</div>
+                    <div style={{fontSize:15,fontWeight:700}}>
+                      {logForm.hours}h real
+                      <span style={{color:T.blue}}> · {parseFloat(realToContent(logging,parseFloat(logForm.hours||0)).toFixed(3))}h content</span>
+                    </div>
+                    {previewPct&&<div style={{fontSize:12,color:gc(logging.genre),marginTop:5,fontWeight:600}}>
+                      {p.percentComplete}% → {previewPct}%
+                    </div>}
+                    {logForm.note&&<div style={{fontSize:11,color:T.textMid,marginTop:5}}>{logForm.note}</div>}
                   </div>
-                  {previewPct&&<div style={{fontSize:12,color:gc(logging.genre),marginTop:5,fontWeight:600}}>
-                    {p.percentComplete}% → {previewPct}%
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setConfirmLog(false)} className="btn-press"
+                      style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                        color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Edit</button>
+                    <button onClick={()=>submitLog()} className="btn-press"
+                      style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
+                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Confirm ✓</button>
+                  </div>
+                </div>
+              ):(
+                <div>
+                  <div style={{marginBottom:14}}>
+                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Session date</label>
+                    <input type="date"
+                      value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
+                      max={new Date().toLocaleDateString('en-CA')}
+                      onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
+                      style={{...inputSt,fontSize:14,colorScheme:"dark"}}/>
+                    {(()=>{
+                      const sd=new Date(logForm.date),mon=new Date(getMonday());
+                      const sun=new Date(mon);sun.setDate(mon.getDate()+6);
+                      return sd<mon||sd>sun?<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
+                        ⚠ Previous week — won't count toward this week's 20h
+                      </div>:null;
+                    })()}
+                  </div>
+                  <div style={{marginBottom:14}}>
+                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
+                      Real study hours {logging.type==="course"?"(max 1.5h/session)":"(max 2h/session)"}
+                    </label>
+                    <input type="number" min="0.25" max={maxRealPerSession(logging)} step="0.25"
+                      value={logForm.hours}
+                      onChange={e=>{
+                        const rh=e.target.value;
+                        setLogForm(f=>({...f,hours:rh,
+                          courseHours:f._contentManuallySet?f.courseHours
+                            :rh?parseFloat(realToContent(logging,parseFloat(rh)).toFixed(3)).toString():""}));
+                      }}
+                      style={inputSt} placeholder={logging.type==="course"?"e.g. 1.5":"e.g. 1.0"}/>
+                    {realH>0&&<div style={{fontSize:11,color:T.blue,marginTop:5,transition:"opacity 0.2s"}}>
+                      = {realToContent(logging,realH).toFixed(3)}h content
+                      {previewPct?` → ${p.percentComplete}% → ${previewPct}%`:""}
+                    </div>}
+                  </div>
+                  {logging.type==="course"&&<div style={{marginBottom:14}}>
+                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
+                      Content hours <span style={{color:T.textDim,fontWeight:400}}>— adjust if ratio wasn't 1:2</span>
+                    </label>
+                    <input type="number" min="0.1" max={logging.hours} step="0.05"
+                      value={logForm.courseHours}
+                      onChange={e=>setLogForm(f=>({...f,courseHours:e.target.value,_contentManuallySet:true}))}
+                      onFocus={()=>{
+                        if(!logForm.courseHours&&logForm.hours)
+                          setLogForm(f=>({...f,courseHours:parseFloat(realToContent(logging,parseFloat(logForm.hours)).toFixed(3)).toString(),_contentManuallySet:false}));
+                      }}
+                      style={{...inputSt,border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":T.surface3}`}}
+                      placeholder={realH>0?`Standard: ${realToContent(logging,realH).toFixed(3)}h`:"Enter real hours first"}/>
+                    {logForm._contentManuallySet&&logForm.courseHours&&logForm.hours&&<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
+                      ⚡ Custom ratio — {logForm.hours}h real → {logForm.courseHours}h content
+                      {(()=>{const ch=parseFloat(logForm.courseHours),tot=logging.hours||1;
+                        return ` → ${p.percentComplete}% → ${Math.round((Math.min((p.courseHoursComplete||0)+ch,tot)/tot)*100)}%`;})()}
+                    </div>}
                   </div>}
-                  {logForm.note&&<div style={{fontSize:11,color:T.textMid,marginTop:5}}>{logForm.note}</div>}
+                  <div style={{marginBottom:20}}>
+                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Note (optional)</label>
+                    <input value={logForm.note} onChange={e=>setLogForm(f=>({...f,note:e.target.value}))}
+                      style={inputSt} placeholder="What did you cover?"/>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});setConfirmLog(false);}} className="btn-press"
+                      style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                        color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Cancel</button>
+                    <button onClick={()=>submitLog()} className="btn-press"
+                      style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
+                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Review →</button>
+                  </div>
                 </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setConfirmLog(false)}
-                    style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                      color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Edit</button>
-                  <button onClick={()=>submitLog()}
-                    style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                      borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Confirm ✓</button>
-                </div>
-              </div>
-            ):(
-              <div>
-                <div style={{marginBottom:14}}>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Session date</label>
-                  <input type="date"
-                    value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
-                    max={new Date().toLocaleDateString('en-CA')}
-                    onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
-                    style={{...inputSt,fontSize:14,colorScheme:"dark"}}/>
-                  {(()=>{
-                    const sd=new Date(logForm.date),mon=new Date(getMonday());
-                    const sun=new Date(mon);sun.setDate(mon.getDate()+6);
-                    return sd<mon||sd>sun?<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
-                      ⚠ Previous week — won't count toward this week's 20h
-                    </div>:null;
-                  })()}
-                </div>
-                <div style={{marginBottom:14}}>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
-                    Real study hours {logging.type==="course"?"(max 1.5h/session)":"(max 2h/session)"}
-                  </label>
-                  <input type="number" min="0.25" max={maxRealPerSession(logging)} step="0.25"
-                    value={logForm.hours}
-                    onChange={e=>{
-                      const rh=e.target.value;
-                      setLogForm(f=>({...f,hours:rh,
-                        courseHours:f._contentManuallySet?f.courseHours
-                          :rh?parseFloat(realToContent(logging,parseFloat(rh)).toFixed(3)).toString():""}));
-                    }}
-                    style={inputSt} placeholder={logging.type==="course"?"e.g. 1.5":"e.g. 1.0"}/>
-                  {realH>0&&<div style={{fontSize:11,color:T.blue,marginTop:5}}>
-                    = {realToContent(logging,realH).toFixed(3)}h content
-                    {previewPct?` → ${p.percentComplete}% → ${previewPct}%`:""}
-                  </div>}
-                </div>
-                {logging.type==="course"&&<div style={{marginBottom:14}}>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
-                    Content hours <span style={{color:T.textDim,fontWeight:400}}>— adjust if ratio wasn't 1:2</span>
-                  </label>
-                  <input type="number" min="0.1" max={logging.hours} step="0.05"
-                    value={logForm.courseHours}
-                    onChange={e=>setLogForm(f=>({...f,courseHours:e.target.value,_contentManuallySet:true}))}
-                    onFocus={()=>{
-                      if(!logForm.courseHours&&logForm.hours)
-                        setLogForm(f=>({...f,courseHours:parseFloat(realToContent(logging,parseFloat(logForm.hours)).toFixed(3)).toString(),_contentManuallySet:false}));
-                    }}
-                    style={{...inputSt,border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":T.surface3}`}}
-                    placeholder={realH>0?`Standard: ${realToContent(logging,realH).toFixed(3)}h`:"Enter real hours first"}/>
-                  {logForm._contentManuallySet&&logForm.courseHours&&logForm.hours&&<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
-                    ⚡ Custom ratio — {logForm.hours}h real → {logForm.courseHours}h content
-                    {(()=>{const ch=parseFloat(logForm.courseHours),tot=logging.hours||1;
-                      return ` → ${p.percentComplete}% → ${Math.round((Math.min((p.courseHoursComplete||0)+ch,tot)/tot)*100)}%`;})()}
-                  </div>}
-                </div>}
-                <div style={{marginBottom:20}}>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Note (optional)</label>
-                  <input value={logForm.note} onChange={e=>setLogForm(f=>({...f,note:e.target.value}))}
-                    style={inputSt} placeholder="What did you cover?"/>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});setConfirmLog(false);}}
-                    style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                      color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Cancel</button>
-                  <button onClick={()=>submitLog()}
-                    style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                      borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Review →</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>;
-      })()}
-    </div>
+              )}
+            </div>
+          </div>;
+        })()}
+      </div>
+    </>
   );
 }
