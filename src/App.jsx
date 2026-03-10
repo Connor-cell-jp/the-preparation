@@ -1256,22 +1256,31 @@ WEEK BUDGET:
 - Day budgets (total MUST equal ${effectiveWkRem.toFixed(2)}h): ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
 - Max 4h/day. Vary genres — never same genre twice in one day.
 
-PROFILE: ${profile.split('\n').slice(0,6).join(' ')}
-ARC: ${arcPosition} Velocity: ${velocityTrend}. Avg: ${avgH}h/wk.
-${planGuidance?`GUIDANCE FROM LEARNER: ${planGuidance}`:""}
-FOCUS (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(",")}
+LEARNER PROFILE (read fully — governs all decisions):
+${profile}
 
-REVIEW HISTORY (last 6 weeks, AI-summarized):
-${reviewHistory||"None yet."}
+JOURNEY: Week ~${Math.round(totalSpentRealH/WEEKLY_TARGET)+1} of curriculum. ARC: ${arcPosition}
+VELOCITY: ${velocityTrend}. 4-week avg: ${avgH}h/wk.
+${planGuidance?`\nLEARNER GUIDANCE THIS WEEK: ${planGuidance}`:""}
+CURRENT FOCUS (${focus.manual?"MANUAL — respect it":"AI-managed"}): ${focusIds.join(",")}
 
-ACTIVE ITEMS:
+REVIEW HISTORY — last 6 weeks (AI-summarized). Use these as behavioral signals:
+detect recurring skip days, energy dips, stalling subjects, weeks that fell short and why.
+Let patterns directly shape session length, item selection, and day placement.
+${reviewHistory||"None yet — treat as week 1."}
+
+FOCUS PROPOSAL RULES (must follow when suggesting focusProposal):
+- Max 2 active courses + max 3 books at any time.
+- Always keep at least 1 Fighter/philosophy book active.
+- Never propose an Optional item if its genre has unfinished Core items.
+- Only rotate an item out if it is >85% complete OR has 0 momentum for 2+ weeks.
+- If focus is MANUAL, still propose but note the learner may override.
+
+ACTIVE ITEMS (with momentum):
 ${touchedAndFocus||"None."}
 
 NEXT UNTOUCHED CORE:
-${nextCore.split('\n').slice(0,5).join('\n')}
-
-JSON only — no "focus" field on items:
-{"assessment":"2 sentences","insight":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"},"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44}]}],"totalPlannedHours":${effectiveWkRem.toFixed(2)}}`;
+${nextCore.split('\n').slice(0,5).join('\n')}`;
 
     try{
       const raw=await callAI(prompt,2000);
@@ -1317,20 +1326,34 @@ JSON only — no "focus" field on items:
     const dayBudgets=distributeDays(freshWkRem,remainingDays);
     const prompt=`Learning coach. Adapt remaining week plan. JSON only.
 
-RULES:
-- Courses:1h content=2h real.Max 1.5h/session. Books:1h=1h.Max 2h/session.
+HOUR RULES:
+- Courses:1h content=2h real. Max 1.5h/session.
+- Books:1h=1h. Max 2h/session.
 - Grand total MUST equal ${freshWkRem.toFixed(2)}h.
 - Day budgets: ${remainingDays.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
-- Max 4h/day. Vary genres.
+- Max 4h/day. Vary genres — never same genre twice in one day.
+
+LEARNER PROFILE (governs all decisions):
+${profile}
+
+JOURNEY: Week ~${Math.round(totalSpentRealH/WEEKLY_TARGET)+1}. ARC: ${arcPosition}
+VELOCITY: ${velocityTrend}.
 
 TRIGGER: ${contextNote||"Manual adapt."}
-ARC: ${arcPosition} Velocity:${velocityTrend}.
-THIS WEEK: ${freshWeekH.toFixed(2)}h logged. Remaining:${freshWkRem.toFixed(2)}h across ${dLeftEffective} day(s):${remainingDays.join(",")}.
-Today:${getDayName()}${loggedToday?" (logged—skip today)":""}.
-Plan vs actual:${planVsActual}
-Focus(${focus.manual?"MANUAL":"AI"}):${focusIds.join(",")}
-ITEMS: ${touchedAndFocus||"None."}
-NEXT CORE: ${nextCore.split('\n').slice(0,4).join(' | ')}
+THIS WEEK: ${freshWeekH.toFixed(2)}h logged. Remaining: ${freshWkRem.toFixed(2)}h across ${dLeftEffective} day(s): ${remainingDays.join(",")}.
+Today: ${getDayName()}${loggedToday?" (already logged — do not schedule today)":""}.
+
+PLAN VS ACTUAL SO FAR:
+${planVsActual}
+
+FOCUS RULES: Max 2 courses + 3 books. Keep 1 Fighter/philosophy book. Never propose Optional if Core genre unfinished. Only rotate if >85% done or 0 momentum 2+ weeks.
+CURRENT FOCUS (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(",")}
+
+ACTIVE ITEMS (with momentum):
+${touchedAndFocus||"None."}
+
+NEXT UNTOUCHED CORE:
+${nextCore.split('\n').slice(0,4).join(' | ')}
 
 JSON only — no "focus" on items:
 {"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44}]}],"totalPlannedHours":${freshWkRem.toFixed(2)},"note":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
@@ -1420,10 +1443,14 @@ JSON only — no "focus" on items:
     if(!navigator.onLine){toast_("Offline");return;}
     setBonusLoading(true);
     const{touchedAndFocus,nextCore}=buildAIContext();
-    const prompt=`Learner hit 20h target. Suggest 1-2 bonus sessions. JSON only.
+    const prompt=`Learner hit 20h target. Suggest 1-2 bonus sessions that align with their profile. JSON only.
 PROFILE: ${profile}
-COURSES:1h content=2h real.Max 1.5h/session. BOOKS:1h=1h.Max 2h/session.
-STATUS:${touchedAndFocus||"None."} NEXT CORE:${nextCore}
+JOURNEY: Week ~${Math.round(totalSpentRealH/WEEKLY_TARGET)+1}. ARC: ${arcPosition}
+HOUR RULES — Courses:1h content=2h real, max 1.5h/session. Books:1h=1h, max 2h/session.
+FOCUS RULES: max 2 courses+3 books active. Keep 1 Fighter/philosophy book. No Optional if Core genre unfinished.
+CURRENT FOCUS: ${focusIds.join(",")}
+STATUS: ${touchedAndFocus||"None."}
+NEXT CORE: ${nextCore}
 {"items":[{"id":"A1","realHours":1.5,"contentHours":0.75}],"note":"one sentence"}`;
     try{
       const raw=await callAI(prompt,600);
