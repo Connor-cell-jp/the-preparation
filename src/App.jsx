@@ -214,7 +214,6 @@ const BASE_CURRICULUM = [
 {id:"A158",name:"Freelancers Course",hours:5,type:"course",section:"Optional",genre:"Entrepreneur"},
 {id:"A159",name:"How to Turn Your Passion into Profit",hours:11,type:"course",section:"Optional",genre:"Entrepreneur"},
 {id:"A160",name:"Critical Business Skills for Success",hours:30,type:"course",section:"Optional",genre:"Entrepreneur"},
-// Books — genres remapped to match course categories
 {id:"B1",name:"Discovering the German New Medicine",hours:10,type:"book",section:"Core",genre:"Biology"},
 {id:"B2",name:"Caveman Chemistry",hours:50,type:"book",section:"Core",genre:"Chemistry"},
 {id:"B3",name:"Stick and Rudder",hours:15,type:"book",section:"Core",genre:"Pilot"},
@@ -440,7 +439,7 @@ const SK_SUNDAY_DONE="tp_sundaydone1",SK_SETTINGS="tp_settings1";
 const SK_NOTIFS="tp_notifs1";
 const SK_HIDDEN="tp_hidden1";
 const MAX_REVIEWS=20;
-const NOTIF_TTL_MS = 3*24*60*60*1000; // 3 days
+const NOTIF_TTL_MS = 3*24*60*60*1000;
 
 const DEFAULT_SETTINGS={
   weeklyTarget: 20,
@@ -509,14 +508,6 @@ const GLOBAL_CSS = `
     from { opacity:0; transform:translateX(-50%) translateY(-8px) scale(0.95); }
     to   { opacity:1; transform:translateX(-50%) translateY(0)    scale(1); }
   }
-  @keyframes bannerSlideDown {
-    from { opacity:0; transform:translateY(-100%); }
-    to   { opacity:1; transform:translateY(0); }
-  }
-  @keyframes bannerSlideUp {
-    from { opacity:1; transform:translateY(0); }
-    to   { opacity:0; transform:translateY(-100%); }
-  }
   .btn-press { transition: transform 0.15s ease, opacity 0.15s ease; }
   .btn-press:active { transform: scale(0.97); opacity:0.88; }
   .tab-content { animation: fadeUp 0.32s ease both; }
@@ -565,24 +556,19 @@ function SplashScreen({ onDone }) {
   );
 }
 
-// ── Notification system ───────────────────────────────────────────────────────
+// ── Notification system (inbox only — no banner) ──────────────────────────────
 function useNotifications() {
   const [notifs, setNotifs] = useState(() => {
     const saved = load(SK_NOTIFS, []);
     const cutoff = Date.now() - NOTIF_TTL_MS;
     return saved.filter(n => n.ts > cutoff);
   });
-  const [banner, setBanner] = useState(null);
-  const bannerTimer = useRef(null);
 
   useEffect(() => { save(SK_NOTIFS, notifs); }, [notifs]);
 
   const push = useCallback((title, body, action = null) => {
     const n = { id: Date.now(), ts: Date.now(), title, body, action, read: false };
     setNotifs(prev => [n, ...prev].slice(0, 40));
-    setBanner(n);
-    if (bannerTimer.current) clearTimeout(bannerTimer.current);
-    bannerTimer.current = setTimeout(() => setBanner(null), 4000);
   }, []);
 
   const markRead = useCallback(id => {
@@ -591,57 +577,8 @@ function useNotifications() {
 
   const clearAll = useCallback(() => setNotifs([]), []);
   const dismiss = useCallback(id => setNotifs(prev => prev.filter(n => n.id !== id)), []);
-  const dismissBanner = useCallback(() => {
-    if (bannerTimer.current) clearTimeout(bannerTimer.current);
-    setBanner(null);
-  }, []);
-
   const unreadCount = notifs.filter(n => !n.read).length;
-  return { notifs, banner, push, markRead, clearAll, dismiss, dismissBanner, unreadCount };
-}
-
-function NotifBanner({ banner, onDismiss, onAction }) {
-  const [phase, setPhase] = useState("in");
-  useEffect(() => {
-    if (!banner) return;
-    setPhase("in");
-    const t = setTimeout(() => setPhase("out"), 3600);
-    return () => clearTimeout(t);
-  }, [banner?.id]);
-  if (!banner) return null;
-  return (
-    <div style={{
-      position:"fixed",top:0,left:0,right:0,zIndex:600,
-      paddingTop:"env(safe-area-inset-top)",
-      animation:phase==="in"?"bannerSlideDown 0.35s cubic-bezier(0.4,0,0.2,1) both":"bannerSlideUp 0.35s cubic-bezier(0.4,0,0.2,1) both",
-      pointerEvents:"auto",
-    }}>
-      <div style={{
-        margin:"8px 12px 0",background:"#1e2a3a",
-        border:`1px solid ${T.blue}40`,borderRadius:14,
-        padding:"12px 14px",
-        boxShadow:`0 8px 32px rgba(0,0,0,0.8), 0 0 0 1px ${T.blue}20`,
-        display:"flex",alignItems:"flex-start",gap:12,
-      }}>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12,fontWeight:700,color:T.blue,marginBottom:2}}>{banner.title}</div>
-          <div style={{fontSize:11,color:T.textMid,lineHeight:1.4}}>{banner.body}</div>
-        </div>
-        <div style={{display:"flex",gap:6,flexShrink:0,alignItems:"center"}}>
-          {banner.action && (
-            <button onClick={() => { onAction(banner); onDismiss(); }} className="btn-press"
-              style={{background:T.blue,border:"none",color:"#000",borderRadius:8,
-                padding:"5px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>
-              {banner.action.label}
-            </button>
-          )}
-          <button onClick={onDismiss} className="btn-press"
-            style={{background:T.surface3,border:"none",color:T.textMid,borderRadius:8,
-              padding:"5px 8px",fontSize:12,cursor:"pointer"}}>✕</button>
-        </div>
-      </div>
-    </div>
-  );
+  return { notifs, push, markRead, clearAll, dismiss, unreadCount };
 }
 
 function NotifInbox({ notifs, onMarkRead, onDismiss, onClearAll, onAction, onClose }) {
@@ -654,10 +591,7 @@ function NotifInbox({ notifs, onMarkRead, onDismiss, onClearAll, onAction, onClo
           background:T.surface0,borderLeft:`1px solid ${T.border}`,
           display:"flex",flexDirection:"column",
           boxShadow:"-8px 0 40px rgba(0,0,0,0.7)",
-          animation:"slideInLeft 0.3s cubic-bezier(0.4,0,0.2,1) both",
-          // slide from right
-          transform:"translateX(0)",
-        }}>
+          animation:"slideInLeft 0.3s cubic-bezier(0.4,0,0.2,1) both"}}>
         <div style={{padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
           borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -890,9 +824,11 @@ function reconcileWeekHours(progress){
 // ── Side Panel ────────────────────────────────────────────────────────────────
 function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onImport, onClearAll,
   customItems, newItem, setNewItem, addCustomItem, removeCustomItem, getP,
-  settings, onSaveSettings, notifs, unreadCount, onMarkRead, onDismissNotif, onClearNotifs, onNotifAction }) {
+  settings, onSaveSettings, notifs, unreadCount, onMarkRead, onDismissNotif, onClearNotifs,
+  onNotifAction, onNotifClose }) {
   const [section, setSection] = useState("settings");
   const [localSettings, setLocalSettings] = useState(settings);
+  const [notifOpen, setNotifOpen] = useState(false);
   useEffect(() => setLocalSettings(settings), [settings]);
 
   const toggleDay = (day) => {
@@ -904,9 +840,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
       return { ...s, activeDays: ALL_DAYS.filter(d => active.includes(d)) };
     });
   };
-
-  // Snap ratio to nearest 0.5
-  const snapRatio = v => Math.round(parseFloat(v) * 2) / 2;
 
   const inputSt = {width:"100%",background:T.surface0,border:`1px solid ${T.surface3}`,
     borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,
@@ -960,7 +893,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
         <div style={{flex:1,overflowY:"auto",padding:"16px 18px 60px",WebkitOverflowScrolling:"touch"}}>
           {section==="settings"&&<div style={{animation:"fadeUp 0.28s ease both"}}>
 
-            {/* Learning Profile */}
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Learning Profile
             </div>
@@ -976,7 +908,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
               Changes take effect on the next plan or adapt.
             </div>
 
-            {/* Schedule */}
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Schedule
             </div>
@@ -1029,7 +960,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
               Save Schedule
             </button>
 
-            {/* Study Ratios */}
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Study Ratios
             </div>
@@ -1065,7 +995,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   <div style={{fontSize:10,color:T.textFaint,marginTop:6}}>1h content = {localSettings.bookRatio??1}h real</div>
                 </div>
               </div>
-              {/* Max session */}
               <div style={{borderTop:`1px solid ${T.surface3}`,paddingTop:12,marginTop:4}}>
                 <div style={{fontSize:11,color:T.textMid,marginBottom:10,fontWeight:600}}>Max real hours per session (0.5 – 5)</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -1104,7 +1033,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
               Save Ratios
             </button>
 
-            {/* Data Backup */}
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
             <Card style={{padding:"13px 14px",marginBottom:20}}>
               <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -1120,7 +1048,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   color:T.red,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Clear All Data</button>
             </Card>
 
-            {/* Add custom item */}
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Add Custom Item</div>
             <Card style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{marginBottom:10}}>
@@ -1236,7 +1163,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                     style={{background:"none",border:"none",color:T.textFaint,fontSize:14,
                       cursor:"pointer",padding:"0 2px",flexShrink:0}}>✕</button>
                 </div>
-                {n.action&&<button onClick={()=>{onNotifAction(n);onMarkRead(n.id);onClose();}} className="btn-press"
+                {n.action&&<button onClick={()=>{onNotifAction(n);onMarkRead(n.id);onNotifClose();}} className="btn-press"
                   style={{width:"100%",marginTop:10,background:"#0a1220",border:`1px solid ${T.blue}30`,
                     color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
                   {n.action.label}</button>}
@@ -1290,8 +1217,12 @@ export default function App(){
   });
   const WEEKLY_TARGET = Math.max(5, Math.min(45, settings.weeklyTarget ?? 20));
   const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
-  const MAX_COURSES = WEEKLY_TARGET >= 40 ? 5 : WEEKLY_TARGET >= 30 ? 4 : WEEKLY_TARGET >= 20 ? 3 : 2;
-  const MAX_BOOKS   = WEEKLY_TARGET >= 40 ? 6 : WEEKLY_TARGET >= 30 ? 5 : 4;
+
+  // ── Course/book caps based on cognitive load research ──
+  // 5-14h: 1 course + 2 books | 15-24h: 2 courses + 3 books
+  // 25-34h: 2 courses + 4 books | 35-45h: 3 courses + 5 books
+  const MAX_COURSES = WEEKLY_TARGET >= 35 ? 3 : WEEKLY_TARGET >= 15 ? 2 : 1;
+  const MAX_BOOKS   = WEEKLY_TARGET >= 35 ? 5 : WEEKLY_TARGET >= 25 ? 4 : WEEKLY_TARGET >= 15 ? 3 : 2;
 
   // ── 2. Core state ──
   const [splash, setSplash]           = useState(true);
@@ -1321,7 +1252,7 @@ export default function App(){
   const [reviews, setReviews]         = useState(()=>load(SK_REVIEWS,[]));
   const [profile, setProfile]         = useState(()=>localStorage.getItem(SK_PROFILE)||DEFAULT_PROFILE);
 
-  // ── 3. Derived values ──
+  // ── 3. Derived values (before any functions) ──
   const getP = id => progress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
 
   const totalSpentRealH = CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
@@ -1348,6 +1279,7 @@ export default function App(){
   // ── 4. UI state ──
   const [view, setView]                         = useState("today");
   const [sideOpen, setSideOpen]                 = useState(false);
+  const [notifOpen, setNotifOpen]               = useState(false);
   const [logging, setLogging]                   = useState(null);
   const [logForm, setLogForm]                   = useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
   const [confirmLog, setConfirmLog]             = useState(false);
@@ -1374,8 +1306,7 @@ export default function App(){
   const [sundaySubmitting, setSundaySubmitting] = useState(false);
   const prevProgressRef = useRef({});
 
-  const { notifs, banner, push, markRead, clearAll: clearNotifs, dismiss: dismissNotif,
-    dismissBanner, unreadCount } = useNotifications();
+  const { notifs, push, markRead, clearAll: clearNotifs, dismiss: dismissNotif, unreadCount } = useNotifications();
 
   // ── 5. Body scroll lock ──
   useEffect(() => {
@@ -1549,19 +1480,26 @@ export default function App(){
       :"insufficient data";
     const avgH=recentWeeks.length>0?(recentWeeks.reduce((s,w)=>s+(w.realH||0),0)/recentWeeks.length).toFixed(1):"—";
 
-    // Full curriculum index for AI guidance matching
-    const fullCurriculumIndex = CURRICULUM
-      .map(i=>`${i.id}:"${i.name}"(${i.type},${i.genre},${i.section})`)
+    // Separate course and book indexes for better AI guidance matching
+    const courseIndex = CURRICULUM
+      .filter(i=>i.type==="course")
+      .map(i=>`${i.id}:"${i.name}"(course,${i.genre},${i.section})`)
+      .join("|");
+    const bookIndex = CURRICULUM
+      .filter(i=>i.type==="book")
+      .map(i=>`${i.id}:"${i.name}"(book,${i.genre},${i.section})`)
       .join("|");
 
-    return{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,fullCurriculumIndex};
+    return{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,courseIndex,bookIndex};
   };
 
   // ── 10. Today items ──
   const todayItems = () => {
+    // Only show today items if there's a plan for this week
+    if(!weekPlan||weekPlan.weekStart!==getMonday()) return [];
     if(weekH>=WEEKLY_TARGET) return [];
     const todayName=getDayName();
-    if(weekPlan?.weekStart===getMonday()&&weekPlan.days){
+    if(weekPlan.days){
       const todayPlan=weekPlan.days.find(d=>d.day===todayName);
       if(todayPlan?.items?.length>0){
         return todayPlan.items.map(it=>{
@@ -1579,22 +1517,7 @@ export default function App(){
         }).filter(Boolean);
       }
     }
-    let rem=Math.max(wkRem/Math.max(dLeft,1),1.5);
-    return focusItems.filter(i=>getP(i.id).percentComplete<100).reduce((acc,item)=>{
-      if(rem<=0) return acc;
-      const maxR=maxRealPerSession(item,settings),alloc=Math.min(rem,maxR);
-      if(alloc>=0.5){
-        const p=getP(item.id);
-        acc.push({...item,allocRealH:parseFloat(alloc.toFixed(1)),
-          contentGain:parseFloat(realToContent(item,alloc,settings).toFixed(2)),
-          targetPct:targetPctAfterSession(item,p,alloc,settings),
-          contentDone:parseFloat((p.courseHoursComplete||0).toFixed(2)),
-          contentTotal:item.hours,
-          contentLeft:parseFloat(Math.max(0,(item.hours||0)-(p.courseHoursComplete||0)).toFixed(2))});
-        rem-=alloc;
-      }
-      return acc;
-    },[]);
+    return [];
   };
 
   // ── 11. AI functions ──
@@ -1613,7 +1536,7 @@ export default function App(){
   const runPlanWeek = async(auto=false) => {
     if(!navigator.onLine){enqueue("plan",{auto});setOfflineQueue(loadQueue());toast_("Offline — plan queued");return;}
     setAiLoading(true);setAiResult(null);
-    const{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,fullCurriculumIndex}=buildAIContext();
+    const{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,courseIndex,bookIndex}=buildAIContext();
     const todayStr_=new Date().toLocaleDateString();
     const loggedToday_=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr_));
     const effectiveDayIdx_=loggedToday_?getDayIdx()+1:getDayIdx();
@@ -1629,19 +1552,25 @@ STRICT HOUR RULES:
 - Courses: 1h content = ${settings.courseRatio}h real. Max ${settings.courseMaxSession}h real/session.
 - Books: 1h content = ${settings.bookRatio}h real. Max ${settings.bookMaxSession}h real/session.
 - targetPct = floor((contentDone + contentGain) / totalContent × 100)
-- ONLY use item IDs that exist in the curriculum index below. Never invent items.
+- ONLY use item IDs that exist in the COURSE INDEX or BOOK INDEX below. Never invent IDs.
 
 WEEK BUDGET (MUST match exactly):
 - Target: ${WEEKLY_TARGET}h real. Logged: ${weekH}h. Remaining: ${effectiveWkRem}h across ${effectiveDLeft} days: ${remainingDayNames.join(",")}.
 - Day budgets: ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
 - Vary genres — never same genre twice in one day.
 
+FOCUS CAPS (cognitive load science — strictly enforced):
+- Max ${MAX_COURSES} active course(s) + max ${MAX_BOOKS} active books at ${WEEKLY_TARGET}h/week.
+- Reasoning: Working memory handles 4±1 concepts; interleaving works best with 2-3 subjects.
+- Lower hours = fewer items for deeper retention.
+
 LEARNER PROFILE:
 ${profile}
 
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 VELOCITY: ${velocityTrend}. 4-week avg: ${avgH}h/wk.
-${planGuidance?`\nLEARNER GUIDANCE: ${planGuidance}\nIMPORTANT: Map any topic/theme in this guidance to real item IDs from the curriculum index.`:""}
+${planGuidance?`\nLEARNER GUIDANCE: "${planGuidance}"
+IMPORTANT — For courses: search COURSE INDEX by genre/title keywords. For books: search BOOK INDEX by title keywords and genre. Map the request to real IDs. For example "philosophy books" → search Book Index for genre=Philosophy items like B9,B16,B34,B95,B99,B100 etc.`:""}
 
 CURRENT FOCUS (${focus.manual?"MANUAL — respect it":"AI-managed"}): ${focusIds.join(",")}
 
@@ -1649,7 +1578,7 @@ REVIEW HISTORY:
 ${reviewHistory||"None yet."}
 
 FOCUS PROPOSAL RULES:
-- Max ${MAX_COURSES} active courses + max ${MAX_BOOKS} books.
+- Respect MAX_COURSES=${MAX_COURSES} and MAX_BOOKS=${MAX_BOOKS}.
 - Always keep at least 1 Philosophy book active.
 - Never propose Optional if genre has unfinished Core items.
 - Only rotate if >85% complete OR 0 momentum 2+ weeks.
@@ -1660,8 +1589,11 @@ ${touchedAndFocus||"None."}
 NEXT UNTOUCHED CORE:
 ${nextCore.slice(0,400)}
 
-FULL CURRICULUM INDEX (use ONLY these IDs):
-${fullCurriculumIndex.slice(0,3000)}
+COURSE INDEX (use ONLY these IDs for courses):
+${courseIndex.slice(0,2000)}
+
+BOOK INDEX (use ONLY these IDs for books — search by title and genre to match guidance):
+${bookIndex.slice(0,2500)}
 
 JSON format:
 {"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":10}]}],"insight":"1 sentence","assessment":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
@@ -1671,12 +1603,16 @@ JSON format:
       const jsonMatch=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim().match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON");
       const parsed=JSON.parse(jsonMatch[0]);
+      // Strip completed items from all days
       const validatedDays=(parsed.days||[]).map((day,i)=>{
         const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(effectiveWkRem/effectiveDLeft);
+        const filteredItems=(day.items||[]).filter(it=>{
+          const p=getP(it.id);
+          return CURRICULUM.find(c=>c.id===it.id)&&(p.percentComplete||0)<100;
+        });
         return{...day,totalDayRealH:budget,
-          items:scaleDayItems(day.items||[],budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
+          items:scaleDayItems(filteredItems,budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
       });
-      // Enforce exact total
       const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
       const drift=parseFloat((effectiveWkRem-grandTotal).toFixed(2));
       if(Math.abs(drift)>=0.05&&validatedDays.length>0){
@@ -1699,7 +1635,7 @@ JSON format:
   const runAdaptPlan = async() => {
     if(!navigator.onLine){enqueue("adapt",{});setOfflineQueue(loadQueue());toast_("Offline — adapt queued");return;}
     setAdaptLoading(true);
-    const{planVsActual,touchedAndFocus,nextCore,velocityTrend,fullCurriculumIndex}=buildAIContext();
+    const{planVsActual,touchedAndFocus,nextCore,velocityTrend,courseIndex,bookIndex}=buildAIContext();
     const todayStr=new Date().toLocaleDateString();
     const loggedToday=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr));
     const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
@@ -1709,14 +1645,17 @@ JSON format:
     const freshWkRem=parseFloat(Math.max(0,WEEKLY_TARGET-freshWeekH).toFixed(2));
     if(dLeftEffective===0||freshWkRem===0){toast_("Week complete");setAdaptLoading(false);return;}
     const dayBudgets=distributeDays(freshWkRem,remainingDays);
-    // Compute exact required total to avoid drift
     const exactTotal=parseFloat(dayBudgets.reduce((s,h)=>s+h,0).toFixed(2));
+
+    // List of completed item IDs to explicitly exclude
+    const completedIds=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.id);
 
     const prompt=`Learning coach. Adapt remaining week plan. JSON only — no commentary.
 STRICT HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books:1h=${settings.bookRatio}h real, max ${settings.bookMaxSession}h/session.
-Grand total MUST equal exactly ${exactTotal}h. Day budgets are fixed: ${remainingDays.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
+Grand total MUST equal exactly ${exactTotal}h. Day budgets: ${remainingDays.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
 Vary genres — never same genre twice in one day.
-ONLY use item IDs from curriculum index. Never invent items.
+ONLY use IDs from COURSE INDEX or BOOK INDEX. Never invent IDs.
+COMPLETED ITEMS — NEVER schedule these: ${completedIds.join(",")||"none"}
 
 LEARNER PROFILE:
 ${profile}
@@ -1730,7 +1669,7 @@ Today: ${getDayName()}${loggedToday?" (already logged — do not schedule today)
 PLAN VS ACTUAL:
 ${planVsActual}
 
-FOCUS RULES: Max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Philosophy book. Never Optional if Core genre unfinished. Only rotate >85% or 0 momentum 2+ weeks.
+FOCUS CAPS: Max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Philosophy book. Never Optional if Core genre unfinished. Only rotate >85% or 0 momentum 2+ weeks.
 CURRENT FOCUS (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(",")}
 
 ACTIVE ITEMS:
@@ -1739,8 +1678,11 @@ ${touchedAndFocus||"None."}
 NEXT UNTOUCHED CORE:
 ${nextCore.slice(0,300)}
 
-FULL CURRICULUM INDEX:
-${fullCurriculumIndex.slice(0,2000)}
+COURSE INDEX:
+${courseIndex.slice(0,1500)}
+
+BOOK INDEX (search by title/genre to match any guidance):
+${bookIndex.slice(0,2000)}
 
 JSON:
 {"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44}]}],"totalPlannedHours":${exactTotal},"note":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
@@ -1752,10 +1694,15 @@ JSON:
       const parsed=JSON.parse(jsonMatch[0]);
       let adaptDays=(parsed.days||[]).map((day,i)=>{
         const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(freshWkRem/dLeftEffective);
+        // Strip completed items before scaling
+        const filteredItems=(day.items||[]).filter(it=>{
+          const p=getP(it.id);
+          return CURRICULUM.find(c=>c.id===it.id)&&(p.percentComplete||0)<100;
+        });
         return{...day,totalDayRealH:budget,
-          items:scaleDayItems(day.items||[],budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
+          items:scaleDayItems(filteredItems,budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
       });
-      // Final drift correction — enforce exact total
+      // Final drift correction
       const actualTotal=parseFloat(adaptDays.reduce((s,d)=>
         s+d.items.reduce((ss,it)=>ss+(it.realHours||0),0),0).toFixed(2));
       const drift=parseFloat((exactTotal-actualTotal).toFixed(2));
@@ -1819,6 +1766,12 @@ JSON:
     } else {
       setProgress(prev=>({...prev,[item.id]:{...prev[item.id],percentComplete:100}}));
     }
+    // Remove from focus if it was there
+    setFocus(f=>({
+      ...f,
+      courses:(f.courses||[]).filter(id=>id!==item.id),
+      books:(f.books||[]).filter(id=>id!==item.id),
+    }));
     setMarkCompleteConfirm(null);toast_(`${item.name} complete`);
     setTimeout(()=>runAdaptPlan(),400);
   };
@@ -1826,16 +1779,17 @@ JSON:
   const runBonusSuggestions = async() => {
     if(!navigator.onLine){toast_("Offline");return;}
     setBonusLoading(true);
-    const{touchedAndFocus,nextCore,fullCurriculumIndex}=buildAIContext();
+    const{touchedAndFocus,nextCore,courseIndex,bookIndex}=buildAIContext();
     const prompt=`Learner hit their ${WEEKLY_TARGET}h weekly target. Suggest 1-2 bonus sessions for ONE extra study day. JSON only — no commentary.
 PROFILE: ${profile}
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books:1h=${settings.bookRatio}h real, max ${settings.bookMaxSession}h/session.
-FOCUS RULES: max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Philosophy book. No Optional if Core genre unfinished.
+FOCUS CAPS: max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Philosophy book. No Optional if Core genre unfinished.
 CURRENT FOCUS: ${focusIds.join(",")}
 ACTIVE: ${touchedAndFocus||"None."}
 NEXT CORE: ${nextCore.slice(0,300)}
-CURRICULUM INDEX (use only these IDs): ${fullCurriculumIndex.slice(0,1500)}
+COURSE INDEX: ${courseIndex.slice(0,1000)}
+BOOK INDEX: ${bookIndex.slice(0,1200)}
 Respond ONLY with valid JSON:
 {"items":[{"id":"A1","realHours":1.5,"contentHours":0.75}],"note":"one sentence"}`;
     try{
@@ -1845,8 +1799,7 @@ Respond ONLY with valid JSON:
       if(!jsonMatch) throw new Error("No JSON found");
       const parsed=JSON.parse(jsonMatch[0]);
       if(!parsed.items||!Array.isArray(parsed.items)) throw new Error("Invalid structure");
-      // Validate IDs exist
-      const validItems=parsed.items.filter(it=>CURRICULUM.find(c=>c.id===it.id));
+      const validItems=parsed.items.filter(it=>CURRICULUM.find(c=>c.id===it.id)&&getP(it.id).percentComplete<100);
       setBonusItems({items:validItems,note:parsed.note||"",generatedAt:new Date().toISOString()});
     }catch(e){console.error("Bonus error:",e);toast_(`Couldn't generate bonus: ${e.message?.slice(0,40)||"unknown"}`);}
     setBonusLoading(false);
@@ -1936,7 +1889,6 @@ Respond ONLY with valid JSON:
     } else {
       setHiddenIds(prev=>[...prev,item.id]);
     }
-    // Remove from focus if present
     setFocus(f=>({
       ...f,
       courses:(f.courses||[]).filter(id=>id!==item.id),
@@ -2033,7 +1985,6 @@ Respond ONLY with valid JSON:
   })();
   const chartMax=Math.max(WEEKLY_TARGET,Math.max(...chartWeeks.map(w=>w.h),1));
 
-  // ── Notification action handler ──
   const handleNotifAction = (notif) => {
     if(!notif.action) return;
     const {type, payload} = notif.action;
@@ -2057,6 +2008,12 @@ Respond ONLY with valid JSON:
       <style>{GLOBAL_CSS}</style>
       {splash&&<SplashScreen onDone={()=>setSplash(false)}/>}
 
+      {notifOpen&&<NotifInbox
+        notifs={notifs} onMarkRead={markRead} onDismiss={dismissNotif}
+        onClearAll={clearNotifs} onAction={handleNotifAction}
+        onClose={()=>setNotifOpen(false)}
+      />}
+
       <div style={{
         background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,
         paddingBottom:`calc(env(safe-area-inset-bottom) + 88px)`,
@@ -2064,9 +2021,6 @@ Respond ONLY with valid JSON:
         WebkitFontSmoothing:"antialiased",MozOsxFontSmoothing:"grayscale",
       }}>
         <div style={{height:"env(safe-area-inset-top)",background:T.surface0}}/>
-
-        {/* In-app notification banner */}
-        <NotifBanner banner={banner} onDismiss={dismissBanner} onAction={handleNotifAction}/>
 
         {toast&&<div style={{
           position:"fixed",top:`calc(env(safe-area-inset-top) + 12px)`,left:"50%",
@@ -2086,6 +2040,7 @@ Respond ONLY with valid JSON:
           notifs={notifs} unreadCount={unreadCount}
           onMarkRead={markRead} onDismissNotif={dismissNotif}
           onClearNotifs={clearNotifs} onNotifAction={handleNotifAction}
+          onNotifClose={()=>setSideOpen(false)}
           onSaveSettings={s=>{
             const clean={
               ...s,
@@ -2204,7 +2159,8 @@ Respond ONLY with valid JSON:
 
         {/* ── Header ── */}
         <div style={{
-          background:T.surface0,padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
+          background:T.surface0,
+          padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
           borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
           boxShadow:"0 4px 24px rgba(0,0,0,0.6)",
         }}>
@@ -2230,6 +2186,20 @@ Respond ONLY with valid JSON:
               </div>
             </div>
             <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+              {/* Bell icon for notifications */}
+              <button onClick={()=>setNotifOpen(true)} className="btn-press"
+                style={{background:"none",border:`1px solid ${unreadCount>0?T.blue+"40":T.surface3}`,
+                  color:unreadCount>0?T.blue:T.textDim,borderRadius:10,padding:"8px 10px",
+                  fontSize:14,cursor:"pointer",position:"relative",marginTop:4,
+                  transition:"all 0.2s",minWidth:44,minHeight:44,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                🔔
+                {unreadCount>0&&<div style={{position:"absolute",top:-2,right:-2,
+                  background:T.blue,color:"#000",borderRadius:"50%",
+                  width:14,height:14,fontSize:8,fontWeight:800,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  border:`2px solid ${T.surface0}`}}>{unreadCount>9?"9+":unreadCount}</div>}
+              </button>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
                   color:weekH>=WEEKLY_TARGET?T.green:T.text,
@@ -2299,131 +2269,149 @@ Respond ONLY with valid JSON:
 
           {/* ══ TODAY ══ */}
           {view==="today"&&<div className="tab-content">
-            {todayPlannedH>0&&<Card style={{padding:"12px 14px",marginBottom:14,border:`1px solid ${T.surface3}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                <div style={{fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1}}>
-                  Today — {todayName_}
-                </div>
-                <div style={{fontSize:12,fontWeight:800,
-                  color:todayLoggedH>=todayPlannedH?T.green:todayLoggedH>0?T.yellow:T.textMid}}>
-                  {todayLoggedH.toFixed(2)}h / {todayPlannedH.toFixed(2)}h
-                </div>
-              </div>
-              <Bar pct={todayPlannedH>0?(todayLoggedH/todayPlannedH)*100:0}
-                color={todayLoggedH>=todayPlannedH?T.green:T.blue} height={5} glow/>
-              <div style={{fontSize:10,color:T.textDim,marginTop:6,textAlign:"right"}}>
-                {todayLoggedH>=todayPlannedH
-                  ? "Today's sessions complete"
-                  : todayLoggedH>0
-                  ? `${todayRemainingH.toFixed(2)}h remaining today`
-                  : `${todayPlannedH.toFixed(2)}h planned today`}
-              </div>
-            </Card>}
 
-            <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-              {weekH>=WEEKLY_TARGET?"Target hit — bonus mode":planIsFromThisWeek?`Plan · ${getDayName()}`:"No plan yet — estimated"}
-            </div>
-
-            {today.length===0&&weekH<WEEKLY_TARGET&&<Card style={{padding:20,textAlign:"center",marginBottom:10}}>
-              <div style={{fontSize:13,color:T.textMid,marginBottom:8}}>No plan for today yet</div>
+            {/* No plan state */}
+            {!planIsFromThisWeek&&<Card style={{padding:"24px 20px",textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:28,marginBottom:12}}>📋</div>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>No plan for this week yet</div>
+              <div style={{fontSize:12,color:T.textDim,marginBottom:20,lineHeight:1.6}}>
+                Head to Check-In to generate your week plan. The Today tab will show your sessions once a plan exists.
+              </div>
               <button onClick={()=>setView("ai")} className="btn-press"
-                style={{background:T.surface2,border:`1px solid ${T.blue}30`,color:T.blue,
-                  borderRadius:10,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                Go to Check-In</button>
+                style={{background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
+                  borderRadius:10,padding:"12px 24px",fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                Plan My Week →
+              </button>
             </Card>}
 
-            {today.map((item,idx)=>{
-              const p=getP(item.id),c=gc(item.genre);
-              const isDone=p.percentComplete>=100;
-              const loggedTodayH=(p.sessions||[]).filter(s=>s.date===todayDateStr).reduce((s,x)=>s+(x.studyHours||0),0);
-              const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
-              const sessionDoneToday=loggedTodayH>0;
-              const isComplete=isDone||(sessionDoneToday&&remainingH===0);
-              return <Card key={item.id} accent={isComplete?T.green:c} glow
-                style={{marginBottom:10,padding:16,opacity:isComplete?0.6:1,
-                  animation:`fadeUp 0.2s ease ${idx*0.07}s both`,transition:"opacity 0.3s"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-                  <div style={{flex:1,paddingRight:10}}>
-                    <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
-                      {item.type==="course"?"Course":"Book"}
-                      {sessionDoneToday&&!isComplete&&<span style={{marginLeft:8,color:T.blue}}>· {loggedTodayH.toFixed(2)}h logged</span>}
-                      {isComplete&&<span style={{marginLeft:8,color:T.green}}>· Complete</span>}
-                    </div>
-                    <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
-                    <div style={{marginTop:7}}><Pill color={isComplete?T.green:c} label={item.genre||item.id}/></div>
+            {planIsFromThisWeek&&<>
+              {todayPlannedH>0&&<Card style={{padding:"12px 14px",marginBottom:14,border:`1px solid ${T.surface3}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1}}>
+                    Today — {todayName_}
                   </div>
-                  <div style={{textAlign:"right",flexShrink:0}}>
-                    {isComplete
-                      ?<div style={{fontSize:22,fontWeight:900,color:T.green}}>✓</div>
-                      :<div>
-                        <div style={{fontSize:22,fontWeight:900,
-                          color:remainingH<item.allocRealH?T.yellow:T.blue,transition:"color 0.3s"}}>
-                          {remainingH.toFixed(2)}h
-                        </div>
-                        <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{sessionDoneToday?"remaining":"real study"}</div>
-                      </div>}
+                  <div style={{fontSize:12,fontWeight:800,
+                    color:todayLoggedH>=todayPlannedH?T.green:todayLoggedH>0?T.yellow:T.textMid}}>
+                    {todayLoggedH.toFixed(2)}h / {todayPlannedH.toFixed(2)}h
                   </div>
                 </div>
-                <div style={{background:T.surface0,borderRadius:10,padding:"10px 12px",marginBottom:12,border:`1px solid ${T.surface3}`}}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:6}}>
-                    <span style={{color:T.textDim}}>{(p.courseHoursComplete||0).toFixed(2)}h / {item.contentTotal}h</span>
-                    <span style={{color:T.textDim}}>{item.contentLeft.toFixed(2)}h left</span>
-                  </div>
-                  <Bar pct={p.percentComplete} color={isComplete?T.green:sessionDoneToday?T.yellow:c} height={4} glow/>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5}}>
-                    <span style={{color:T.textMid,fontWeight:600}}>{p.percentComplete}%</span>
-                    {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700}}>→ {item.targetPct}%</span>}
-                  </div>
+                <Bar pct={todayPlannedH>0?(todayLoggedH/todayPlannedH)*100:0}
+                  color={todayLoggedH>=todayPlannedH?T.green:T.blue} height={5} glow/>
+                <div style={{fontSize:10,color:T.textDim,marginTop:6,textAlign:"right"}}>
+                  {todayLoggedH>=todayPlannedH
+                    ? "Today's sessions complete"
+                    : todayLoggedH>0
+                    ? `${todayRemainingH.toFixed(2)}h remaining today`
+                    : `${todayPlannedH.toFixed(2)}h planned today`}
                 </div>
-                {!isComplete&&<div style={{marginBottom:8}}>
-                  <button onClick={()=>setLogging(item)} className="btn-press"
-                    style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
-                      color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                    {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
-                  </button>
-                </div>}
-                {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)} className="btn-press"
-                  style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
-                    color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  Mark Complete &amp; Adapt
-                </button>}
-              </Card>;
-            })}
+              </Card>}
 
-            {weekH>=WEEKLY_TARGET&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`,
-              animation:"fadeUp 0.2s ease both"}}>
-              <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>Bonus Mode</div>
-              <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
-                {weekH.toFixed(2)}h logged — target hit.
+              <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
+                {weekH>=WEEKLY_TARGET?"Target hit — bonus mode":`Plan · ${getDayName()}`}
               </div>
-              {bonusItems?.items?.length>0&&<div>
-                {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic"}}>{bonusItems.note}</div>}
-                {bonusItems.items.map(it=>{
-                  const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
-                  const c=gc(item.genre);
-                  return <div key={it.id} style={{background:T.surface0,borderRadius:10,
-                    padding:"10px 12px",marginBottom:8,borderLeft:`2px solid ${c}`}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                      <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8}}>{item.name}</div>
-                      <div style={{fontSize:13,fontWeight:800,color:T.blue,flexShrink:0}}>{it.realHours}h</div>
+
+              {today.length===0&&weekH<WEEKLY_TARGET&&<Card style={{padding:20,textAlign:"center",marginBottom:10}}>
+                <div style={{fontSize:13,color:T.textMid,marginBottom:4}}>
+                  {todayLoggedH>0?"All sessions logged for today":"No sessions planned today"}
+                </div>
+                <div style={{fontSize:11,color:T.textDim}}>
+                  {todayLoggedH>0?"Great work — check back tomorrow":"Check the Week tab for your full schedule"}
+                </div>
+              </Card>}
+
+              {today.map((item,idx)=>{
+                const p=getP(item.id),c=gc(item.genre);
+                const isDone=p.percentComplete>=100;
+                const loggedTodayH=(p.sessions||[]).filter(s=>s.date===todayDateStr).reduce((s,x)=>s+(x.studyHours||0),0);
+                const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
+                const sessionDoneToday=loggedTodayH>0;
+                const isComplete=isDone||(sessionDoneToday&&remainingH===0);
+                return <Card key={item.id} accent={isComplete?T.green:c} glow
+                  style={{marginBottom:10,padding:16,opacity:isComplete?0.6:1,
+                    animation:`fadeUp 0.2s ease ${idx*0.07}s both`,transition:"opacity 0.3s"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                    <div style={{flex:1,paddingRight:10}}>
+                      <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
+                        {item.type==="course"?"Course":"Book"}
+                        {sessionDoneToday&&!isComplete&&<span style={{marginLeft:8,color:T.blue}}>· {loggedTodayH.toFixed(2)}h logged</span>}
+                        {isComplete&&<span style={{marginLeft:8,color:T.green}}>· Complete</span>}
+                      </div>
+                      <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
+                      <div style={{marginTop:7}}><Pill color={isComplete?T.green:c} label={item.genre||item.id}/></div>
                     </div>
+                    <div style={{textAlign:"right",flexShrink:0}}>
+                      {isComplete
+                        ?<div style={{fontSize:22,fontWeight:900,color:T.green}}>✓</div>
+                        :<div>
+                          <div style={{fontSize:22,fontWeight:900,
+                            color:remainingH<item.allocRealH?T.yellow:T.blue,transition:"color 0.3s"}}>
+                            {remainingH.toFixed(2)}h
+                          </div>
+                          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{sessionDoneToday?"remaining":"real study"}</div>
+                        </div>}
+                    </div>
+                  </div>
+                  <div style={{background:T.surface0,borderRadius:10,padding:"10px 12px",marginBottom:12,border:`1px solid ${T.surface3}`}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:6}}>
+                      <span style={{color:T.textDim}}>{(p.courseHoursComplete||0).toFixed(2)}h / {item.contentTotal}h</span>
+                      <span style={{color:T.textDim}}>{item.contentLeft.toFixed(2)}h left</span>
+                    </div>
+                    <Bar pct={p.percentComplete} color={isComplete?T.green:sessionDoneToday?T.yellow:c} height={4} glow/>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5}}>
+                      <span style={{color:T.textMid,fontWeight:600}}>{p.percentComplete}%</span>
+                      {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700}}>→ {item.targetPct}%</span>}
+                    </div>
+                  </div>
+                  {!isComplete&&<div style={{marginBottom:8}}>
                     <button onClick={()=>setLogging(item)} className="btn-press"
                       style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
-                        color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                      + Log Bonus Session</button>
-                  </div>;
-                })}
-                <button onClick={()=>setBonusItems(null)} className="btn-press"
-                  style={{background:"none",border:"none",color:T.textDim,fontSize:10,cursor:"pointer",marginTop:4}}>
-                  Clear suggestions</button>
-              </div>}
-              {(!bonusItems?.items?.length)&&<button onClick={runBonusSuggestions} disabled={bonusLoading} className="btn-press"
-                style={{width:"100%",background:T.surface2,border:`1px solid ${T.green}20`,
-                  color:bonusLoading?T.textDim:T.green,borderRadius:10,padding:"10px 0",
-                  fontSize:12,fontWeight:700,cursor:"pointer",transition:"color 0.2s"}}>
-                {bonusLoading?"Thinking…":"Suggest Bonus Sessions"}
-              </button>}
-            </Card>}
+                        color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                      {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
+                    </button>
+                  </div>}
+                  {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)} className="btn-press"
+                    style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
+                      color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                    Mark Complete &amp; Adapt
+                  </button>}
+                </Card>;
+              })}
+
+              {weekH>=WEEKLY_TARGET&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`,
+                animation:"fadeUp 0.2s ease both"}}>
+                <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>Bonus Mode</div>
+                <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
+                  {weekH.toFixed(2)}h logged — target hit.
+                </div>
+                {bonusItems?.items?.length>0&&<div>
+                  {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic"}}>{bonusItems.note}</div>}
+                  {bonusItems.items.map(it=>{
+                    const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
+                    const c=gc(item.genre);
+                    return <div key={it.id} style={{background:T.surface0,borderRadius:10,
+                      padding:"10px 12px",marginBottom:8,borderLeft:`2px solid ${c}`}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
+                        <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8}}>{item.name}</div>
+                        <div style={{fontSize:13,fontWeight:800,color:T.blue,flexShrink:0}}>{it.realHours}h</div>
+                      </div>
+                      <button onClick={()=>setLogging(item)} className="btn-press"
+                        style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
+                          color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                        + Log Bonus Session</button>
+                    </div>;
+                  })}
+                  <button onClick={()=>setBonusItems(null)} className="btn-press"
+                    style={{background:"none",border:"none",color:T.textDim,fontSize:10,cursor:"pointer",marginTop:4}}>
+                    Clear suggestions</button>
+                </div>}
+                {(!bonusItems?.items?.length)&&<button onClick={runBonusSuggestions} disabled={bonusLoading} className="btn-press"
+                  style={{width:"100%",background:T.surface2,border:`1px solid ${T.green}20`,
+                    color:bonusLoading?T.textDim:T.green,borderRadius:10,padding:"10px 0",
+                    fontSize:12,fontWeight:700,cursor:"pointer",transition:"color 0.2s"}}>
+                  {bonusLoading?"Thinking…":"Suggest Bonus Sessions"}
+                </button>}
+              </Card>}
+            </>}
           </div>}
 
           {/* ══ WEEK ══ */}
@@ -2433,7 +2421,6 @@ Respond ONLY with valid JSON:
               {weekH>=WEEKLY_TARGET&&<span style={{color:T.green,fontWeight:700}}> · Target hit</span>}
             </div>
 
-            {/* Projected finish — only show in-progress items */}
             {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).length>0&&
             <Card style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
@@ -2459,7 +2446,6 @@ Respond ONLY with valid JSON:
               })}
             </Card>}
 
-            {/* Bonus day in week tab — only if target hit */}
             {weekH>=WEEKLY_TARGET&&bonusItems?.items?.length>0&&<Card style={{
               padding:"13px 14px",marginBottom:12,border:`1px solid ${T.green}20`}}>
               <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:8}}>Bonus Day</div>
@@ -2478,7 +2464,6 @@ Respond ONLY with valid JSON:
               })}
             </Card>}
 
-            {/* Week schedule — only show remaining/past days, not future if target hit */}
             {planIsFromThisWeek&&weekPlan.days&&<Card style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>
@@ -2493,7 +2478,6 @@ Respond ONLY with valid JSON:
                 const dayIdx=ALL_DAYS.indexOf(day.day);
                 const todayIdx=getDayIdx();
                 const isPast=dayIdx<todayIdx,isFuture=dayIdx>todayIdx;
-                // Hide future days if week target is hit
                 if(weekH>=WEEKLY_TARGET&&isFuture) return null;
                 const dayActualH=parseFloat((day.items||[]).reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
                 const dayDate=new Date(getMonday()+"T12:00:00");
@@ -2614,8 +2598,11 @@ Respond ONLY with valid JSON:
               <label style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",
                 fontWeight:700,display:"block",marginBottom:7}}>Guidance for AI (optional)</label>
               <textarea value={planGuidance} onChange={e=>setPlanGuidance(e.target.value)}
-                placeholder="e.g. focus more on books this week, I want roman history, push harder on A1..."
+                placeholder="e.g. focus more on books this week, I want roman history books, push harder on A1..."
                 style={{...inputSt,fontSize:12,resize:"none",height:56,lineHeight:1.5,padding:"10px 12px"}}/>
+              <div style={{fontSize:10,color:T.textDim,marginTop:5,lineHeight:1.5}}>
+                Tip: For books, try "philosophy books", "investing books", "roman history books" etc. The AI searches by genre and title.
+              </div>
             </div>
 
             <button onClick={()=>runPlanWeek(false)} disabled={aiLoading} className="btn-press"
@@ -2752,8 +2739,6 @@ Respond ONLY with valid JSON:
                   {totalSpentRealH.toFixed(1)}<span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
                 </div>
               </div>
-
-              {/* Core completion bar */}
               <div style={{marginBottom:10}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textDim,marginBottom:5}}>
                   <span style={{fontWeight:600,color:T.blue}}>Core</span>
@@ -2765,8 +2750,6 @@ Respond ONLY with valid JSON:
                   <span style={{color:T.blue,fontWeight:700}}>{coreEstDate}</span>
                 </div>
               </div>
-
-              {/* Total completion bar */}
               <div style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textDim,marginBottom:5}}>
                   <span style={{fontWeight:600}}>Total</span>
@@ -2847,7 +2830,7 @@ Respond ONLY with valid JSON:
             <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>Mark Complete?</div>
             <div style={{fontSize:12,color:T.textMid,marginBottom:6}}>{markCompleteConfirm.name}</div>
             <div style={{fontSize:11,color:T.textDim,marginBottom:20,lineHeight:1.5}}>
-              Logs remaining hours, marks 100%, and adapts the plan.
+              Logs remaining hours, marks 100%, removes from focus, and adapts the plan.
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setMarkCompleteConfirm(null)} className="btn-press"
