@@ -890,7 +890,7 @@ function reconcileWeekHours(progress){
 // ── Side Panel ────────────────────────────────────────────────────────────────
 function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onImport, onClearAll,
   customItems, newItem, setNewItem, addCustomItem, removeCustomItem, getP,
-  settings, onSaveSettings }) {
+  settings, onSaveSettings, notifs, unreadCount, onMarkRead, onDismissNotif, onClearNotifs, onNotifAction }) {
   const [section, setSection] = useState("settings");
   const [localSettings, setLocalSettings] = useState(settings);
   useEffect(() => setLocalSettings(settings), [settings]);
@@ -938,13 +938,21 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                 borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
           </div>
           <div style={{display:"flex",gap:0,marginTop:14}}>
-            {[["settings","Settings"],["history","Review History"]].map(([k,l])=>(
+            {[["settings","Settings"],["history","Reviews"],["notifs","Inbox"]].map(([k,l])=>(
               <button key={k} onClick={()=>setSection(k)} className="btn-press"
                 style={{flex:1,padding:"8px 0",background:"none",border:"none",
                   borderBottom:section===k?`2px solid ${T.blue}`:"2px solid transparent",
                   color:section===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
-                  textTransform:"uppercase",letterSpacing:0.8,transition:"color 0.2s, border-color 0.2s"}}>
-                {l}</button>
+                  textTransform:"uppercase",letterSpacing:0.8,transition:"color 0.2s, border-color 0.2s",
+                  position:"relative"}}>
+                {l}
+                {k==="notifs"&&unreadCount>0&&<span style={{
+                  position:"absolute",top:4,right:4,background:T.blue,color:"#000",
+                  borderRadius:"50%",width:14,height:14,fontSize:8,fontWeight:800,
+                  display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+                  {unreadCount>9?"9+":unreadCount}
+                </span>}
+              </button>
             ))}
           </div>
         </div>
@@ -1063,21 +1071,27 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   <div>
                     <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Course max</label>
-                    <input type="number" min="0.5" max="5" step="0.5"
-                      value={localSettings.courseMaxSession??1.5}
-                      onChange={e=>setLocalSettings(s=>({...s,courseMaxSession:parseFloat(e.target.value)||1.5}))}
-                      onBlur={()=>setLocalSettings(s=>({...s,courseMaxSession:Math.max(0.5,Math.min(5,
-                        Math.round((parseFloat(s.courseMaxSession)||1.5)*2)/2))}))}
+                    <input type="text" inputMode="decimal"
+                      value={localSettings._courseMaxRaw ?? String(localSettings.courseMaxSession ?? 1.5)}
+                      onChange={e=>setLocalSettings(s=>({...s,_courseMaxRaw:e.target.value}))}
+                      onBlur={()=>setLocalSettings(s=>{
+                        const v=Math.max(0.5,Math.min(5,parseFloat(s._courseMaxRaw)||1.5));
+                        const snapped=Math.round(v*2)/2;
+                        return{...s,courseMaxSession:snapped,_courseMaxRaw:String(snapped)};
+                      })}
                       style={{...numSt,width:80}}/>
                     <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>{localSettings.courseMaxSession??1.5}h max</div>
                   </div>
                   <div>
                     <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Book max</label>
-                    <input type="number" min="0.5" max="5" step="0.5"
-                      value={localSettings.bookMaxSession??2}
-                      onChange={e=>setLocalSettings(s=>({...s,bookMaxSession:parseFloat(e.target.value)||2}))}
-                      onBlur={()=>setLocalSettings(s=>({...s,bookMaxSession:Math.max(0.5,Math.min(5,
-                        Math.round((parseFloat(s.bookMaxSession)||2)*2)/2))}))}
+                    <input type="text" inputMode="decimal"
+                      value={localSettings._bookMaxRaw ?? String(localSettings.bookMaxSession ?? 2)}
+                      onChange={e=>setLocalSettings(s=>({...s,_bookMaxRaw:e.target.value}))}
+                      onBlur={()=>setLocalSettings(s=>{
+                        const v=Math.max(0.5,Math.min(5,parseFloat(s._bookMaxRaw)||2));
+                        const snapped=Math.round(v*2)/2;
+                        return{...s,bookMaxSession:snapped,_bookMaxRaw:String(snapped)};
+                      })}
                       style={{...numSt,width:80}}/>
                     <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>{localSettings.bookMaxSession??2}h max</div>
                   </div>
@@ -1191,6 +1205,48 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
             </>}
           </div>}
 
+          {section==="notifs"&&<div style={{animation:"fadeUp 0.2s ease both"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontSize:11,color:T.textDim}}>{notifs.length} notification{notifs.length!==1?"s":""} · 3-day history</div>
+              {notifs.length>0&&<button onClick={onClearNotifs} className="btn-press"
+                style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
+                  borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>Clear all</button>}
+            </div>
+            {notifs.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.textDim,fontSize:13}}>
+              No notifications yet
+            </div>}
+            {notifs.map((n,i)=>(
+              <div key={n.id} style={{
+                background:n.read?T.surface1:`${T.blue}08`,
+                border:`1px solid ${n.read?T.border:T.blue+"25"}`,
+                borderRadius:12,padding:"12px 14px",marginBottom:8,
+                animation:`fadeUp 0.15s ease ${i*0.04}s both`,
+              }}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    {!n.read&&<div style={{width:6,height:6,borderRadius:"50%",background:T.blue,
+                      display:"inline-block",marginRight:6,marginBottom:2,verticalAlign:"middle"}}/>}
+                    <span style={{fontSize:12,fontWeight:700,color:n.read?T.textMid:T.text}}>{n.title}</span>
+                    <div style={{fontSize:11,color:T.textDim,marginTop:3,lineHeight:1.4}}>{n.body}</div>
+                    <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>
+                      {new Date(n.ts).toLocaleDateString()} {new Date(n.ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+                    </div>
+                  </div>
+                  <button onClick={()=>onDismissNotif(n.id)} className="btn-press"
+                    style={{background:"none",border:"none",color:T.textFaint,fontSize:14,
+                      cursor:"pointer",padding:"0 2px",flexShrink:0}}>✕</button>
+                </div>
+                {n.action&&<button onClick={()=>{onNotifAction(n);onMarkRead(n.id);onClose();}} className="btn-press"
+                  style={{width:"100%",marginTop:10,background:"#0a1220",border:`1px solid ${T.blue}30`,
+                    color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                  {n.action.label}</button>}
+                {!n.read&&<button onClick={()=>onMarkRead(n.id)} className="btn-press"
+                  style={{background:"none",border:"none",color:T.textDim,fontSize:10,
+                    cursor:"pointer",marginTop:6,padding:0}}>Mark read</button>}
+              </div>
+            ))}
+          </div>}
+
           {section==="history"&&<div style={{animation:"fadeUp 0.2s ease both"}}>
             {reviews.length===0
               ?<div style={{textAlign:"center",padding:"40px 0",color:T.textDim,fontSize:13}}>
@@ -1292,7 +1348,6 @@ export default function App(){
   // ── 4. UI state ──
   const [view, setView]                         = useState("today");
   const [sideOpen, setSideOpen]                 = useState(false);
-  const [notifOpen, setNotifOpen]               = useState(false);
   const [logging, setLogging]                   = useState(null);
   const [logForm, setLogForm]                   = useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
   const [confirmLog, setConfirmLog]             = useState(false);
@@ -1415,13 +1470,24 @@ export default function App(){
       setCompletionBanner(b=>[...new Set([...b,...newlyDone])]);
       newlyDone.forEach(id=>{
         const item=CURRICULUM.find(i=>i.id===id);
-        if(item) push(`Completed: ${item.id}`,`"${item.name}" — 100% done!`);
+        if(item) push(
+          `${item.id} Complete`,
+          `"${item.name}" finished. Plan has been adapted.`,
+          {label:"Check-In",type:"viewCheckin"}
+        );
         if(!item||item.section!=="Core") return;
         const isInFocus=(focus.courses||[]).includes(id)||(focus.books||[]).includes(id);
         if(!isInFocus) return;
         const nextItem=CURRICULUM.find(i=>
           i.section==="Core"&&(getP(i.id).percentComplete||0)===0&&i.id!==id&&i.type===item.type);
-        if(nextItem) setGraduationProposal({completed:item,next:nextItem});
+        if(nextItem){
+          setGraduationProposal({completed:item,next:nextItem});
+          push(
+            `Up Next: ${nextItem.id}`,
+            `Add "${nextItem.name}" to your focus?`,
+            {label:"Add to Focus",type:"graduation",payload:{completed:item,next:nextItem}}
+          );
+        }
       });
     }
     prevProgressRef.current=progress;
@@ -1625,7 +1691,7 @@ JSON format:
         reasoning:parsed.insight||"",focusReasoning:parsed.focusProposal?.reasoning||""};
       setWeekPlan(plan);setAiResult(parsed);
       updateWeeklyHours(weekH);
-      push("Week Plan Ready",parsed.insight||"Your week has been planned.",{label:"View Week",type:"viewWeek"});
+      push("Week Plan Ready",parsed.insight||"Your week has been planned. Tap to view.",{label:"View Week",type:"viewWeek"});
     }catch(e){console.error(e);toast_("Couldn't generate — try again");}
     setAiLoading(false);
   };
@@ -1970,10 +2036,19 @@ Respond ONLY with valid JSON:
   // ── Notification action handler ──
   const handleNotifAction = (notif) => {
     if(!notif.action) return;
-    const {type} = notif.action;
-    if(type==="viewWeek") { setView("week"); }
-    else if(type==="planWeek") { setView("ai"); }
-    else if(type==="sundayReview") { setShowSundayReview(true); }
+    const {type, payload} = notif.action;
+    if(type==="viewWeek") { setView("week"); setSideOpen(false); }
+    else if(type==="planWeek") { setView("ai"); setSideOpen(false); }
+    else if(type==="viewCheckin") { setView("ai"); setSideOpen(false); }
+    else if(type==="sundayReview") { setShowSundayReview(true); setSideOpen(false); }
+    else if(type==="adaptPlan") { runAdaptPlan(); setSideOpen(false); }
+    else if(type==="graduation"&&payload) {
+      const {next,completed} = payload;
+      const key = next.type==="course"?"courses":"books";
+      setFocus(f=>({...f,[key]:[...(f[key]||[]).filter(id=>id!==completed.id),next.id],manual:false}));
+      setSideOpen(false);
+      toast_(`${next.id} added to focus`);
+    }
   };
 
   // ── Render ──
@@ -2008,6 +2083,9 @@ Respond ONLY with valid JSON:
           customItems={customItems} newItem={newItem} setNewItem={setNewItem}
           addCustomItem={addCustomItem} removeCustomItem={removeCustomItem} getP={getP}
           settings={settings}
+          notifs={notifs} unreadCount={unreadCount}
+          onMarkRead={markRead} onDismissNotif={dismissNotif}
+          onClearNotifs={clearNotifs} onNotifAction={handleNotifAction}
           onSaveSettings={s=>{
             const clean={
               ...s,
@@ -2021,12 +2099,6 @@ Respond ONLY with valid JSON:
             toast_("Settings saved");
           }}
         />
-
-        {notifOpen&&<NotifInbox
-          notifs={notifs} onMarkRead={markRead} onDismiss={dismissNotif}
-          onClearAll={clearNotifs} onAction={handleNotifAction}
-          onClose={()=>setNotifOpen(false)}
-        />}
 
         {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&!showSundayReview&&
           <button onClick={()=>setShowSundayReview(true)} className="btn-press"
@@ -2141,10 +2213,16 @@ Respond ONLY with valid JSON:
               <button onClick={()=>setSideOpen(true)} className="btn-press"
                 style={{background:"none",border:"none",cursor:"pointer",padding:"6px 4px",
                   display:"flex",flexDirection:"column",gap:5,marginTop:4,flexShrink:0,
-                  minWidth:44,minHeight:44,justifyContent:"center",alignItems:"flex-start"}}>
+                  minWidth:44,minHeight:44,justifyContent:"center",alignItems:"flex-start",
+                  position:"relative"}}>
                 {[0,1,2].map(i=>(
                   <div key={i} style={{width:22,height:2,background:T.textMid,borderRadius:99}}/>
                 ))}
+                {unreadCount>0&&<div style={{position:"absolute",top:2,right:2,
+                  background:T.blue,color:"#000",borderRadius:"50%",
+                  width:14,height:14,fontSize:8,fontWeight:800,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  border:`2px solid ${T.surface0}`}}>{unreadCount>9?"9+":unreadCount}</div>}
               </button>
               <div>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
@@ -2152,20 +2230,6 @@ Respond ONLY with valid JSON:
               </div>
             </div>
             <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-              {/* Bell icon */}
-              <button onClick={()=>setNotifOpen(true)} className="btn-press"
-                style={{position:"relative",background:"none",border:`1px solid ${unreadCount>0?T.blue+"40":T.surface3}`,
-                  color:unreadCount>0?T.blue:T.textDim,borderRadius:10,
-                  padding:"6px 10px",fontSize:14,cursor:"pointer",marginTop:2,
-                  transition:"all 0.2s",minWidth:36,height:36,
-                  display:"flex",alignItems:"center",justifyContent:"center"}}>
-                <span style={{fontSize:14}}>🔔</span>
-                {unreadCount>0&&<div style={{position:"absolute",top:-4,right:-4,
-                  background:T.blue,color:"#000",borderRadius:"50%",
-                  width:16,height:16,fontSize:9,fontWeight:800,
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  border:`2px solid ${T.surface0}`}}>{unreadCount>9?"9+":unreadCount}</div>}
-              </button>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
                   color:weekH>=WEEKLY_TARGET?T.green:T.text,
