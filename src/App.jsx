@@ -1645,12 +1645,6 @@ NEXT CORE: ${nextCore}
     toast_("✓ All data cleared");
   };
 
-  const totalItems=CURRICULUM.length;
-  const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
-  const totalSpentRealH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
-  const totalRealRemaining=CURRICULUM.filter(i=>getP(i.id).percentComplete<100).reduce((s,i)=>s+realHoursRemaining(i,getP(i.id)),0);
-  const wksLeft=Math.round(totalRealRemaining/WEEKLY_TARGET);
-  const estDate=new Date(Date.now()+wksLeft*7*24*60*60*1000).toLocaleDateString("en-CA",{year:"numeric",month:"short"});
   const planIsFromThisWeek=weekPlan&&weekPlan.weekStart===getMonday();
   const today=todayItems();
 
