@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-const DEFAULT_WEEKLY_TARGET = 20;
-const DEFAULT_ACTIVE_DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const SK_SETTINGS = "tp_settings1";
+const WEEKLY_TARGET = 20;
 
 const snap25 = h => Math.round(h * 4) / 4;
 const contentToReal = (item, contentH) => item.type === "course" ? contentH * 2 : contentH;
@@ -833,54 +831,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
               Changes take effect on the next plan or adapt.
             </div>
 
-            {/* Schedule Settings */}
-            <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
-              📅 Schedule
-            </div>
-            <Card style={{padding:"13px 14px",marginBottom:20,border:`1px solid ${T.blue}20`}}>
-              <div style={{marginBottom:16}}>
-                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:8,fontWeight:600}}>
-                  Weekly hour target
-                </label>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <input type="number" min="5" max="60" step="1"
-                    value={settings.weeklyTarget}
-                    onChange={e=>setSettings(s=>({...s,weeklyTarget:Math.max(5,Math.min(60,parseInt(e.target.value)||20))}))}
-                    style={{...inputSt,width:80,textAlign:"center",fontSize:18,fontWeight:800,padding:"8px 10px"}}/>
-                  <div style={{fontSize:11,color:T.textDim,lineHeight:1.5}}>
-                    hours/week<br/>
-                    <span style={{color:T.textFaint}}>{(settings.weeklyTarget/7).toFixed(1)}h avg/day</span>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:8,fontWeight:600}}>
-                  Study days
-                </label>
-                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                  {DAY_NAMES.map(d=>{
-                    const on=settings.activeDays.includes(d);
-                    return <button key={d} className="btn-press"
-                      onClick={()=>setSettings(s=>{
-                        const days=on&&s.activeDays.length>1
-                          ?s.activeDays.filter(x=>x!==d)
-                          :[...s.activeDays,d].sort((a,b)=>DAY_NAMES.indexOf(a)-DAY_NAMES.indexOf(b));
-                        return{...s,activeDays:days};
-                      })}
-                      style={{background:on?`${T.blue}20`:T.surface2,
-                        border:`1px solid ${on?T.blue+"50":T.surface3}`,
-                        color:on?T.blue:T.textDim,borderRadius:8,padding:"7px 10px",
-                        fontSize:11,cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>
-                      {d}
-                    </button>;
-                  })}
-                </div>
-                <div style={{fontSize:10,color:T.textDim,marginTop:8}}>
-                  {settings.activeDays.length} days · {(settings.weeklyTarget/settings.activeDays.length).toFixed(1)}h per day avg
-                </div>
-              </div>
-            </Card>
-
             {/* Data */}
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
             <Card style={{padding:"13px 14px",marginBottom:20}}>
@@ -1033,12 +983,7 @@ export default function App(){
     {label:"Optional Books", items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Optional")},
   ];
 
-  const [settings, setSettings] = useState(() => load(SK_SETTINGS, {
-    weeklyTarget: DEFAULT_WEEKLY_TARGET,
-    activeDays: DEFAULT_ACTIVE_DAYS,
-  }));
-  const WEEKLY_TARGET = settings.weeklyTarget || DEFAULT_WEEKLY_TARGET;
-  const ACTIVE_DAYS = settings.activeDays || DEFAULT_ACTIVE_DAYS;
+  const [progress,setProgress]   =useState(()=>load(SK_P,{}));
   const [week,setWeek]           =useState(()=>{
     const w=load(SK_W,{weekStart:getMonday(),hoursLogged:0}),mon=getMonday();
     return w.weekStart!==mon?{weekStart:mon,hoursLogged:0}:w;
@@ -1081,7 +1026,6 @@ export default function App(){
   const [sundaySubmitting,setSundaySubmitting]=useState(false);
   const prevProgressRef=useRef({});
 
-  useEffect(()=>save(SK_SETTINGS,settings),[settings]);
   useEffect(()=>save(SK_P,progress),[progress]);
   useEffect(()=>save(SK_W,week),[week]);
   useEffect(()=>save(SK_F,focus),[focus]);
@@ -1182,9 +1126,6 @@ export default function App(){
   const weekH=week.hoursLogged||0;
   const wkRem=Math.max(0,WEEKLY_TARGET-weekH);
   const dLeft=getRemainingDays();
-  // Remaining active days from today onward
-  const todayIdx=getDayIdx();
-  const remainingActiveDays=DAY_NAMES.slice(todayIdx).filter(d=>ACTIVE_DAYS.includes(d));
   const focusIds=[...(focus.courses||[]),...(focus.books||[])];
   const focusItems=focusIds.map(id=>CURRICULUM.find(i=>i.id===id)).filter(Boolean);
 
@@ -1215,7 +1156,7 @@ export default function App(){
         }).filter(Boolean);
       }
     }
-    let rem=Math.max(wkRem/Math.max(remainingActiveDays.length,1),1.5);
+    let rem=Math.max(wkRem/Math.max(dLeft,1),1.5);
     return focusItems.filter(i=>getP(i.id).percentComplete<100).reduce((acc,item)=>{
       if(rem<=0) return acc;
       const maxR=maxRealPerSession(item),alloc=Math.min(rem,maxR);
@@ -1297,7 +1238,7 @@ export default function App(){
     const todayStr_=new Date().toLocaleDateString();
     const loggedToday_=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr_));
     const effectiveDayIdx_=loggedToday_?getDayIdx()+1:getDayIdx();
-    const remainingDayNames=DAY_NAMES.slice(effectiveDayIdx_).filter(d=>ACTIVE_DAYS.includes(d));
+    const remainingDayNames=DAY_NAMES.slice(effectiveDayIdx_);
     const effectiveDLeft=remainingDayNames.length;
     const effectiveWkRem=Math.max(0,WEEKLY_TARGET-weekH);
     if(effectiveDLeft===0||effectiveWkRem===0){toast_("Week complete");setAiLoading(false);return;}
@@ -1377,7 +1318,7 @@ ${nextCore.split('\n').slice(0,5).join('\n')}`;
     const todayStr=new Date().toLocaleDateString();
     const loggedToday=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr));
     const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
-    const remainingDays=DAY_NAMES.slice(effectiveDayIdx).filter(d=>ACTIVE_DAYS.includes(d));
+    const remainingDays=DAY_NAMES.slice(effectiveDayIdx);
     const dLeftEffective=remainingDays.length;
     const freshWeekH=reconcileWeekHours(progress);
     const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
@@ -1426,15 +1367,13 @@ JSON only — no "focus" on items:
         return{...day,totalDayRealH:budget,
           items:scaleDayItems(day.items||[],budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id))};
       });
-      // Guarantee exact total — re-sum actual item hours, apply remainder to last day
-      const actualTotal=parseFloat(adaptDays.reduce((s,d)=>
-        s+d.items.reduce((ds,it)=>ds+(it.realHours||0),0),0).toFixed(2));
-      const drift=parseFloat((freshWkRem-actualTotal).toFixed(2));
+      const grandTotal=parseFloat(adaptDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
+      const drift=parseFloat((freshWkRem-grandTotal).toFixed(2));
       if(Math.abs(drift)>=0.05&&adaptDays.length>0){
         const last=adaptDays[adaptDays.length-1];
-        const correctedBudget=parseFloat((last.totalDayRealH+drift).toFixed(2));
-        adaptDays[adaptDays.length-1]={...last,totalDayRealH:correctedBudget,
-          items:scaleDayItems(last.items,correctedBudget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id))};
+        const newDayH=parseFloat((last.totalDayRealH+drift).toFixed(2));
+        adaptDays[adaptDays.length-1]={...last,totalDayRealH:newDayH,
+          items:scaleDayItems(last.items,newDayH,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id))};
       }
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
       setWeekPlan({...weekPlan,days:[...keptDays,...adaptDays],
@@ -1645,6 +1584,12 @@ NEXT CORE: ${nextCore}
     toast_("✓ All data cleared");
   };
 
+  const totalItems=CURRICULUM.length;
+  const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
+  const totalSpentRealH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
+  const totalRealRemaining=CURRICULUM.filter(i=>getP(i.id).percentComplete<100).reduce((s,i)=>s+realHoursRemaining(i,getP(i.id)),0);
+  const wksLeft=Math.round(totalRealRemaining/WEEKLY_TARGET);
+  const estDate=new Date(Date.now()+wksLeft*7*24*60*60*1000).toLocaleDateString("en-CA",{year:"numeric",month:"short"});
   const planIsFromThisWeek=weekPlan&&weekPlan.weekStart===getMonday();
   const today=todayItems();
 
@@ -1823,7 +1768,7 @@ NEXT CORE: ${nextCore}
           </div>
           <Bar pct={(weekH/WEEKLY_TARGET)*100} color={weekH>=WEEKLY_TARGET?T.green:T.blue} height={3} glow style={{marginBottom:4}}/>
           <div style={{fontSize:9,color:T.textDim,marginBottom:14,textAlign:"right",letterSpacing:0.3}}>
-            {weekH>=WEEKLY_TARGET?"✓ Target hit":`${(wkRem/Math.max(remainingActiveDays.length,1)).toFixed(1)}h/day to finish`}
+            {weekH>=WEEKLY_TARGET?"✓ Target hit":`${(wkRem/Math.max(dLeft,1)).toFixed(1)}h/day to finish`}
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,flex:1,paddingRight:8}}>
@@ -1881,32 +1826,6 @@ NEXT CORE: ${nextCore}
 
           {/* ══ TODAY ══ */}
           {view==="today"&&<div className="tab-content">
-            {/* Today summary bar */}
-            {(()=>{
-              const todayStr=new Date().toLocaleDateString();
-              const todayLoggedH=parseFloat(CURRICULUM.reduce((s,i)=>s+
-                (getP(i.id).sessions||[]).filter(s=>s.date===todayStr)
-                .reduce((ss,x)=>ss+(x.studyHours||0),0),0).toFixed(2));
-              const todayPlannedH=parseFloat((today.reduce((s,i)=>s+(i.allocRealH||0),0)).toFixed(2));
-              const pct=todayPlannedH>0?Math.min(100,(todayLoggedH/todayPlannedH)*100):0;
-              const color=pct>=100?T.green:pct>0?T.blue:T.textDim;
-              return todayPlannedH>0?(
-                <div style={{background:T.surface1,borderRadius:12,padding:"11px 14px",
-                  marginBottom:14,border:`1px solid ${T.border}`}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
-                    <div style={{fontSize:10,fontWeight:700,color:T.textMid,letterSpacing:0.3}}>Today</div>
-                    <div style={{fontSize:12,fontWeight:800,color}}>
-                      {todayLoggedH}h <span style={{color:T.textDim,fontWeight:400}}>of {todayPlannedH}h</span>
-                    </div>
-                  </div>
-                  <Bar pct={pct} color={color} height={3} glow={pct>=100}/>
-                  {todayLoggedH>0&&todayLoggedH<todayPlannedH&&<div style={{fontSize:10,color:T.textDim,marginTop:5}}>
-                    {parseFloat((todayPlannedH-todayLoggedH).toFixed(2))}h remaining today
-                  </div>}
-                  {pct>=100&&<div style={{fontSize:10,color:T.green,marginTop:5,fontWeight:600}}>✓ Today complete</div>}
-                </div>
-              ):null;
-            })()}
             <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
               {weekH>=WEEKLY_TARGET?"🎯 Target hit — bonus mode":planIsFromThisWeek?`Plan · ${getDayName()}`:"No plan yet — estimated"}
             </div>
@@ -2061,24 +1980,17 @@ NEXT CORE: ${nextCore}
                 const todayIdx=getDayIdx();
                 const isPast=dayIdx<todayIdx,isFuture=dayIdx>todayIdx;
                 if(weekH>=WEEKLY_TARGET&&isFuture) return null;
-                // Always sum from actual items — never trust stored totalDayRealH for display
-                const dayRealH=parseFloat((day.items||[]).reduce((s,i)=>s+(i.realHours||0),0).toFixed(2));
+                const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
                 const dayDate=new Date(getMonday()+"T12:00:00");
                 dayDate.setDate(dayDate.getDate()+dayIdx);
                 const dayStr=dayDate.toLocaleDateString();
-                const dayLoggedH=parseFloat(CURRICULUM.reduce((s,i)=>s+
-                  (getP(i.id).sessions||[]).filter(s=>s.date===dayStr)
-                  .reduce((ss,x)=>ss+(x.studyHours||0),0),0).toFixed(2));
                 return <div key={day.day} style={{marginBottom:14,opacity:isPast&&!isToday?0.45:1,transition:"opacity 0.3s"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                     <div style={{fontSize:11,fontWeight:800,
                       color:isToday?T.blue:isPast?T.textMid:T.text,transition:"color 0.2s"}}>
                       {day.day}{isToday?" — Today":""}
                     </div>
-                    <div style={{fontSize:10,color:isPast&&dayLoggedH>0?
-                      (dayLoggedH>=dayRealH*0.85?T.green:T.yellow):T.textDim,fontWeight:isPast?600:400}}>
-                      {isPast&&dayLoggedH>0?`${dayLoggedH}h logged of ${dayRealH}h`:`${dayRealH}h planned`}
-                    </div>
+                    <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h</div>
                   </div>
                   {day.items?.map(it=>{
                     const f=CURRICULUM.find(i=>i.id===it.id);
