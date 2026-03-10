@@ -631,7 +631,7 @@ function buildItemContext(item, p) {
 }
 
 const callAI = async (prompt, max_tokens = 1500, model = "claude-haiku-4-5-20251001") => {
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
+  const r = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ model, max_tokens, messages: [{ role: "user", content: prompt }] })
@@ -973,7 +973,8 @@ Respond ONLY as JSON:
 
     try{
       const raw=await callAI(prompt,2000);
-      const jsonMatch=raw.match(/\{[\s\S]*\}/);
+      const txt=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
+      const jsonMatch=txt.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
 
@@ -1063,6 +1064,7 @@ Respond ONLY as JSON:
     try{
       const raw=await callAI(prompt,1500);
       const txt=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
+
       const jsonMatch=raw.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
