@@ -978,7 +978,7 @@ Respond ONLY as JSON:
       if(!jsonMatch) throw new Error("No JSON: "+raw.slice(0,200));
       const parsed=JSON.parse(jsonMatch[0]);
 
-      // Validate & fix each day against its pre-computed budget
+      // ── Validate & fix each day against its pre-computed budget ──
       const validatedDays=(parsed.days||[]).map((day,i)=>{
         const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(effectiveWkRem/effectiveDLeft);
         const scaled=scaleDayItems(day.items||[],budget,
@@ -986,7 +986,7 @@ Respond ONLY as JSON:
         return{...day,totalDayRealH:budget,items:scaled};
       });
 
-      // Final grand-total guard
+      // ── Final grand-total guard: snap any remaining drift ──
       const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
       const drift=parseFloat((effectiveWkRem-grandTotal).toFixed(2));
       if(Math.abs(drift)>=0.05&&validatedDays.length>0){
@@ -1004,12 +1004,12 @@ Respond ONLY as JSON:
         days:[...keptDays,...validatedDays],
         totalPlannedHours:effectiveWkRem,
         isBaseplan:true,
-        reasoning:fullParsed.insight||"",
-        focusReasoning:fullParsed.focusProposal?.reasoning||""
+        reasoning:parsed.insight||"",
+        focusReasoning:parsed.focusProposal?.reasoning||""
       };
       setWeekPlan(plan);
-      setAiResult(fullParsed);
-      saveWeekLog(fullParsed);
+      setAiResult(parsed);
+      saveWeekLog(parsed);
       updateWeeklyHours(weekH);
       localStorage.removeItem("tp_monday_seed");
       if(auto) showPlanReadyNotification();
@@ -1021,7 +1021,7 @@ Respond ONLY as JSON:
   const runAdaptPlan=async(contextNote="")=>{
     if(!navigator.onLine){enqueue("adapt",{contextNote});setOfflineQueue(loadQueue());toast_("Offline — adapt queued");return;}
     setAdaptLoading(true);
-    const{planVsActual,arcPosition,velocityTrend}=buildAIContext();
+    const{planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
     const todayStr=new Date().toLocaleDateString();
     const loggedToday=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr));
     const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
@@ -1032,53 +1032,37 @@ Respond ONLY as JSON:
 
     if(dLeftEffective===0||freshWkRem===0){toast_("Week complete — nothing to adapt");setAdaptLoading(false);return;}
 
+    // Pre-compute day budgets for validation
     const dayBudgets=distributeDays(freshWkRem,remainingDays);
 
-    // Pre-compute per-item numbers
-    const focusItemData=focusIds
-      .map(id=>CURRICULUM.find(i=>i.id===id))
-      .filter(Boolean)
-      .filter(i=>getP(i.id).percentComplete<100)
-      .map((item,idx)=>{
-        const p=getP(item.id);
-        const contentDone=p.courseHoursComplete||0;
-        const contentLeft=Math.max(0,(item.hours||0)-contentDone);
-        const realLeft=contentToReal(item,contentLeft);
-        const maxSession=maxRealPerSession(item);
-        return `[P${idx+1}] ${item.id} "${item.name}" (${item.type}, ${item.genre})
-  progress: ${p.percentComplete}% | realHoursLeft: ${realLeft.toFixed(2)}h | maxSession: ${maxSession}h`;
-      }).join("\n\n");
+    const prompt=`Learning coach. Adapt remaining week plan. Respond ONLY with valid JSON.
 
-    const nextCoreData=CURRICULUM
-      .filter(i=>i.section==="Core"&&getP(i.id).percentComplete===0&&!focusIds.includes(i.id))
-      .slice(0,4)
-      .map(i=>`${i.id} "${i.name}" (${i.type}, ${i.genre}): ${contentToReal(i,i.hours)}h real`)
-      .join("\n");
+RULES:
+- Courses: 1h content = 2h real. Max 1.5h real/session.
+- Books: 1h content = 1h real. Max 2h real/session.
+- Grand total of all days MUST equal exactly ${freshWkRem.toFixed(2)}h. Non-negotiable.
+- Suggested day budgets: ${remainingDays.map((d,i)=>`${d}: ${dayBudgets[i]}h`).join(" | ")}
+- Max 4h/day. Vary genres — never same genre twice in one day.
+- totalPlannedHours MUST equal ${freshWkRem.toFixed(2)}.
 
-    const prompt=`You are a learning scheduler. Output ONLY valid JSON — no markdown, no explanation.
+TRIGGER: ${contextNote||"Manual adapt — infer reason from plan vs actual."}
+ARC: ${arcPosition} Velocity: ${velocityTrend}.
+THIS WEEK: ${freshWeekH.toFixed(2)}h logged. Remaining: ${freshWkRem.toFixed(2)}h across ${dLeftEffective} day(s): ${remainingDays.join(", ")||"none"}.
+Today: ${getDayName()}${loggedToday?" (logged — skip today)":""}.
+Plan vs actual: ${planVsActual}
+Focus (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(", ")}
 
-FIXED CONSTRAINTS:
-- Courses: max 1.5h real/session. Books: max 2h real/session.
-- Grand total MUST equal exactly ${freshWkRem.toFixed(2)}h.
-- Max 4h/day. Never same genre twice in one day.
+ITEMS:
+${touchedAndFocus||"None."}
 
-TRIGGER: ${contextNote||"Manual adapt."}
-REMAINING: ${freshWkRem.toFixed(2)}h across ${dLeftEffective} day(s): ${remainingDays.join(", ")}
-Day allocations: ${remainingDays.map((d,i)=>`${d}=${dayBudgets[i]}h`).join(", ")}
-ARC: ${arcPosition} | ${velocityTrend}
-PLAN VS ACTUAL: ${planVsActual}
+NEXT CORE:
+${nextCore.split('\n').slice(0,4).join('\n')}
 
-FOCUS ITEMS (priority order):
-${focusItemData||"None."}
-
-NEXT CORE (pull in if needed):
-${nextCoreData}
-
-Output JSON:
-{"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"specific instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(2)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+Respond ONLY as JSON:
+{"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44,"focus":"brief instruction"}]}],"totalPlannedHours":${freshWkRem.toFixed(2)},"note":"1 sentence what changed","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
-      const raw=await callAI(prompt,3000);
+      const raw=await callAI(prompt,1500);
       const txt=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim();
 
       const jsonMatch=raw.match(/\{[\s\S]*\}/);
