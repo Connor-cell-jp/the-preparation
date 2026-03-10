@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-const WEEKLY_TARGET = 20;
-
+// ── Pure helpers (no state deps) ──────────────────────────────────────────────
 const snap25 = h => Math.round(h * 4) / 4;
 const contentToReal = (item, contentH) => item.type === "course" ? contentH * 2 : contentH;
 const realToContent = (item, realH) => item.type === "course" ? realH / 2 : realH;
@@ -397,7 +396,7 @@ const BASE_CURRICULUM = [
 {id:"B184",name:"The No-Code Revolution",hours:6,type:"book",section:"Optional",genre:"Skills & Craft"},
 ];
 
-const DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const ALL_DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
 const gc = g => {
   const m = {Biology:"#4ade80",Physics:"#60a5fa",Marketing:"#f472b6",Sales:"#fb923c",
@@ -423,17 +422,19 @@ function getMonday() {
   return d.toISOString().split('T')[0];
 }
 function getDayIdx(){ const d=new Date().getDay(); return d===0?6:d-1; }
-function getDayName(){ return DAY_NAMES[getDayIdx()]; }
-function getRemainingDays(){ return 7-getDayIdx(); }
+function getDayName(){ return ALL_DAYS[getDayIdx()]; }
 function getTodayISO(){ return new Date().toISOString().split('T')[0]; }
 function getWeekISO(){ return new Date().toISOString().split('T')[0].slice(0,7); }
 function isSunday(){ return new Date().getDay()===0; }
 function isMonday(){ return new Date().getDay()===1; }
 
+// Storage keys
 const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_REVIEWS="tp_reviews2",SK_PROFILE="tp_profile2";
 const SK_PLAN="tp_plan2",SK_QUEUE="tp_queue1",SK_WEEKLY_HOURS="tp_wkhours1",SK_CUSTOM="tp_custom1";
-const SK_SUNDAY_DONE="tp_sundaydone1";
+const SK_SUNDAY_DONE="tp_sundaydone1",SK_SETTINGS="tp_settings1";
 const MAX_REVIEWS=20;
+
+const DEFAULT_SETTINGS={ weeklyTarget:20, activeDays:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"] };
 
 const DEFAULT_PROFILE=`LEARNER: Connor, 18, Kamloops BC. Self-directed 4-year curriculum called The Preparation.
 
@@ -464,7 +465,6 @@ const shadow={
   inset:"inset 0 2px 8px rgba(0,0,0,0.6)",
 };
 
-// ── Global animation styles ───────────────────────────────────────────────────
 const GLOBAL_CSS = `
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   @keyframes splashBloom {
@@ -472,21 +472,13 @@ const GLOBAL_CSS = `
     60%  { opacity:1; transform:scale(1.05); }
     100% { opacity:1; transform:scale(1); }
   }
-  @keyframes splashPulse {
-    0%   { opacity:0.55; }
-    100% { opacity:1; }
-  }
-  @keyframes splashOut {
-    to { opacity:0; }
-  }
+  @keyframes splashPulse { 0% { opacity:0.55; } 100% { opacity:1; } }
+  @keyframes splashOut { to { opacity:0; } }
   @keyframes fadeUp {
     from { opacity:0; transform:translateY(14px); }
     to   { opacity:1; transform:translateY(0); }
   }
-  @keyframes fadeIn {
-    from { opacity:0; }
-    to   { opacity:1; }
-  }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
   @keyframes slideInLeft {
     from { transform:translateX(-100%); opacity:0; }
     to   { transform:translateX(0);     opacity:1; }
@@ -506,7 +498,7 @@ const GLOBAL_CSS = `
   input:focus, textarea:focus { border-color: #60a5fa60 !important; box-shadow: 0 0 0 3px #60a5fa12; outline:none; }
 `;
 
-// ── Splash Screen ─────────────────────────────────────────────────────────────
+// ── Splash ────────────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }) {
   const [phase, setPhase] = useState("in");
   useEffect(() => {
@@ -516,66 +508,36 @@ function SplashScreen({ onDone }) {
     return () => [t1,t2,t3].forEach(clearTimeout);
   }, []);
   return (
-    <div style={{
-      position:"fixed",inset:0,zIndex:9999,background:"#141414",
+    <div style={{position:"fixed",inset:0,zIndex:9999,background:"#141414",
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-      animation: phase==="out" ? "splashOut 0.55s ease forwards" : "none",
-      pointerEvents:"none",
-    }}>
-      {/* White bloom behind text */}
-      <div style={{
-        position:"absolute",width:280,height:280,borderRadius:"50%",
+      animation:phase==="out"?"splashOut 0.55s ease forwards":"none",pointerEvents:"none"}}>
+      <div style={{position:"absolute",width:280,height:280,borderRadius:"50%",
         background:"radial-gradient(circle, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 40%, transparent 70%)",
-        animation: phase==="in" ? "none" : "splashBloom 0.7s ease forwards",
-        opacity: phase==="in" ? 0 : 1,
-        transition:"opacity 0.4s ease",
-      }}/>
-      {/* Outer soft glow ring */}
-      <div style={{
-        position:"absolute",width:420,height:420,borderRadius:"50%",
+        animation:phase==="in"?"none":"splashBloom 0.7s ease forwards",
+        opacity:phase==="in"?0:1,transition:"opacity 0.4s ease"}}/>
+      <div style={{position:"absolute",width:420,height:420,borderRadius:"50%",
         background:"radial-gradient(circle, rgba(96,165,250,0.04) 0%, transparent 65%)",
-        animation: phase==="in" ? "none" : "splashBloom 1s ease 0.1s forwards",
-        opacity: phase==="in" ? 0 : 1,
-      }}/>
-      <div style={{
-        position:"relative",textAlign:"center",
-        animation: phase==="in"
-          ? "none"
-          : phase==="pulse"
-          ? "splashBloom 0.5s ease forwards"
-          : "none",
-        opacity: phase==="in" ? 0 : 1,
-        transition:"opacity 0.4s ease",
-      }}>
-        <div style={{
-          fontSize:11,letterSpacing:7,textTransform:"uppercase",
+        animation:phase==="in"?"none":"splashBloom 1s ease 0.1s forwards",
+        opacity:phase==="in"?0:1}}/>
+      <div style={{position:"relative",textAlign:"center",
+        animation:phase==="in"?"none":phase==="pulse"?"splashBloom 0.5s ease forwards":"none",
+        opacity:phase==="in"?0:1,transition:"opacity 0.4s ease"}}>
+        <div style={{fontSize:11,letterSpacing:7,textTransform:"uppercase",
           color:"rgba(255,255,255,0.35)",fontFamily:T.fontUI,fontWeight:700,marginBottom:14,
-          animation: phase==="pulse" ? "splashPulse 1s ease-in-out infinite alternate" : "none",
-        }}>
-          THE
-        </div>
-        <div style={{
-          fontSize:34,fontWeight:800,letterSpacing:-1,color:"#f0f0f0",
+          animation:phase==="pulse"?"splashPulse 1s ease-in-out infinite alternate":"none"}}>THE</div>
+        <div style={{fontSize:34,fontWeight:800,letterSpacing:-1,color:"#f0f0f0",
           fontFamily:T.fontUI,lineHeight:1,marginBottom:10,
-          animation: phase==="pulse" ? "splashPulse 1s ease-in-out infinite alternate" : "none",
-        }}>
-          PREPARATION
-        </div>
-        <div style={{
-          fontSize:10,letterSpacing:5,textTransform:"uppercase",
-          color:"rgba(255,255,255,0.2)",fontFamily:T.fontUI,fontWeight:600,
-        }}>
-          LEARNING TRACKER
-        </div>
-        <div style={{
-          width:40,height:1,margin:"18px auto 0",
-          background:"linear-gradient(90deg, transparent, rgba(96,165,250,0.5), transparent)",
-        }}/>
+          animation:phase==="pulse"?"splashPulse 1s ease-in-out infinite alternate":"none"}}>PREPARATION</div>
+        <div style={{fontSize:10,letterSpacing:5,textTransform:"uppercase",
+          color:"rgba(255,255,255,0.2)",fontFamily:T.fontUI,fontWeight:600}}>LEARNING TRACKER</div>
+        <div style={{width:40,height:1,margin:"18px auto 0",
+          background:"linear-gradient(90deg, transparent, rgba(96,165,250,0.5), transparent)"}}/>
       </div>
     </div>
   );
 }
 
+// ── Small UI components ───────────────────────────────────────────────────────
 function Pill({color,label}){
   return <span style={{display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:600,
     color,background:`${color}15`,borderRadius:20,padding:"2px 8px",
@@ -601,9 +563,7 @@ function StarRating({value,onChange}){
         style={{background:"none",border:"none",fontSize:28,cursor:"pointer",
           color:s<=value?T.yellow:T.surface3,
           textShadow:s<=value?`0 0 10px ${T.yellow}80`:"none",
-          transition:"color 0.15s, text-shadow 0.15s",padding:"2px 4px"}}>
-        ★
-      </button>
+          transition:"color 0.15s, text-shadow 0.15s",padding:"2px 4px"}}>★</button>
     ))}
   </div>;
 }
@@ -614,15 +574,12 @@ function SessionHistory({item,sessions,onEdit}){
       style={{background:"none",border:"none",color:open?T.blue:T.textDim,fontSize:10,
         cursor:"pointer",display:"flex",alignItems:"center",gap:5,padding:"2px 0",
         letterSpacing:0.5,fontWeight:600,textTransform:"uppercase",transition:"color 0.2s"}}>
-      <span style={{fontSize:8,transition:"transform 0.2s",display:"inline-block",transform:open?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
+      <span style={{fontSize:8,transition:"transform 0.2s",display:"inline-block",
+        transform:open?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
       Log History
       <span style={{color:T.textFaint,fontWeight:400,textTransform:"none",letterSpacing:0}}>({sessions.length})</span>
     </button>
-    <div style={{
-      overflow:"hidden",
-      maxHeight:open?"600px":"0",
-      transition:"max-height 0.3s ease",
-    }}>
+    <div style={{overflow:"hidden",maxHeight:open?"600px":"0",transition:"max-height 0.3s ease"}}>
       <div style={{marginTop:8,borderLeft:`1px solid ${T.surface3}`,paddingLeft:12}}>
         {sessions.map((s,i)=>(
           <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
@@ -637,8 +594,7 @@ function SessionHistory({item,sessions,onEdit}){
             <button onClick={()=>onEdit(i)} className="btn-press"
               style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
                 borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:600,marginLeft:10}}>
-              Edit
-            </button>
+              Edit</button>
           </div>
         ))}
       </div>
@@ -670,11 +626,7 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset}){
       </div>
     </div>
     <Bar pct={pct} style={{margin:"0 16px 10px",height:3}} glow={pct>0}/>
-    <div style={{
-      overflow:"hidden",
-      maxHeight:open?"9999px":"0",
-      transition:"max-height 0.35s ease",
-    }}>
+    <div style={{overflow:"hidden",maxHeight:open?"9999px":"0",transition:"max-height 0.35s ease"}}>
       <div style={{padding:"0 12px 12px"}}>
         {sec.items.map(item=>{
           const p=getP(item.id),inFocus=focusIds.includes(item.id);
@@ -725,8 +677,7 @@ async function requestNotificationPermission(){
   return (await Notification.requestPermission())==="granted";
 }
 function sendNotification(title,body,tag){
-  if(Notification.permission==="granted")
-    new Notification(title,{body,icon:"/icon.png",tag});
+  if(Notification.permission==="granted") new Notification(title,{body,icon:"/icon.png",tag});
 }
 function buildItemContext(item,p){
   const contentDone=p.courseHoursComplete||0;
@@ -737,10 +688,8 @@ function buildItemContext(item,p){
     +`contentLeft=${contentLeft.toFixed(2)}h|realLeft=${realLeft.toFixed(2)}h|realSpent=${(p.hoursSpent||0).toFixed(2)}h`;
 }
 const callAI=async(prompt,max_tokens=1500,model="claude-haiku-4-5-20251001")=>{
-  const r=await fetch("/api/chat",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model,max_tokens,messages:[{role:"user",content:prompt}]})
-  });
+  const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model,max_tokens,messages:[{role:"user",content:prompt}]})});
   const d=await r.json();
   if(d.error) throw new Error(d.error.message||"API error");
   return d.content.map(c=>c.text||"").join("");
@@ -764,32 +713,39 @@ function reconcileWeekHours(progress){
 
 // ── Side Panel ────────────────────────────────────────────────────────────────
 function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onImport, onClearAll,
-  customItems, newItem, setNewItem, addCustomItem, removeCustomItem, getP }) {
-  const [section, setSection] = useState("settings"); // "settings" | "history"
+  customItems, newItem, setNewItem, addCustomItem, removeCustomItem, getP,
+  settings, onSaveSettings }) {
+  const [section, setSection] = useState("settings");
+  const [localSettings, setLocalSettings] = useState(settings);
+
+  // sync if settings changes externally
+  useEffect(() => setLocalSettings(settings), [settings]);
+
+  const toggleDay = (day) => {
+    setLocalSettings(s => {
+      const active = s.activeDays.includes(day)
+        ? s.activeDays.filter(d => d !== day)
+        : [...s.activeDays, day];
+      // always keep at least 1 day
+      if (active.length === 0) return s;
+      return { ...s, activeDays: ALL_DAYS.filter(d => active.includes(d)) };
+    });
+  };
+
   const inputSt = {width:"100%",background:T.surface0,border:`1px solid ${T.surface3}`,
     borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,
     boxSizing:"border-box",fontFamily:"inherit"};
+
   return (
     <>
-      {/* Backdrop */}
-      <div onClick={onClose} style={{
-        position:"fixed",inset:0,zIndex:200,
+      <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:200,
         background:"rgba(0,0,0,0.6)",backdropFilter:"blur(3px)",
-        opacity:open?1:0,pointerEvents:open?"auto":"none",
-        transition:"opacity 0.28s ease",
-      }}/>
-      {/* Panel */}
-      <div style={{
-        position:"fixed",top:0,left:0,bottom:0,width:"min(88vw,360px)",
-        background:T.surface0,zIndex:201,
-        borderRight:`1px solid ${T.border}`,
-        boxShadow:"8px 0 40px rgba(0,0,0,0.7)",
-        display:"flex",flexDirection:"column",
+        opacity:open?1:0,pointerEvents:open?"auto":"none",transition:"opacity 0.28s ease"}}/>
+      <div style={{position:"fixed",top:0,left:0,bottom:0,width:"min(88vw,360px)",
+        background:T.surface0,zIndex:201,borderRight:`1px solid ${T.border}`,
+        boxShadow:"8px 0 40px rgba(0,0,0,0.7)",display:"flex",flexDirection:"column",
         transform:open?"translateX(0)":"translateX(-100%)",
-        transition:"transform 0.35s cubic-bezier(0.4,0,0.2,1)",
-        overflowY:"auto",
-      }}>
-        {/* Panel header */}
+        transition:"transform 0.35s cubic-bezier(0.4,0,0.2,1)",overflowY:"auto"}}>
         <div style={{padding:"calc(env(safe-area-inset-top) + 18px) 18px 0",
           borderBottom:`1px solid ${T.border}`,paddingBottom:14,flexShrink:0}}>
           <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
@@ -799,7 +755,6 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
               style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.textMid,
                 borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
           </div>
-          {/* Sub-tabs */}
           <div style={{display:"flex",gap:0,marginTop:14}}>
             {[["settings","Settings"],["history","Review History"]].map(([k,l])=>(
               <button key={k} onClick={()=>setSection(k)} className="btn-press"
@@ -807,31 +762,74 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   borderBottom:section===k?`2px solid ${T.blue}`:"2px solid transparent",
                   color:section===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
                   textTransform:"uppercase",letterSpacing:0.8,transition:"color 0.2s, border-color 0.2s"}}>
-                {l}
-              </button>
+                {l}</button>
             ))}
           </div>
         </div>
 
         <div style={{flex:1,overflowY:"auto",padding:"16px 18px 40px"}}>
           {section==="settings"&&<div style={{animation:"fadeUp 0.28s ease both"}}>
-            {/* Learning Profile — top of settings, most prominent */}
+
+            {/* ── Learning Profile ── */}
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               🧠 Learning Profile
             </div>
             <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
               <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:10}}>
-                The AI reads this every time it plans, adapts, or makes any decision. Write freely — your goals, pace, what subjects excite you, constraints, where you are in life, what you want upcoming weeks to prioritize.
+                The AI reads this every time it plans, adapts, or makes any decision. Write freely — your goals, pace, what subjects excite you, constraints, where you are in life.
               </div>
               <textarea value={profile} onChange={e=>setProfile(e.target.value)}
                 style={{...inputSt,fontSize:12,height:200,resize:"none",lineHeight:1.6}}
-                placeholder={`Example:\nI'm 18, self-directed learner in Kamloops BC. I want to finish Core curriculum before touching Optional. Biology and History excite me most right now. I study best in the mornings, 1-1.5h sessions. Some weeks I only have 15h due to work. Prioritize books that build mental models alongside technical courses. I want to eventually understand markets, law, and how civilizations rise and fall.`}/>
+                placeholder="I'm 18, self-directed learner..."/>
             </Card>
             <div style={{fontSize:10,color:T.textDim,marginBottom:20,lineHeight:1.5,paddingLeft:2}}>
               Changes take effect on the next plan or adapt.
             </div>
 
-            {/* Data */}
+            {/* ── Schedule Settings ── */}
+            <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
+              📅 Schedule
+            </div>
+            <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:8,fontWeight:600}}>
+                  Weekly Hour Target
+                </label>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <input type="number" min="5" max="60" step="1"
+                    value={localSettings.weeklyTarget}
+                    onChange={e=>setLocalSettings(s=>({...s,weeklyTarget:Math.max(5,Math.min(60,parseInt(e.target.value)||20))}))}
+                    style={{...inputSt,width:80,textAlign:"center",fontSize:18,fontWeight:800,padding:"8px 10px"}}/>
+                  <div style={{fontSize:12,color:T.textDim}}>hours / week</div>
+                </div>
+              </div>
+              <div>
+                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:8,fontWeight:600}}>
+                  Study Days
+                </label>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {ALL_DAYS.map(day=>{
+                    const on=localSettings.activeDays.includes(day);
+                    return <button key={day} onClick={()=>toggleDay(day)} className="btn-press"
+                      style={{background:on?`${T.blue}20`:T.surface2,
+                        border:`1px solid ${on?T.blue+"50":T.surface3}`,
+                        color:on?T.blue:T.textDim,borderRadius:8,padding:"6px 10px",
+                        fontSize:11,cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>
+                      {day}</button>;
+                  })}
+                </div>
+                <div style={{fontSize:10,color:T.textDim,marginTop:8}}>
+                  {localSettings.activeDays.length} days · {(localSettings.weeklyTarget/localSettings.activeDays.length).toFixed(1)}h avg/day
+                </div>
+              </div>
+            </Card>
+            <button onClick={()=>onSaveSettings(localSettings)} className="btn-press"
+              style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
+                borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20}}>
+              Save Schedule ✓
+            </button>
+
+            {/* ── Data Backup ── */}
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
             <Card style={{padding:"13px 14px",marginBottom:20}}>
               <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -847,7 +845,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   color:T.red,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Clear All Data</button>
             </Card>
 
-            {/* Add custom item */}
+            {/* ── Add custom item ── */}
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Add Custom Item</div>
             <Card style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{marginBottom:10}}>
@@ -878,8 +876,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                           border:`1px solid ${newItem.type===t?T.blue+"50":T.surface3}`,
                           color:newItem.type===t?T.blue:T.textDim,
                           borderRadius:8,padding:"7px 0",fontSize:11,cursor:"pointer",fontWeight:700,
-                          textTransform:"capitalize",transition:"all 0.18s"}}>
-                        {t}</button>
+                          textTransform:"capitalize",transition:"all 0.18s"}}>{t}</button>
                     ))}
                   </div>
                 </div>
@@ -892,8 +889,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                           border:`1px solid ${newItem.section===s?T.green+"50":T.surface3}`,
                           color:newItem.section===s?T.green:T.textDim,
                           borderRadius:8,padding:"7px 0",fontSize:11,cursor:"pointer",fontWeight:700,
-                          transition:"all 0.18s"}}>
-                        {s}</button>
+                          transition:"all 0.18s"}}>{s}</button>
                     ))}
                   </div>
                 </div>
@@ -904,8 +900,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
               <button onClick={addCustomItem} className="btn-press"
                 style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
                   borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer"}}>
-                Add to Curriculum
-              </button>
+                Add to Curriculum</button>
             </Card>
 
             {customItems.length>0&&<>
@@ -957,12 +952,9 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   </div>
                   {r.summary&&<div style={{fontSize:12,color:T.textMid,lineHeight:1.6,
                     background:T.surface0,borderRadius:10,padding:"10px 12px",
-                    borderLeft:`2px solid ${T.blue}40`}}>
-                    {r.summary}
-                  </div>}
+                    borderLeft:`2px solid ${T.blue}40`}}>{r.summary}</div>}
                   {r.rawNote&&<div style={{fontSize:10,color:T.textDim,marginTop:8,fontStyle:"italic"}}>
-                    "{r.rawNote}"
-                  </div>}
+                    "{r.rawNote}"</div>}
                 </Card>
               ))}
           </div>}
@@ -972,60 +964,99 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Main App
+// ══════════════════════════════════════════════════════════════════════════════
 export default function App(){
-  const [splash,setSplash]=useState(true);
-  const [customItems,setCustomItems]=useState(()=>load(SK_CUSTOM,[]));
-  const CURRICULUM=[...BASE_CURRICULUM,...customItems];
+  // ── 1. Settings (first — derives WEEKLY_TARGET and ACTIVE_DAYS used everywhere) ──
+  const [settings, setSettings] = useState(() => load(SK_SETTINGS, DEFAULT_SETTINGS));
+  const WEEKLY_TARGET = settings.weeklyTarget ?? 20;
+  const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
+
+  // ── 2. Core state ──────────────────────────────────────────────────────────
+  const [splash,setSplash]         = useState(true);
+  const [customItems,setCustomItems]= useState(()=>load(SK_CUSTOM,[]));
+  const CURRICULUM = [...BASE_CURRICULUM,...customItems];
   const SECTIONS=[
-    {label:"Core Courses",   items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Core")},
+    {label:"Core Courses",    items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Core")},
     {label:"Optional Courses",items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Optional")},
-    {label:"Core Books",     items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Core")},
-    {label:"Optional Books", items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Optional")},
+    {label:"Core Books",      items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Core")},
+    {label:"Optional Books",  items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Optional")},
   ];
 
-  const [progress,setProgress]   =useState(()=>load(SK_P,{}));
-  const [week,setWeek]           =useState(()=>{
+  const [progress,setProgress]     = useState(()=>load(SK_P,{}));
+  const [week,setWeek]             = useState(()=>{
     const w=load(SK_W,{weekStart:getMonday(),hoursLogged:0}),mon=getMonday();
     return w.weekStart!==mon?{weekStart:mon,hoursLogged:0}:w;
   });
-  const [focus,setFocus]         =useState(()=>{
+  const [focus,setFocus]           = useState(()=>{
     const f=load(SK_F,{courses:["A1"],books:["B99","B34"],manual:false});
     if(f.primary!==undefined) return{courses:[f.primary,f.secondary].filter(Boolean),books:f.books||[],manual:false};
     return f;
   });
-  const [weekPlan,setWeekPlan]   =useState(()=>{const p=load(SK_PLAN,null);return p?.weekStart===getMonday()?p:null;});
-  const [weeklyHours,setWeeklyHours]=useState(()=>load(SK_WEEKLY_HOURS,[]));
-  const [reviews,setReviews]     =useState(()=>load(SK_REVIEWS,[]));
-  const [profile,setProfile]     =useState(()=>localStorage.getItem(SK_PROFILE)||DEFAULT_PROFILE);
-  const [view,setView]           =useState("today");
-  const [sideOpen,setSideOpen]   =useState(false);
-  const [logging,setLogging]     =useState(null);
-  const [logForm,setLogForm]     =useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
-  const [confirmLog,setConfirmLog]=useState(false);
-  const [toast,setToast]         =useState(null);
-  const [aiLoading,setAiLoading] =useState(false);
-  const [adaptLoading,setAdaptLoading]=useState(false);
-  const [adaptNote,setAdaptNote] =useState("");
-  const [planGuidance,setPlanGuidance]=useState("");
-  const [aiResult,setAiResult]   =useState(null);
-  const [editFocus,setEditFocus] =useState(false);
-  const [completionBanner,setCompletionBanner]=useState([]);
-  const [graduationProposal,setGraduationProposal]=useState(null);
-  const [editSession,setEditSession]=useState(null);
-  const [editSessionForm,setEditSessionForm]=useState({hours:"",courseHours:"",note:""});
-  const [missedDayBanner,setMissedDayBanner]=useState(false);
-  const [offlineQueue,setOfflineQueue]=useState(()=>loadQueue());
-  const [isOnline,setIsOnline]   =useState(navigator.onLine);
-  const [markCompleteConfirm,setMarkCompleteConfirm]=useState(null);
-  const [bonusItems,setBonusItems]=useState(()=>load("tp_bonus1",[]));
-  const [bonusLoading,setBonusLoading]=useState(false);
-  const [exportReminder,setExportReminder]=useState(false);
-  const [newItem,setNewItem]     =useState({name:"",hours:"",type:"course",section:"Core",genre:""});
-  const [showSundayReview,setShowSundayReview]=useState(false);
-  const [sundayForm,setSundayForm]=useState({stars:0,note:""});
-  const [sundaySubmitting,setSundaySubmitting]=useState(false);
-  const prevProgressRef=useRef({});
+  const [weekPlan,setWeekPlan]     = useState(()=>{const p=load(SK_PLAN,null);return p?.weekStart===getMonday()?p:null;});
+  const [weeklyHours,setWeeklyHours]= useState(()=>load(SK_WEEKLY_HOURS,[]));
+  const [reviews,setReviews]       = useState(()=>load(SK_REVIEWS,[]));
+  const [profile,setProfile]       = useState(()=>localStorage.getItem(SK_PROFILE)||DEFAULT_PROFILE);
 
+  // ── 3. Derived values that AI functions need — computed RIGHT AFTER state ──
+  // These are plain const, re-computed every render, always in sync with state.
+  const getP = (id) => progress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
+
+  const totalSpentRealH = CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
+  const totalRealRemaining = CURRICULUM.filter(i=>getP(i.id).percentComplete<100)
+    .reduce((s,i)=>s+realHoursRemaining(i,getP(i.id)),0);
+  const weekNum = Math.round(totalSpentRealH / WEEKLY_TARGET) + 1;
+
+  const completedGenres = [...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.genre))];
+  const arcPosition = (()=>{
+    const y = totalSpentRealH<200?"Year 1 — Foundations":totalSpentRealH<600?"Year 2 — Applied":
+              totalSpentRealH<1200?"Year 3 — Specialization":"Year 4 — Integration";
+    return `${y}. ${totalSpentRealH.toFixed(0)}h total. Completed genres: ${completedGenres.join(",")||"none"}.`;
+  })();
+
+  const weekH    = week.hoursLogged||0;
+  const wkRem    = Math.max(0,WEEKLY_TARGET-weekH);
+  const focusIds = [...(focus.courses||[]),...(focus.books||[])];
+  const focusItems = focusIds.map(id=>CURRICULUM.find(i=>i.id===id)).filter(Boolean);
+
+  // Remaining active days from today onward
+  const getRemainingActiveDays = (fromIdx=getDayIdx()) =>
+    ALL_DAYS.slice(fromIdx).filter(d=>ACTIVE_DAYS.includes(d));
+
+  const dLeft = getRemainingActiveDays().length;
+
+  // ── 4. UI state ────────────────────────────────────────────────────────────
+  const [view,setView]                   = useState("today");
+  const [sideOpen,setSideOpen]           = useState(false);
+  const [logging,setLogging]             = useState(null);
+  const [logForm,setLogForm]             = useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
+  const [confirmLog,setConfirmLog]       = useState(false);
+  const [toast,setToast]                 = useState(null);
+  const [aiLoading,setAiLoading]         = useState(false);
+  const [adaptLoading,setAdaptLoading]   = useState(false);
+  const [adaptNote,setAdaptNote]         = useState("");
+  const [planGuidance,setPlanGuidance]   = useState("");
+  const [aiResult,setAiResult]           = useState(null);
+  const [editFocus,setEditFocus]         = useState(false);
+  const [completionBanner,setCompletionBanner] = useState([]);
+  const [graduationProposal,setGraduationProposal] = useState(null);
+  const [editSession,setEditSession]     = useState(null);
+  const [editSessionForm,setEditSessionForm] = useState({hours:"",courseHours:"",note:""});
+  const [missedDayBanner,setMissedDayBanner] = useState(false);
+  const [offlineQueue,setOfflineQueue]   = useState(()=>loadQueue());
+  const [isOnline,setIsOnline]           = useState(navigator.onLine);
+  const [markCompleteConfirm,setMarkCompleteConfirm] = useState(null);
+  const [bonusItems,setBonusItems]       = useState(()=>load("tp_bonus1",[]));
+  const [bonusLoading,setBonusLoading]   = useState(false);
+  const [exportReminder,setExportReminder] = useState(false);
+  const [newItem,setNewItem]             = useState({name:"",hours:"",type:"course",section:"Core",genre:""});
+  const [showSundayReview,setShowSundayReview] = useState(false);
+  const [sundayForm,setSundayForm]       = useState({stars:0,note:""});
+  const [sundaySubmitting,setSundaySubmitting] = useState(false);
+  const prevProgressRef = useRef({});
+
+  // ── 5. Persistence effects ─────────────────────────────────────────────────
   useEffect(()=>save(SK_P,progress),[progress]);
   useEffect(()=>save(SK_W,week),[week]);
   useEffect(()=>save(SK_F,focus),[focus]);
@@ -1035,7 +1066,9 @@ export default function App(){
   useEffect(()=>localStorage.setItem(SK_PROFILE,profile),[profile]);
   useEffect(()=>save(SK_PLAN,weekPlan),[weekPlan]);
   useEffect(()=>save(SK_CUSTOM,customItems),[customItems]);
+  useEffect(()=>save(SK_SETTINGS,settings),[settings]);
 
+  // ── 6. Other effects ───────────────────────────────────────────────────────
   useEffect(()=>{
     const reconciled=reconcileWeekHours(progress);
     setWeek(w=>{
@@ -1070,16 +1103,15 @@ export default function App(){
   useEffect(()=>{
     if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
     requestNotificationPermission();
-    const now=new Date();
     const todayISO=getTodayISO();
     if(isSunday()){
       const doneSunday=load(SK_SUNDAY_DONE,null);
-      if(doneSunday!==todayISO&&now.getHours()>=18){
+      if(doneSunday!==todayISO&&new Date().getHours()>=18){
         setShowSundayReview(true);
         sendNotification("The Preparation","Time to review your week ✍️","sunday-review");
       }
     }
-    if(isMonday()&&now.getHours()>=7&&!(weekPlan?.weekStart===getMonday())){
+    if(isMonday()&&new Date().getHours()>=7&&!(weekPlan?.weekStart===getMonday())){
       sendNotification("The Preparation","Ready to plan your week? Open the app →","monday-plan");
       setTimeout(()=>runPlanWeek(true),1500);
     }
@@ -1089,7 +1121,7 @@ export default function App(){
     if(!weekPlan?.days) return;
     const todayIdx=getDayIdx();
     if(todayIdx===0) return;
-    const yesterday=DAY_NAMES[todayIdx-1];
+    const yesterday=ALL_DAYS[todayIdx-1];
     const yPlan=weekPlan.days.find(d=>d.day===yesterday);
     if(!yPlan?.items?.length) return;
     const plannedH=yPlan.items.reduce((s,i)=>s+(i.realHours||i.hours||0),0);
@@ -1113,80 +1145,42 @@ export default function App(){
         const isInFocus=(focus.courses||[]).includes(id)||(focus.books||[]).includes(id);
         if(!isInFocus) return;
         const nextItem=CURRICULUM.find(i=>
-          i.section==="Core"&&(getP(i.id).percentComplete||0)===0&&i.id!==id&&i.type===item.type
-        );
+          i.section==="Core"&&(getP(i.id).percentComplete||0)===0&&i.id!==id&&i.type===item.type);
         if(nextItem) setGraduationProposal({completed:item,next:nextItem});
       });
     }
     prevProgressRef.current=progress;
   },[progress]);
 
-  const toast_=m=>{setToast(m);setTimeout(()=>setToast(null),2600);};
-  const getP=id=>progress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
-  const weekH=week.hoursLogged||0;
-  const wkRem=Math.max(0,WEEKLY_TARGET-weekH);
-  const dLeft=getRemainingDays();
-  const focusIds=[...(focus.courses||[]),...(focus.books||[])];
-  const focusItems=focusIds.map(id=>CURRICULUM.find(i=>i.id===id)).filter(Boolean);
-
-  const bestWeek=weeklyHours.reduce((b,w)=>w.realH>b?w.realH:b,0);
-  const currentStreak=(()=>{let s=0;for(let i=0;i<weeklyHours.length;i++){if(weeklyHours[i].realH>=WEEKLY_TARGET)s++;else break;}return s;})();
-  const longestStreak=(()=>{let max=0,cur=0;[...weeklyHours].reverse().forEach(w=>{if(w.realH>=WEEKLY_TARGET){cur++;max=Math.max(max,cur);}else cur=0;});return max;})();
-  const genreBalance=(()=>{const map={};CURRICULUM.forEach(i=>{const p=getP(i.id);if(p.hoursSpent>0)map[i.genre]=(map[i.genre]||0)+(p.hoursSpent||0);});return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);})();
-  const avgWeeklyH=weeklyHours.length>0?weeklyHours.slice(0,4).reduce((s,w)=>s+(w.realH||0),0)/Math.min(4,weeklyHours.length):WEEKLY_TARGET/2;
-
-  const todayItems=()=>{
-    if(weekH>=WEEKLY_TARGET) return [];
-    const todayName=getDayName();
-    if(weekPlan?.weekStart===getMonday()&&weekPlan.days){
-      const todayPlan=weekPlan.days.find(d=>d.day===todayName);
-      if(todayPlan?.items?.length>0){
-        return todayPlan.items.map(it=>{
-          const item=CURRICULUM.find(i=>i.id===it.id);
-          if(!item||getP(it.id).percentComplete>=100) return null;
-          const p=getP(it.id);
-          const realH=it.realHours||it.hours||1;
-          const contentGain=realToContent(item,realH);
-          const targetPct=targetPctAfterSession(item,p,realH);
-          const contentDone=p.courseHoursComplete||0;
-          const contentLeft=Math.max(0,(item.hours||0)-contentDone);
-          return{...item,allocRealH:realH,contentGain:parseFloat(contentGain.toFixed(2)),
-            targetPct,contentDone:parseFloat(contentDone.toFixed(2)),
-            contentTotal:item.hours,contentLeft:parseFloat(contentLeft.toFixed(2))};
-        }).filter(Boolean);
-      }
-    }
-    let rem=Math.max(wkRem/Math.max(dLeft,1),1.5);
-    return focusItems.filter(i=>getP(i.id).percentComplete<100).reduce((acc,item)=>{
-      if(rem<=0) return acc;
-      const maxR=maxRealPerSession(item),alloc=Math.min(rem,maxR);
-      if(alloc>=0.5){
-        const p=getP(item.id);
-        acc.push({...item,allocRealH:parseFloat(alloc.toFixed(1)),
-          contentGain:parseFloat(realToContent(item,alloc).toFixed(2)),
-          targetPct:targetPctAfterSession(item,p,alloc),
-          contentDone:parseFloat((p.courseHoursComplete||0).toFixed(2)),
-          contentTotal:item.hours,
-          contentLeft:parseFloat(Math.max(0,(item.hours||0)-(p.courseHoursComplete||0)).toFixed(2))});
-        rem-=alloc;
-      }
-      return acc;
-    },[]);
+  // ── 7. Helpers ─────────────────────────────────────────────────────────────
+  const toast_ = m=>{setToast(m);setTimeout(()=>setToast(null),2600);};
+  const updateWeeklyHours = h=>{
+    const iso=getWeekISO();
+    setWeeklyHours(prev=>[{weekISO:iso,realH:h},...prev.filter(w=>w.weekISO!==iso)].slice(0,12));
   };
 
-  // ── AI context using review summaries ────────────────────────────────────
-  const buildAIContext=()=>{
+  const avgWeeklyH = weeklyHours.length>0
+    ? weeklyHours.slice(0,4).reduce((s,w)=>s+(w.realH||0),0)/Math.min(4,weeklyHours.length)
+    : WEEKLY_TARGET/2;
+
+  const bestWeek = weeklyHours.reduce((b,w)=>w.realH>b?w.realH:b,0);
+  const currentStreak = (()=>{let s=0;for(let i=0;i<weeklyHours.length;i++){if(weeklyHours[i].realH>=WEEKLY_TARGET)s++;else break;}return s;})();
+  const longestStreak = (()=>{let max=0,cur=0;[...weeklyHours].reverse().forEach(w=>{if(w.realH>=WEEKLY_TARGET){cur++;max=Math.max(max,cur);}else cur=0;});return max;})();
+  const genreBalance = (()=>{const map={};CURRICULUM.forEach(i=>{const p=getP(i.id);if(p.hoursSpent>0)map[i.genre]=(map[i.genre]||0)+(p.hoursSpent||0);});return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);})();
+
+  // ── 8. AI context builder ──────────────────────────────────────────────────
+  const buildAIContext = () => {
     const reviewHistory=reviews.slice(0,6).map((r,i)=>
       `REVIEW ${i+1} (${r.date}, ${r.hoursLogged?.toFixed(1)||0}h, ${r.stars||"?"}★): ${r.summary||r.note||"no summary"}`
     ).join("\n");
     let planVsActual="No plan this week yet.";
     if(weekPlan?.days){
-      const pastDays=weekPlan.days.filter(d=>DAY_NAMES.indexOf(d.day)<getDayIdx());
+      const pastDays=weekPlan.days.filter(d=>ALL_DAYS.indexOf(d.day)<getDayIdx());
       if(pastDays.length>0){
         planVsActual=pastDays.map(d=>{
           const plannedH=d.items?.reduce((s,it)=>s+(it.realHours||0),0)||0;
           const dayDate=new Date(getMonday()+"T12:00:00");
-          dayDate.setDate(dayDate.getDate()+DAY_NAMES.indexOf(d.day));
+          dayDate.setDate(dayDate.getDate()+ALL_DAYS.indexOf(d.day));
           const dayStr=dayDate.toLocaleDateString();
           const loggedH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).sessions||[])
             .filter(s=>s.date===dayStr).reduce((ss,x)=>ss+(x.studyHours||0),0),0);
@@ -1209,17 +1203,61 @@ export default function App(){
       .slice(0,8)
       .map(i=>`${i.id} "${i.name}" (${i.type},${i.genre}): ${i.hours}h content=${contentToReal(i,i.hours||0)}h real`)
       .join("\n");
-    const totalDoneH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
-    const arcYear=totalDoneH<200?"Year 1 — Foundations":totalDoneH<600?"Year 2 — Applied":totalDoneH<1200?"Year 3 — Specialization":"Year 4 — Integration";
-    const completedGenres=[...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.genre))];
-    const arcPosition=`${arcYear}. ${totalDoneH.toFixed(0)}h total. Completed genres: ${completedGenres.join(",")||"none"}.`;
     const recentWeeks=weeklyHours.slice(0,4);
-    const velocityTrend=recentWeeks.length>=2?recentWeeks[0].realH>recentWeeks[1].realH?"↑ accelerating":recentWeeks[0].realH<recentWeeks[1].realH?"↓ decelerating":"→ stable":"insufficient data";
+    const velocityTrend=recentWeeks.length>=2
+      ?recentWeeks[0].realH>recentWeeks[1].realH?"↑ accelerating"
+      :recentWeeks[0].realH<recentWeeks[1].realH?"↓ decelerating":"→ stable"
+      :"insufficient data";
     const avgH=recentWeeks.length>0?(recentWeeks.reduce((s,w)=>s+(w.realH||0),0)/recentWeeks.length).toFixed(1):"—";
-    return{reviewHistory,planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH};
+    return{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH};
   };
 
-  const processQueue=useCallback(async()=>{
+  // ── 9. Today items ─────────────────────────────────────────────────────────
+  const todayItems = () => {
+    if(weekH>=WEEKLY_TARGET) return [];
+    const todayName=getDayName();
+    if(weekPlan?.weekStart===getMonday()&&weekPlan.days){
+      const todayPlan=weekPlan.days.find(d=>d.day===todayName);
+      if(todayPlan?.items?.length>0){
+        return todayPlan.items.map(it=>{
+          const item=CURRICULUM.find(i=>i.id===it.id);
+          if(!item||getP(it.id).percentComplete>=100) return null;
+          const p=getP(it.id);
+          const realH=it.realHours||it.hours||1;
+          const contentGain=realToContent(item,realH);
+          const targetPct=targetPctAfterSession(item,p,realH);
+          const contentDone=p.courseHoursComplete||0;
+          const contentLeft=Math.max(0,(item.hours||0)-contentDone);
+          return{...item,allocRealH:realH,contentGain:parseFloat(contentGain.toFixed(2)),
+            targetPct,contentDone:parseFloat(contentDone.toFixed(2)),
+            contentTotal:item.hours,contentLeft:parseFloat(contentLeft.toFixed(2))};
+        }).filter(Boolean);
+      }
+    }
+    // fallback: estimate from focus
+    let rem=Math.max(wkRem/Math.max(dLeft,1),1.5);
+    return focusItems.filter(i=>getP(i.id).percentComplete<100).reduce((acc,item)=>{
+      if(rem<=0) return acc;
+      const maxR=maxRealPerSession(item),alloc=Math.min(rem,maxR);
+      if(alloc>=0.5){
+        const p=getP(item.id);
+        acc.push({...item,allocRealH:parseFloat(alloc.toFixed(1)),
+          contentGain:parseFloat(realToContent(item,alloc).toFixed(2)),
+          targetPct:targetPctAfterSession(item,p,alloc),
+          contentDone:parseFloat((p.courseHoursComplete||0).toFixed(2)),
+          contentTotal:item.hours,
+          contentLeft:parseFloat(Math.max(0,(item.hours||0)-(p.courseHoursComplete||0)).toFixed(2))});
+        rem-=alloc;
+      }
+      return acc;
+    },[]);
+  };
+
+  // ── 10. AI functions ───────────────────────────────────────────────────────
+  // NOTE: These use totalSpentRealH, arcPosition, weekNum, WEEKLY_TARGET, ACTIVE_DAYS
+  // all of which are computed above before this point. Safe.
+
+  const processQueue = useCallback(async()=>{
     const q=loadQueue();
     if(!q.length||!navigator.onLine) return;
     for(const item of q){
@@ -1231,14 +1269,14 @@ export default function App(){
     }
   },[]);
 
-  const runPlanWeek=async(auto=false)=>{
+  const runPlanWeek = async(auto=false) => {
     if(!navigator.onLine){enqueue("plan",{auto});setOfflineQueue(loadQueue());toast_("Offline — plan queued");return;}
     setAiLoading(true);setAiResult(null);
-    const{reviewHistory,planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
+    const{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH}=buildAIContext();
     const todayStr_=new Date().toLocaleDateString();
     const loggedToday_=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr_));
     const effectiveDayIdx_=loggedToday_?getDayIdx()+1:getDayIdx();
-    const remainingDayNames=DAY_NAMES.slice(effectiveDayIdx_);
+    const remainingDayNames=ALL_DAYS.slice(effectiveDayIdx_).filter(d=>ACTIVE_DAYS.includes(d));
     const effectiveDLeft=remainingDayNames.length;
     const effectiveWkRem=Math.max(0,WEEKLY_TARGET-weekH);
     if(effectiveDLeft===0||effectiveWkRem===0){toast_("Week complete");setAiLoading(false);return;}
@@ -1259,28 +1297,28 @@ WEEK BUDGET:
 LEARNER PROFILE (read fully — governs all decisions):
 ${profile}
 
-JOURNEY: Week ~${Math.round(totalSpentRealH/WEEKLY_TARGET)+1} of curriculum. ARC: ${arcPosition}
+JOURNEY: Week ~${weekNum} of curriculum. ARC: ${arcPosition}
 VELOCITY: ${velocityTrend}. 4-week avg: ${avgH}h/wk.
 ${planGuidance?`\nLEARNER GUIDANCE THIS WEEK: ${planGuidance}`:""}
 CURRENT FOCUS (${focus.manual?"MANUAL — respect it":"AI-managed"}): ${focusIds.join(",")}
 
-REVIEW HISTORY — last 6 weeks (AI-summarized). Use these as behavioral signals:
-detect recurring skip days, energy dips, stalling subjects, weeks that fell short and why.
-Let patterns directly shape session length, item selection, and day placement.
+REVIEW HISTORY — last 6 weeks (AI-summarized). Detect recurring skip days, energy dips, stalling subjects.
 ${reviewHistory||"None yet — treat as week 1."}
 
-FOCUS PROPOSAL RULES (must follow when suggesting focusProposal):
+FOCUS PROPOSAL RULES:
 - Max 2 active courses + max 3 books at any time.
 - Always keep at least 1 Fighter/philosophy book active.
-- Never propose an Optional item if its genre has unfinished Core items.
-- Only rotate an item out if it is >85% complete OR has 0 momentum for 2+ weeks.
-- If focus is MANUAL, still propose but note the learner may override.
+- Never propose Optional if genre has unfinished Core items.
+- Only rotate if >85% complete OR 0 momentum 2+ weeks.
 
 ACTIVE ITEMS (with momentum):
 ${touchedAndFocus||"None."}
 
 NEXT UNTOUCHED CORE:
-${nextCore.split('\n').slice(0,5).join('\n')}`;
+${nextCore.split('\n').slice(0,5).join('\n')}
+
+Respond with JSON:
+{"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":10}]}],"insight":"1 sentence","assessment":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
       const raw=await callAI(prompt,2000);
@@ -1292,6 +1330,7 @@ ${nextCore.split('\n').slice(0,5).join('\n')}`;
         return{...day,totalDayRealH:budget,
           items:scaleDayItems(day.items||[],budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id))};
       });
+      // Guarantee grand total = effectiveWkRem
       const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
       const drift=parseFloat((effectiveWkRem-grandTotal).toFixed(2));
       if(Math.abs(drift)>=0.05&&validatedDays.length>0){
@@ -1300,43 +1339,42 @@ ${nextCore.split('\n').slice(0,5).join('\n')}`;
         validatedDays[validatedDays.length-1]={...last,totalDayRealH:newDayH,
           items:scaleDayItems(last.items,newDayH,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id))};
       }
-      const keptDays=(weekPlan?.days||[]).filter(d=>DAY_NAMES.indexOf(d.day)<effectiveDayIdx_);
+      const keptDays=(weekPlan?.days||[]).filter(d=>ALL_DAYS.indexOf(d.day)<effectiveDayIdx_);
       const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
         days:[...keptDays,...validatedDays],totalPlannedHours:effectiveWkRem,
         reasoning:parsed.insight||"",focusReasoning:parsed.focusProposal?.reasoning||""};
       setWeekPlan(plan);setAiResult(parsed);
       updateWeeklyHours(weekH);
-      if(auto) sendNotification("The Preparation","Your week plan is ready — 20h scheduled.","weekly-plan");
+      if(auto) sendNotification("The Preparation","Your week plan is ready.","weekly-plan");
     }catch(e){console.error(e);toast_("Couldn't generate — try again");}
     setAiLoading(false);
   };
 
-  const runAdaptPlan=async(contextNote="")=>{
+  const runAdaptPlan = async(contextNote="") => {
     if(!navigator.onLine){enqueue("adapt",{note:contextNote});setOfflineQueue(loadQueue());toast_("Offline — adapt queued");return;}
     setAdaptLoading(true);
-    const{planVsActual,touchedAndFocus,nextCore,arcPosition,velocityTrend,avgH}=buildAIContext();
+    const{planVsActual,touchedAndFocus,nextCore,velocityTrend}=buildAIContext();
     const todayStr=new Date().toLocaleDateString();
     const loggedToday=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr));
     const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
-    const remainingDays=DAY_NAMES.slice(effectiveDayIdx);
+    const remainingDays=ALL_DAYS.slice(effectiveDayIdx).filter(d=>ACTIVE_DAYS.includes(d));
     const dLeftEffective=remainingDays.length;
+    // Always re-reconcile hours so adapt is based on truth, not stale state
     const freshWeekH=reconcileWeekHours(progress);
     const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
     if(dLeftEffective===0||freshWkRem===0){toast_("Week complete");setAdaptLoading(false);return;}
     const dayBudgets=distributeDays(freshWkRem,remainingDays);
+
     const prompt=`Learning coach. Adapt remaining week plan. JSON only.
+HOUR RULES: Courses:1h content=2h real, max 1.5h/session. Books:1h=1h, max 2h/session.
+Grand total MUST equal exactly ${freshWkRem.toFixed(2)}h across these days.
+Day budgets: ${remainingDays.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
+Max 4h/day. Vary genres — never same genre twice in one day.
 
-HOUR RULES:
-- Courses:1h content=2h real. Max 1.5h/session.
-- Books:1h=1h. Max 2h/session.
-- Grand total MUST equal ${freshWkRem.toFixed(2)}h.
-- Day budgets: ${remainingDays.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
-- Max 4h/day. Vary genres — never same genre twice in one day.
-
-LEARNER PROFILE (governs all decisions):
+LEARNER PROFILE:
 ${profile}
 
-JOURNEY: Week ~${Math.round(totalSpentRealH/WEEKLY_TARGET)+1}. ARC: ${arcPosition}
+JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 VELOCITY: ${velocityTrend}.
 
 TRIGGER: ${contextNote||"Manual adapt."}
@@ -1346,17 +1384,18 @@ Today: ${getDayName()}${loggedToday?" (already logged — do not schedule today)
 PLAN VS ACTUAL SO FAR:
 ${planVsActual}
 
-FOCUS RULES: Max 2 courses + 3 books. Keep 1 Fighter/philosophy book. Never propose Optional if Core genre unfinished. Only rotate if >85% done or 0 momentum 2+ weeks.
+FOCUS RULES: Max 2 courses + 3 books. Keep 1 Fighter/philosophy book. Never Optional if Core genre unfinished. Only rotate if >85% done or 0 momentum 2+ weeks.
 CURRENT FOCUS (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(",")}
 
-ACTIVE ITEMS (with momentum):
+ACTIVE ITEMS:
 ${touchedAndFocus||"None."}
 
 NEXT UNTOUCHED CORE:
 ${nextCore.split('\n').slice(0,4).join(' | ')}
 
-JSON only — no "focus" on items:
+JSON only:
 {"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44}]}],"totalPlannedHours":${freshWkRem.toFixed(2)},"note":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+
     try{
       const raw=await callAI(prompt,1500);
       const jsonMatch=raw.match(/\{[\s\S]*\}/);
@@ -1367,13 +1406,15 @@ JSON only — no "focus" on items:
         return{...day,totalDayRealH:budget,
           items:scaleDayItems(day.items||[],budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id))};
       });
-      const grandTotal=parseFloat(adaptDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
-      const drift=parseFloat((freshWkRem-grandTotal).toFixed(2));
+      // Guarantee exact hours — re-sum from actual scaled items, apply drift to last day
+      const actualTotal=parseFloat(adaptDays.reduce((s,d)=>
+        s+d.items.reduce((ss,it)=>ss+(it.realHours||0),0),0).toFixed(2));
+      const drift=parseFloat((freshWkRem-actualTotal).toFixed(2));
       if(Math.abs(drift)>=0.05&&adaptDays.length>0){
-        const last=adaptDays[adaptDays.length-1];
-        const newDayH=parseFloat((last.totalDayRealH+drift).toFixed(2));
-        adaptDays[adaptDays.length-1]={...last,totalDayRealH:newDayH,
-          items:scaleDayItems(last.items,newDayH,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id))};
+        const lastDay=adaptDays[adaptDays.length-1];
+        const newDayH=parseFloat((lastDay.totalDayRealH+drift).toFixed(2));
+        adaptDays[adaptDays.length-1]={...lastDay,totalDayRealH:newDayH,
+          items:scaleDayItems(lastDay.items,newDayH,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id))};
       }
       const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
       setWeekPlan({...weekPlan,days:[...keptDays,...adaptDays],
@@ -1388,8 +1429,7 @@ JSON only — no "focus" on items:
     setAdaptLoading(false);
   };
 
-  // ── Sunday review: AI summarizes then stores ──────────────────────────────
-  const saveSundayReview=async()=>{
+  const saveSundayReview = async() => {
     if(!sundayForm.stars){toast_("Pick a star rating first");return;}
     setSundaySubmitting(true);
     const completedThisWeek=CURRICULUM.filter(i=>{
@@ -1397,21 +1437,17 @@ JSON only — no "focus" on items:
       const mon=new Date(getMonday());
       return sessions.some(s=>new Date(s.date)>=mon)&&(progress[i.id]?.percentComplete||0)>=100;
     }).map(i=>i.id);
-
     let summary=sundayForm.note||"";
     if(sundayForm.note.trim()&&navigator.onLine){
       try{
-        const sumPrompt=`You are summarizing a learner's weekly review for future AI planning context. Keep it 2-3 sentences, factual, and useful for scheduling decisions. Learner profile: "${profile.slice(0,300)}". Raw review: "${sundayForm.note}" | Hours: ${weekH.toFixed(1)}h | Stars: ${sundayForm.stars}/5 | Completed: ${completedThisWeek.join(",")||"none"}. Respond with only the summary, no preamble.`;
+        const sumPrompt=`Summarize this learner's weekly review in 2-3 sentences for future AI planning. Learner profile: "${profile.slice(0,300)}". Raw review: "${sundayForm.note}" | Hours: ${weekH.toFixed(1)}h | Stars: ${sundayForm.stars}/5 | Completed: ${completedThisWeek.join(",")||"none"}. Only the summary, no preamble.`;
         summary=await callAI(sumPrompt,200);
       }catch(e){summary=sundayForm.note;}
     }
-
-    const entry={
-      weekStart:getMonday(),date:new Date().toLocaleDateString(),
+    const entry={weekStart:getMonday(),date:new Date().toLocaleDateString(),
       stars:sundayForm.stars,rawNote:sundayForm.note,summary,
       hoursLogged:weekH,focusIds:[...(focus.courses||[]),...(focus.books||[])],
-      completedCount:completedThisWeek.length,
-    };
+      completedCount:completedThisWeek.length};
     setReviews(prev=>[entry,...prev.filter(r=>r.weekStart!==getMonday())].slice(0,MAX_REVIEWS));
     updateWeeklyHours(weekH);
     save(SK_SUNDAY_DONE,getTodayISO());
@@ -1419,7 +1455,7 @@ JSON only — no "focus" on items:
     toast_("✓ Week reviewed & summarized");
   };
 
-  const markItemComplete=async(item)=>{
+  const markItemComplete = async(item) => {
     const p=getP(item.id);
     const tot=item.hours||1;
     const contentRemaining=Math.max(0,tot-(p.courseHoursComplete||0));
@@ -1439,15 +1475,15 @@ JSON only — no "focus" on items:
     setTimeout(()=>runAdaptPlan(`${item.id} "${item.name}" marked complete. Swap it out and pull in next logical item.`),400);
   };
 
-  const runBonusSuggestions=async()=>{
+  const runBonusSuggestions = async() => {
     if(!navigator.onLine){toast_("Offline");return;}
     setBonusLoading(true);
     const{touchedAndFocus,nextCore}=buildAIContext();
-    const prompt=`Learner hit 20h target. Suggest 1-2 bonus sessions that align with their profile. JSON only.
+    const prompt=`Learner hit ${WEEKLY_TARGET}h target. Suggest 1-2 bonus sessions. JSON only.
 PROFILE: ${profile}
-JOURNEY: Week ~${Math.round(totalSpentRealH/WEEKLY_TARGET)+1}. ARC: ${arcPosition}
+JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 HOUR RULES — Courses:1h content=2h real, max 1.5h/session. Books:1h=1h, max 2h/session.
-FOCUS RULES: max 2 courses+3 books active. Keep 1 Fighter/philosophy book. No Optional if Core genre unfinished.
+FOCUS RULES: max 2 courses+3 books. Keep 1 Fighter/philosophy book. No Optional if Core genre unfinished.
 CURRENT FOCUS: ${focusIds.join(",")}
 STATUS: ${touchedAndFocus||"None."}
 NEXT CORE: ${nextCore}
@@ -1460,12 +1496,7 @@ NEXT CORE: ${nextCore}
     setBonusLoading(false);
   };
 
-  const updateWeeklyHours=h=>{
-    const iso=getWeekISO();
-    setWeeklyHours(prev=>[{weekISO:iso,realH:h},...prev.filter(w=>w.weekISO!==iso)].slice(0,12));
-  };
-
-  const submitLog=(quickRealH=null,quickContentH=null)=>{
+  const submitLog = (quickRealH=null,quickContentH=null) => {
     const isQuick=quickRealH!==null;
     if(!isQuick&&!logForm.hours) return;
     if(!isQuick&&!confirmLog){setConfirmLog(true);return;}
@@ -1542,7 +1573,7 @@ NEXT CORE: ${nextCore}
   };
   const removeCustomItem=id=>{setCustomItems(prev=>prev.filter(i=>i.id!==id));toast_("Item removed");};
   const doExport=()=>{
-    const data={progress,week,focus,reviews,profile,weekPlan,weeklyHours,customItems};
+    const data={progress,week,focus,reviews,profile,weekPlan,weeklyHours,customItems,settings};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;
@@ -1565,6 +1596,7 @@ NEXT CORE: ${nextCore}
           if(d.weekPlan) setWeekPlan(d.weekPlan);
           if(d.weeklyHours) setWeeklyHours(d.weeklyHours);
           if(d.customItems) setCustomItems(d.customItems);
+          if(d.settings) setSettings(d.settings);
           toast_("✓ Imported");
         }catch{toast_("Import failed");}
       };
@@ -1575,23 +1607,38 @@ NEXT CORE: ${nextCore}
   const doClearAll=()=>{
     if(!window.confirm("Clear ALL data? Export first.")) return;
     if(!window.confirm("Are you sure? Cannot be undone.")) return;
-    [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export"]
+    [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export",SK_SETTINGS]
       .forEach(k=>localStorage.removeItem(k));
     setProgress({});setWeek({weekStart:getMonday(),hoursLogged:0});
     setFocus({courses:["A1"],books:["B99","B34"]});setReviews([]);
     setProfile(DEFAULT_PROFILE);setWeekPlan(null);setWeeklyHours([]);
     setBonusItems([]);setOfflineQueue([]);setCustomItems([]);
+    setSettings(DEFAULT_SETTINGS);
     toast_("✓ All data cleared");
   };
 
-  const totalItems=CURRICULUM.length;
-  const doneItems=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
-  const totalSpentRealH=CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
-  const totalRealRemaining=CURRICULUM.filter(i=>getP(i.id).percentComplete<100).reduce((s,i)=>s+realHoursRemaining(i,getP(i.id)),0);
-  const wksLeft=Math.round(totalRealRemaining/WEEKLY_TARGET);
-  const estDate=new Date(Date.now()+wksLeft*7*24*60*60*1000).toLocaleDateString("en-CA",{year:"numeric",month:"short"});
-  const planIsFromThisWeek=weekPlan&&weekPlan.weekStart===getMonday();
-  const today=todayItems();
+  // ── Derived render values ──────────────────────────────────────────────────
+  const totalItems  = CURRICULUM.length;
+  const doneItems   = CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
+  const wksLeft     = Math.round(totalRealRemaining/WEEKLY_TARGET);
+  const estDate     = new Date(Date.now()+wksLeft*7*24*60*60*1000)
+    .toLocaleDateString("en-CA",{year:"numeric",month:"short"});
+  const planIsFromThisWeek = weekPlan&&weekPlan.weekStart===getMonday();
+  const today = todayItems();
+
+  // Today tab: total planned vs logged
+  const todayName_ = getDayName();
+  const todayDateStr = new Date().toLocaleDateString();
+  const todayPlannedH = (() => {
+    if(planIsFromThisWeek&&weekPlan.days){
+      const d=weekPlan.days.find(day=>day.day===todayName_);
+      if(d?.items?.length) return d.items.reduce((s,it)=>s+(it.realHours||0),0);
+    }
+    return today.reduce((s,it)=>s+(it.allocRealH||0),0);
+  })();
+  const todayLoggedH = CURRICULUM.reduce((s,i)=>
+    s+(getP(i.id).sessions||[]).filter(sess=>sess.date===todayDateStr).reduce((ss,x)=>ss+(x.studyHours||0),0),0);
+  const todayRemainingH = Math.max(0,parseFloat((todayPlannedH-todayLoggedH).toFixed(2)));
 
   const inputSt={width:"100%",background:T.surface0,border:`1px solid ${T.surface3}`,
     borderRadius:10,padding:"11px 13px",color:T.text,fontSize:15,
@@ -1609,6 +1656,7 @@ NEXT CORE: ${nextCore}
   })();
   const chartMax=Math.max(WEEKLY_TARGET,Math.max(...chartWeeks.map(w=>w.h),1));
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return(
     <>
       <style>{GLOBAL_CSS}</style>
@@ -1622,19 +1670,17 @@ NEXT CORE: ${nextCore}
           left:"50%",transform:"translateX(-50%)",
           background:T.green,color:"#000",padding:"10px 20px",borderRadius:99,fontWeight:700,
           zIndex:500,fontSize:12,letterSpacing:0.3,boxShadow:`0 4px 24px ${T.green}50`,
-          whiteSpace:"nowrap",animation:"toastIn 0.25s ease both"}}>
-          {toast}</div>}
+          whiteSpace:"nowrap",animation:"toastIn 0.25s ease both"}}>{toast}</div>}
 
-        {/* Side panel */}
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} profile={profile} setProfile={setProfile}
           onExport={doExport} onImport={doImport} onClearAll={doClearAll}
           customItems={customItems} newItem={newItem} setNewItem={setNewItem}
           addCustomItem={addCustomItem} removeCustomItem={removeCustomItem} getP={getP}
+          settings={settings} onSaveSettings={s=>{setSettings(s);toast_("✓ Schedule saved");}}
         />
 
-        {/* Sunday review button (floating, only Sundays) */}
         {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&!showSundayReview&&
           <button onClick={()=>setShowSundayReview(true)} className="btn-press"
             style={{position:"fixed",bottom:100,right:16,width:44,height:44,borderRadius:"50%",
@@ -1714,8 +1760,7 @@ NEXT CORE: ${nextCore}
               setGraduationProposal(null);toast_(`✓ ${graduationProposal.next.id} added to focus`);
             }} className="btn-press"
               style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
-                padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>
-              Add to Focus</button>
+                padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Add to Focus</button>
           </div>
         </div>}
 
@@ -1736,13 +1781,12 @@ NEXT CORE: ${nextCore}
           </div>
         </div>}
 
-        {/* ── Sticky Header ── */}
+        {/* ── Header ── */}
         <div style={{background:T.surface0,padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
           borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
           boxShadow:"0 4px 24px rgba(0,0,0,0.6)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-              {/* Hamburger */}
               <button onClick={()=>setSideOpen(true)} className="btn-press"
                 style={{background:"none",border:"none",cursor:"pointer",padding:"4px 2px",
                   display:"flex",flexDirection:"column",gap:5,marginTop:6,flexShrink:0}}>
@@ -1790,8 +1834,7 @@ NEXT CORE: ${nextCore}
                 style={{flex:1,padding:"10px 2px",background:"none",border:"none",
                   borderBottom:view===k?`2px solid ${T.blue}`:"2px solid transparent",
                   color:view===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
-                  textTransform:"uppercase",letterSpacing:1,
-                  transition:"color 0.2s, border-color 0.2s"}}>
+                  textTransform:"uppercase",letterSpacing:1,transition:"color 0.2s, border-color 0.2s"}}>
                 {l}
               </button>
             ))}
@@ -1826,22 +1869,44 @@ NEXT CORE: ${nextCore}
 
           {/* ══ TODAY ══ */}
           {view==="today"&&<div className="tab-content">
+            {/* ── Today's hours summary bar ── */}
+            {todayPlannedH>0&&<Card style={{padding:"12px 14px",marginBottom:14,border:`1px solid ${T.surface3}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <div style={{fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1}}>
+                  Today — {todayName_}
+                </div>
+                <div style={{fontSize:12,fontWeight:800,
+                  color:todayLoggedH>=todayPlannedH?T.green:todayLoggedH>0?T.yellow:T.textMid}}>
+                  {todayLoggedH.toFixed(1)}h / {todayPlannedH.toFixed(1)}h
+                </div>
+              </div>
+              <Bar pct={todayPlannedH>0?(todayLoggedH/todayPlannedH)*100:0}
+                color={todayLoggedH>=todayPlannedH?T.green:T.blue} height={5} glow/>
+              <div style={{fontSize:10,color:T.textDim,marginTop:6,textAlign:"right"}}>
+                {todayLoggedH>=todayPlannedH
+                  ? "✓ Today's sessions complete"
+                  : todayLoggedH>0
+                  ? `${todayRemainingH.toFixed(1)}h remaining today`
+                  : `${todayPlannedH.toFixed(1)}h planned today`}
+              </div>
+            </Card>}
+
             <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
               {weekH>=WEEKLY_TARGET?"🎯 Target hit — bonus mode":planIsFromThisWeek?`Plan · ${getDayName()}`:"No plan yet — estimated"}
             </div>
+
             {today.length===0&&weekH<WEEKLY_TARGET&&<Card style={{padding:20,textAlign:"center",marginBottom:10}}>
               <div style={{fontSize:13,color:T.textMid,marginBottom:8}}>No plan for today yet</div>
               <button onClick={()=>setView("ai")} className="btn-press"
                 style={{background:T.surface2,border:`1px solid ${T.blue}30`,color:T.blue,
                   borderRadius:10,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                Go to Check-In →
-              </button>
+                Go to Check-In →</button>
             </Card>}
+
             {today.map((item,idx)=>{
               const p=getP(item.id),c=gc(item.genre);
               const isDone=p.percentComplete>=100;
-              const todayStr=new Date().toLocaleDateString();
-              const loggedTodayH=(p.sessions||[]).filter(s=>s.date===todayStr).reduce((s,x)=>s+(x.studyHours||0),0);
+              const loggedTodayH=(p.sessions||[]).filter(s=>s.date===todayDateStr).reduce((s,x)=>s+(x.studyHours||0),0);
               const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
               const sessionDoneToday=loggedTodayH>0;
               const isComplete=isDone||(sessionDoneToday&&remainingH===0);
@@ -1863,8 +1928,7 @@ NEXT CORE: ${nextCore}
                       ?<div style={{fontSize:22,fontWeight:900,color:T.green}}>✓</div>
                       :<div>
                         <div style={{fontSize:22,fontWeight:900,
-                          color:remainingH<item.allocRealH?T.yellow:T.blue,
-                          transition:"color 0.3s"}}>
+                          color:remainingH<item.allocRealH?T.yellow:T.blue,transition:"color 0.3s"}}>
                           {remainingH}h
                         </div>
                         <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{sessionDoneToday?"remaining":"real study"}</div>
@@ -1879,9 +1943,7 @@ NEXT CORE: ${nextCore}
                   <Bar pct={p.percentComplete} color={isComplete?T.green:sessionDoneToday?T.yellow:c} height={4} glow/>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5}}>
                     <span style={{color:T.textMid,fontWeight:600}}>{p.percentComplete}%</span>
-                    {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700}}>
-                      → {item.targetPct}%
-                    </span>}
+                    {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700}}>→ {item.targetPct}%</span>}
                   </div>
                 </div>
                 {!isComplete&&<div style={{marginBottom:8}}>
@@ -1898,6 +1960,7 @@ NEXT CORE: ${nextCore}
                 </button>}
               </Card>;
             })}
+
             {weekH>=WEEKLY_TARGET&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`,
               animation:"fadeUp 0.2s ease both"}}>
               <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>Bonus Mode</div>
@@ -1908,7 +1971,7 @@ NEXT CORE: ${nextCore}
                 {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic"}}>{bonusItems.note}</div>}
                 {bonusItems.items.map(it=>{
                   const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
-                  const p=getP(it.id),c=gc(item.genre);
+                  const c=gc(item.genre);
                   return <div key={it.id} style={{background:T.surface0,borderRadius:10,
                     padding:"10px 12px",marginBottom:8,borderLeft:`2px solid ${c}`}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
@@ -1918,8 +1981,7 @@ NEXT CORE: ${nextCore}
                     <button onClick={()=>setLogging(item)} className="btn-press"
                       style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
                         color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                      + Log Bonus Session
-                    </button>
+                      + Log Bonus Session</button>
                   </div>;
                 })}
                 <button onClick={()=>setBonusItems(null)} className="btn-press"
@@ -1941,6 +2003,7 @@ NEXT CORE: ${nextCore}
               {planIsFromThisWeek?"This week's plan":"Active focus"} · {weekH.toFixed(1)}h logged
               {weekH>=WEEKLY_TARGET&&<span style={{color:T.green,fontWeight:700}}> · 🎯 Target hit</span>}
             </div>
+
             {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).length>0&&
             <Card style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
@@ -1965,6 +2028,7 @@ NEXT CORE: ${nextCore}
                 </div>;
               })}
             </Card>}
+
             {planIsFromThisWeek&&weekPlan.days&&<Card style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>
@@ -1976,21 +2040,39 @@ NEXT CORE: ${nextCore}
               </div>
               {weekPlan.days.map(day=>{
                 const isToday=day.day===getDayName();
-                const dayIdx=DAY_NAMES.indexOf(day.day);
+                const dayIdx=ALL_DAYS.indexOf(day.day);
                 const todayIdx=getDayIdx();
                 const isPast=dayIdx<todayIdx,isFuture=dayIdx>todayIdx;
                 if(weekH>=WEEKLY_TARGET&&isFuture) return null;
-                const dayRealH=day.totalDayRealH||day.items?.reduce((s,i)=>s+(i.realHours||i.hours||0),0)||0;
+
+                // Live-sum actual item hours (never use stored totalDayRealH for display)
+                const dayActualH=parseFloat((day.items||[])
+                  .reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
+
                 const dayDate=new Date(getMonday()+"T12:00:00");
                 dayDate.setDate(dayDate.getDate()+dayIdx);
                 const dayStr=dayDate.toLocaleDateString();
+
+                // How much was actually logged on this day
+                const dayLoggedH=parseFloat(CURRICULUM.reduce((s,i)=>
+                  s+(getP(i.id).sessions||[]).filter(sess=>sess.date===dayStr)
+                    .reduce((ss,x)=>ss+(x.studyHours||0),0),0).toFixed(2));
+
+                const hitRate=dayActualH>0?dayLoggedH/dayActualH:0;
+
                 return <div key={day.day} style={{marginBottom:14,opacity:isPast&&!isToday?0.45:1,transition:"opacity 0.3s"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                     <div style={{fontSize:11,fontWeight:800,
                       color:isToday?T.blue:isPast?T.textMid:T.text,transition:"color 0.2s"}}>
                       {day.day}{isToday?" — Today":""}
                     </div>
-                    <div style={{fontSize:10,color:T.textDim}}>{dayRealH.toFixed(1)}h</div>
+                    {/* Show live actual vs planned — no stored totalDayRealH */}
+                    <div style={{fontSize:10,
+                      color:isPast?(dayLoggedH===0?T.red:hitRate>=0.85?T.green:T.yellow):T.textDim}}>
+                      {isPast||isToday
+                        ? `${dayLoggedH.toFixed(1)}h logged of ${dayActualH.toFixed(1)}h`
+                        : `${dayActualH.toFixed(1)}h planned`}
+                    </div>
                   </div>
                   {day.items?.map(it=>{
                     const f=CURRICULUM.find(i=>i.id===it.id);
@@ -2029,6 +2111,7 @@ NEXT CORE: ${nextCore}
                 </div>;
               })}
             </Card>}
+
             <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Log Sessions</div>
             {focusItems.filter(i=>getP(i.id).percentComplete<100).map((item,idx)=>{
               const p=getP(item.id),sessions=p.sessions||[],c=gc(item.genre);
@@ -2067,7 +2150,6 @@ NEXT CORE: ${nextCore}
               Plan Monday · Adapt anytime · Review Sunday
             </div>
 
-            {/* Sunday review prompt */}
             {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&
             <button onClick={()=>setShowSundayReview(true)} className="btn-press"
               style={{width:"100%",background:`${T.yellow}10`,border:`1px solid ${T.yellow}30`,
@@ -2088,12 +2170,9 @@ NEXT CORE: ${nextCore}
               </div>
             </div>}
 
-            {/* Guidance input */}
             <div style={{marginBottom:10}}>
               <label style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",
-                fontWeight:700,display:"block",marginBottom:7}}>
-                Guidance for AI (optional)
-              </label>
+                fontWeight:700,display:"block",marginBottom:7}}>Guidance for AI (optional)</label>
               <textarea value={planGuidance} onChange={e=>setPlanGuidance(e.target.value)}
                 placeholder="e.g. focus more on books this week, skip geology, I want to push harder on A1..."
                 style={{...inputSt,fontSize:12,resize:"none",height:56,lineHeight:1.5,padding:"10px 12px"}}/>
@@ -2108,7 +2187,6 @@ NEXT CORE: ${nextCore}
               {aiLoading?"Thinking…":planIsFromThisWeek?"↺ Replan Week":"📅 Plan Week"}
             </button>
 
-            {/* Adapt */}
             <div style={{marginBottom:16}}>
               <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
                 Adapt Plan
@@ -2151,8 +2229,7 @@ NEXT CORE: ${nextCore}
                       const p=getP(id);const current=(focus[key]||[]).includes(id);
                       return item?<div key={id} style={{display:"flex",alignItems:"center",gap:10,
                         padding:"7px 0",borderBottom:`1px solid ${T.surface2}`}}>
-                        <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,
-                          background:current?T.surface3:T.green}}/>
+                        <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,background:current?T.surface3:T.green}}/>
                         <div style={{flex:1}}>
                           <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name}</div>
                           <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
@@ -2249,7 +2326,7 @@ NEXT CORE: ${nextCore}
                 <Bar pct={(doneItems/totalItems)*100} color={T.green} height={5} glow/>
               </div>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:11,paddingTop:10,borderTop:`1px solid ${T.surface2}`}}>
-                <span style={{color:T.textDim}}>Est. completion at 20h/week</span>
+                <span style={{color:T.textDim}}>Est. completion at {WEEKLY_TARGET}h/week</span>
                 <span style={{color:T.yellow,fontWeight:700}}>{estDate}</span>
               </div>
             </Card>
@@ -2293,7 +2370,8 @@ NEXT CORE: ${nextCore}
                 style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
                   color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Later</button>
               <button onClick={saveSundayReview} disabled={sundaySubmitting} className="btn-press"
-                style={{flex:2,background:"#1a1200",border:`1px solid ${T.yellow}30`,color:sundaySubmitting?T.textDim:T.yellow,
+                style={{flex:2,background:"#1a1200",border:`1px solid ${T.yellow}30`,
+                  color:sundaySubmitting?T.textDim:T.yellow,
                   borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",transition:"all 0.2s"}}>
                 {sundaySubmitting?"Summarizing…":"Save &amp; Summarize ✓"}</button>
             </div>
@@ -2425,7 +2503,7 @@ NEXT CORE: ${nextCore}
                       const sd=new Date(logForm.date),mon=new Date(getMonday());
                       const sun=new Date(mon);sun.setDate(mon.getDate()+6);
                       return sd<mon||sd>sun?<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
-                        ⚠ Previous week — won't count toward this week's 20h
+                        ⚠ Previous week — won't count toward this week's {WEEKLY_TARGET}h
                       </div>:null;
                     })()}
                   </div>
