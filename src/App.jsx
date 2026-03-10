@@ -52,6 +52,7 @@ const scaleDayItems = (items, dayBudget, getCurrItem, getP, s) => {
   return scaled;
 };
 
+// ── Book genres remapped to match course categories ───────────────────────────
 const BASE_CURRICULUM = [
 {id:"A1",name:"Biology and Human Behavior",hours:12,type:"course",section:"Core",genre:"Biology"},
 {id:"A2",name:"Medical School: Emergency Medicine",hours:12,type:"course",section:"Core",genre:"Biology"},
@@ -145,7 +146,7 @@ const BASE_CURRICULUM = [
 {id:"A90",name:"Classical Mechanics by Walter Lewin",hours:100,type:"course",section:"Optional",genre:"Physics"},
 {id:"A91",name:"How the Earth Works",hours:24,type:"course",section:"Optional",genre:"Geology"},
 {id:"A92",name:"New History Of Life",hours:15,type:"course",section:"Optional",genre:"Biology"},
-{id:"A93",name:"Big History",hours:24,type:"course",section:"Optional",genre:"History"},
+{id:"A93",name:"Big History",hours:24,type:"course",section:"Optional",genre:"World History"},
 {id:"A94",name:"Understanding the Universe: Astronomy",hours:48,type:"course",section:"Optional",genre:"Astronomy"},
 {id:"A95",name:"The Inexplicable Universe",hours:3,type:"course",section:"Optional",genre:"Astronomy"},
 {id:"A96",name:"Introduction to Paleontology",hours:12,type:"course",section:"Optional",genre:"Science"},
@@ -159,19 +160,19 @@ const BASE_CURRICULUM = [
 {id:"A104",name:"Trees in All Seasons",hours:25,type:"course",section:"Optional",genre:"Nature"},
 {id:"A105",name:"The Science of Gardening",hours:12,type:"course",section:"Optional",genre:"Nature"},
 {id:"A106",name:"Pioneering Skills for Everyone",hours:12,type:"course",section:"Optional",genre:"Nature"},
-{id:"A107",name:"Food: A Cultural History",hours:12,type:"course",section:"Optional",genre:"History"},
+{id:"A107",name:"Food: A Cultural History",hours:12,type:"course",section:"Optional",genre:"World History"},
 {id:"A108",name:"The Everyday Gourmet",hours:12,type:"course",section:"Optional",genre:"Chef"},
 {id:"A109",name:"Introduction to Jungian Psychology",hours:7,type:"course",section:"Optional",genre:"Psychology"},
 {id:"A110",name:"Personality and its Transformations",hours:72,type:"course",section:"Optional",genre:"Psychology"},
-{id:"A111",name:"Greece and Rome: Integrated History",hours:1,type:"course",section:"Optional",genre:"History"},
-{id:"A112",name:"How the Medici Shaped the Renaissance",hours:6,type:"course",section:"Optional",genre:"History"},
+{id:"A111",name:"Greece and Rome: Integrated History",hours:1,type:"course",section:"Optional",genre:"World History"},
+{id:"A112",name:"How the Medici Shaped the Renaissance",hours:6,type:"course",section:"Optional",genre:"World History"},
 {id:"A113",name:"Western Civilization II",hours:24,type:"course",section:"Optional",genre:"World History"},
-{id:"A114",name:"Hannibal: Military Genius",hours:7,type:"course",section:"Optional",genre:"History"},
-{id:"A115",name:"The Decisive Battles of World History",hours:13,type:"course",section:"Optional",genre:"History"},
-{id:"A116",name:"Alexander the Great",hours:13,type:"course",section:"Optional",genre:"History"},
-{id:"A117",name:"Turning Points in Modern History",hours:12,type:"course",section:"Optional",genre:"History"},
-{id:"A118",name:"The Real History of Pirates",hours:12,type:"course",section:"Optional",genre:"History"},
-{id:"A119",name:"History's Greatest Voyages",hours:12,type:"course",section:"Optional",genre:"History"},
+{id:"A114",name:"Hannibal: Military Genius",hours:7,type:"course",section:"Optional",genre:"World History"},
+{id:"A115",name:"The Decisive Battles of World History",hours:13,type:"course",section:"Optional",genre:"World History"},
+{id:"A116",name:"Alexander the Great",hours:13,type:"course",section:"Optional",genre:"World History"},
+{id:"A117",name:"Turning Points in Modern History",hours:12,type:"course",section:"Optional",genre:"World History"},
+{id:"A118",name:"The Real History of Pirates",hours:12,type:"course",section:"Optional",genre:"World History"},
+{id:"A119",name:"History's Greatest Voyages",hours:12,type:"course",section:"Optional",genre:"World History"},
 {id:"A120",name:"What American Founders Learned",hours:13,type:"course",section:"Optional",genre:"American History"},
 {id:"A121",name:"The Civil War and Reconstruction",hours:22,type:"course",section:"Optional",genre:"American History"},
 {id:"A122",name:"The Western Literary Canon",hours:19,type:"course",section:"Optional",genre:"Literature"},
@@ -213,206 +214,208 @@ const BASE_CURRICULUM = [
 {id:"A158",name:"Freelancers Course",hours:5,type:"course",section:"Optional",genre:"Entrepreneur"},
 {id:"A159",name:"How to Turn Your Passion into Profit",hours:11,type:"course",section:"Optional",genre:"Entrepreneur"},
 {id:"A160",name:"Critical Business Skills for Success",hours:30,type:"course",section:"Optional",genre:"Entrepreneur"},
-{id:"B1",name:"Discovering the German New Medicine",hours:10,type:"book",section:"Core",genre:"Medic"},
-{id:"B2",name:"Caveman Chemistry",hours:50,type:"book",section:"Core",genre:"Medic"},
+// Books — genres remapped to match course categories
+{id:"B1",name:"Discovering the German New Medicine",hours:10,type:"book",section:"Core",genre:"Biology"},
+{id:"B2",name:"Caveman Chemistry",hours:50,type:"book",section:"Core",genre:"Chemistry"},
 {id:"B3",name:"Stick and Rudder",hours:15,type:"book",section:"Core",genre:"Pilot"},
 {id:"B4",name:"Mental Math for Pilots",hours:5,type:"book",section:"Core",genre:"Pilot"},
-{id:"B5",name:"Blood and Thunder",hours:15,type:"book",section:"Core",genre:"Cowboy"},
-{id:"B6",name:"Education of a Wandering Man",hours:5,type:"book",section:"Core",genre:"Cowboy"},
-{id:"B7",name:"Empire of the Summer Moon",hours:14,type:"book",section:"Core",genre:"Cowboy"},
-{id:"B8",name:"The Sackett Series",hours:44,type:"book",section:"Core",genre:"Cowboy"},
-{id:"B9",name:"Virtue of Selfishness",hours:4,type:"book",section:"Core",genre:"Builder"},
-{id:"B10",name:"Modern Man in Search of a Soul",hours:9,type:"book",section:"Core",genre:"Builder"},
-{id:"B11",name:"The Iliad",hours:9,type:"book",section:"Core",genre:"Builder"},
-{id:"B12",name:"Only Yesterday",hours:10,type:"book",section:"Core",genre:"Builder"},
-{id:"B13",name:"The Law",hours:2,type:"book",section:"Core",genre:"Builder"},
-{id:"B14",name:"Greek Art",hours:7,type:"book",section:"Core",genre:"Chef"},
-{id:"B15",name:"Roman Art",hours:6,type:"book",section:"Core",genre:"Chef"},
-{id:"B16",name:"The Republic",hours:3,type:"book",section:"Core",genre:"Fighter"},
-{id:"B17",name:"Gorgias",hours:2,type:"book",section:"Core",genre:"Fighter"},
-{id:"B18",name:"Trial and Death of Socrates",hours:3,type:"book",section:"Core",genre:"Fighter"},
-{id:"B19",name:"Way of the Superior Man",hours:5,type:"book",section:"Core",genre:"All"},
-{id:"B20",name:"The Count of Monte Cristo",hours:30,type:"book",section:"Core",genre:"Heavy Equipment"},
-{id:"B21",name:"Adventures of Huckleberry Finn",hours:9,type:"book",section:"Core",genre:"Heavy Equipment"},
-{id:"B22",name:"Underland: A Deep Time Journey",hours:14,type:"book",section:"Core",genre:"Heavy Equipment"},
-{id:"B23",name:"Poke The Box",hours:2,type:"book",section:"Core",genre:"Work"},
-{id:"B24",name:"Atlas Shrugged",hours:29,type:"book",section:"Core",genre:"Work"},
-{id:"B25",name:"On Writing",hours:6,type:"book",section:"Core",genre:"Work"},
-{id:"B26",name:"The Creature from Jekyll Island",hours:10,type:"book",section:"Core",genre:"Work"},
-{id:"B27",name:"Consider This",hours:8,type:"book",section:"Core",genre:"Work"},
-{id:"B28",name:"The Elements of Style",hours:2,type:"book",section:"Core",genre:"Work"},
-{id:"B29",name:"Thank You for Arguing",hours:6,type:"book",section:"Core",genre:"Work"},
-{id:"B30",name:"Zen and the Art of Motorcycle Maintenance",hours:12,type:"book",section:"Core",genre:"Welder"},
-{id:"B31",name:"The True Believer",hours:4,type:"book",section:"Core",genre:"Welder"},
-{id:"B32",name:"Gulliver's Travels",hours:6,type:"book",section:"Core",genre:"Welder"},
-{id:"B33",name:"The Prize",hours:23,type:"book",section:"Core",genre:"Welder"},
-{id:"B34",name:"Meditations",hours:6,type:"book",section:"Core",genre:"Fighter"},
-{id:"B35",name:"The Art of War",hours:1,type:"book",section:"Core",genre:"Fighter"},
-{id:"B36",name:"Bobby Fischer Teaches Chess",hours:3,type:"book",section:"Core",genre:"Fighter"},
-{id:"B37",name:"A War Like No Other",hours:9,type:"book",section:"Core",genre:"Fighter"},
-{id:"B38",name:"Beowulf",hours:4,type:"book",section:"Core",genre:"Fighter"},
-{id:"B39",name:"Book of Five Rings",hours:2,type:"book",section:"Core",genre:"Fighter"},
-{id:"B40",name:"The Guns of August",hours:13,type:"book",section:"Core",genre:"Fighter"},
-{id:"B41",name:"The Moon is a Harsh Mistress",hours:10,type:"book",section:"Core",genre:"Fighter"},
-{id:"B42",name:"Endurance",hours:7,type:"book",section:"Core",genre:"Sailor"},
-{id:"B43",name:"Brave New World",hours:7,type:"book",section:"Core",genre:"Sailor"},
-{id:"B44",name:"The Odyssey",hours:6,type:"book",section:"Core",genre:"Sailor"},
-{id:"B45",name:"The Travels of Marco Polo",hours:7,type:"book",section:"Core",genre:"Sailor"},
-{id:"B46",name:"1493",hours:11,type:"book",section:"Core",genre:"Sailor"},
-{id:"B47",name:"The Last Place on Earth",hours:12.5,type:"book",section:"Core",genre:"Sailor"},
-{id:"B48",name:"Cosmos",hours:6.5,type:"book",section:"Core",genre:"Sailor"},
-{id:"B49",name:"The Revenant",hours:8,type:"book",section:"Core",genre:"Survivalist"},
-{id:"B50",name:"Undaunted Courage",hours:11.5,type:"book",section:"Core",genre:"Survivalist"},
-{id:"B51",name:"One Man's Wilderness",hours:8,type:"book",section:"Core",genre:"Survivalist"},
-{id:"B52",name:"Man's Search for Meaning",hours:4,type:"book",section:"Core",genre:"Survivalist"},
-{id:"B53",name:"Touching the Void",hours:6,type:"book",section:"Core",genre:"Survivalist"},
-{id:"B54",name:"1984",hours:8,type:"book",section:"Core",genre:"Survivalist"},
-{id:"B55",name:"Animal Farm",hours:3,type:"book",section:"Core",genre:"Survivalist"},
-{id:"B56",name:"1177 B.C.",hours:7,type:"book",section:"Core",genre:"Survivalist"},
-{id:"B57",name:"Man, Cattle and Veld",hours:10,type:"book",section:"Core",genre:"Farmer"},
-{id:"B58",name:"The Ascent of Money",hours:11,type:"book",section:"Core",genre:"Farmer"},
-{id:"B59",name:"How to Draw and Think like a Real Artist",hours:30,type:"book",section:"Core",genre:"Farmer"},
-{id:"B60",name:"Logic: A Very Short Introduction",hours:2.5,type:"book",section:"Core",genre:"Farmer"},
-{id:"B61",name:"The Art of Thinking Clearly",hours:7,type:"book",section:"Core",genre:"Farmer"},
+{id:"B5",name:"Blood and Thunder",hours:15,type:"book",section:"Core",genre:"American History"},
+{id:"B6",name:"Education of a Wandering Man",hours:5,type:"book",section:"Core",genre:"Literature"},
+{id:"B7",name:"Empire of the Summer Moon",hours:14,type:"book",section:"Core",genre:"American History"},
+{id:"B8",name:"The Sackett Series",hours:44,type:"book",section:"Core",genre:"American History"},
+{id:"B9",name:"Virtue of Selfishness",hours:4,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B10",name:"Modern Man in Search of a Soul",hours:9,type:"book",section:"Core",genre:"Psychology"},
+{id:"B11",name:"The Iliad",hours:9,type:"book",section:"Core",genre:"Literature"},
+{id:"B12",name:"Only Yesterday",hours:10,type:"book",section:"Core",genre:"American History"},
+{id:"B13",name:"The Law",hours:2,type:"book",section:"Core",genre:"Economics"},
+{id:"B14",name:"Greek Art",hours:7,type:"book",section:"Core",genre:"Art"},
+{id:"B15",name:"Roman Art",hours:6,type:"book",section:"Core",genre:"Art"},
+{id:"B16",name:"The Republic",hours:3,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B17",name:"Gorgias",hours:2,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B18",name:"Trial and Death of Socrates",hours:3,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B19",name:"Way of the Superior Man",hours:5,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B20",name:"The Count of Monte Cristo",hours:30,type:"book",section:"Core",genre:"Literature"},
+{id:"B21",name:"Adventures of Huckleberry Finn",hours:9,type:"book",section:"Core",genre:"Literature"},
+{id:"B22",name:"Underland: A Deep Time Journey",hours:14,type:"book",section:"Core",genre:"Geology"},
+{id:"B23",name:"Poke The Box",hours:2,type:"book",section:"Core",genre:"Entrepreneur"},
+{id:"B24",name:"Atlas Shrugged",hours:29,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B25",name:"On Writing",hours:6,type:"book",section:"Core",genre:"Literature"},
+{id:"B26",name:"The Creature from Jekyll Island",hours:10,type:"book",section:"Core",genre:"Investing"},
+{id:"B27",name:"Consider This",hours:8,type:"book",section:"Core",genre:"Literature"},
+{id:"B28",name:"The Elements of Style",hours:2,type:"book",section:"Core",genre:"Literature"},
+{id:"B29",name:"Thank You for Arguing",hours:6,type:"book",section:"Core",genre:"Law"},
+{id:"B30",name:"Zen and the Art of Motorcycle Maintenance",hours:12,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B31",name:"The True Believer",hours:4,type:"book",section:"Core",genre:"Psychology"},
+{id:"B32",name:"Gulliver's Travels",hours:6,type:"book",section:"Core",genre:"Literature"},
+{id:"B33",name:"The Prize",hours:23,type:"book",section:"Core",genre:"World History"},
+{id:"B34",name:"Meditations",hours:6,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B35",name:"The Art of War",hours:1,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B36",name:"Bobby Fischer Teaches Chess",hours:3,type:"book",section:"Core",genre:"Science"},
+{id:"B37",name:"A War Like No Other",hours:9,type:"book",section:"Core",genre:"World History"},
+{id:"B38",name:"Beowulf",hours:4,type:"book",section:"Core",genre:"Literature"},
+{id:"B39",name:"Book of Five Rings",hours:2,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B40",name:"The Guns of August",hours:13,type:"book",section:"Core",genre:"World History"},
+{id:"B41",name:"The Moon is a Harsh Mistress",hours:10,type:"book",section:"Core",genre:"Literature"},
+{id:"B42",name:"Endurance",hours:7,type:"book",section:"Core",genre:"Nature"},
+{id:"B43",name:"Brave New World",hours:7,type:"book",section:"Core",genre:"Literature"},
+{id:"B44",name:"The Odyssey",hours:6,type:"book",section:"Core",genre:"Literature"},
+{id:"B45",name:"The Travels of Marco Polo",hours:7,type:"book",section:"Core",genre:"World History"},
+{id:"B46",name:"1493",hours:11,type:"book",section:"Core",genre:"World History"},
+{id:"B47",name:"The Last Place on Earth",hours:12.5,type:"book",section:"Core",genre:"Nature"},
+{id:"B48",name:"Cosmos",hours:6.5,type:"book",section:"Core",genre:"Astronomy"},
+{id:"B49",name:"The Revenant",hours:8,type:"book",section:"Core",genre:"American History"},
+{id:"B50",name:"Undaunted Courage",hours:11.5,type:"book",section:"Core",genre:"American History"},
+{id:"B51",name:"One Man's Wilderness",hours:8,type:"book",section:"Core",genre:"Nature"},
+{id:"B52",name:"Man's Search for Meaning",hours:4,type:"book",section:"Core",genre:"Psychology"},
+{id:"B53",name:"Touching the Void",hours:6,type:"book",section:"Core",genre:"Nature"},
+{id:"B54",name:"1984",hours:8,type:"book",section:"Core",genre:"Literature"},
+{id:"B55",name:"Animal Farm",hours:3,type:"book",section:"Core",genre:"Literature"},
+{id:"B56",name:"1177 B.C.",hours:7,type:"book",section:"Core",genre:"World History"},
+{id:"B57",name:"Man, Cattle and Veld",hours:10,type:"book",section:"Core",genre:"Nature"},
+{id:"B58",name:"The Ascent of Money",hours:11,type:"book",section:"Core",genre:"Investing"},
+{id:"B59",name:"How to Draw and Think like a Real Artist",hours:30,type:"book",section:"Core",genre:"Art"},
+{id:"B60",name:"Logic: A Very Short Introduction",hours:2.5,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B61",name:"The Art of Thinking Clearly",hours:7,type:"book",section:"Core",genre:"Psychology"},
 {id:"B62",name:"The Reluctant Entrepreneur",hours:5,type:"book",section:"Core",genre:"Entrepreneur"},
 {id:"B63",name:"The Lean Startup",hours:6,type:"book",section:"Core",genre:"Entrepreneur"},
 {id:"B64",name:"The Million-Dollar One-Person Business",hours:5,type:"book",section:"Core",genre:"Entrepreneur"},
 {id:"B65",name:"Ready, Fire, Aim",hours:7,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B66",name:"The 1-Page Marketing Plan",hours:4,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B67",name:"The Boron Letters",hours:4,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B68",name:"Influence",hours:8,type:"book",section:"Core",genre:"Entrepreneur"},
+{id:"B66",name:"The 1-Page Marketing Plan",hours:4,type:"book",section:"Core",genre:"Marketing"},
+{id:"B67",name:"The Boron Letters",hours:4,type:"book",section:"Core",genre:"Sales"},
+{id:"B68",name:"Influence",hours:8,type:"book",section:"Core",genre:"Psychology"},
 {id:"B69",name:"Think and Grow Rich",hours:6,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B70",name:"Great Leads",hours:4,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B71",name:"How to Win Friends and Influence People",hours:7,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B72",name:"PreSuasion",hours:10,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B73",name:"Never Split the Difference",hours:9,type:"book",section:"Core",genre:"Entrepreneur"},
+{id:"B70",name:"Great Leads",hours:4,type:"book",section:"Core",genre:"Sales"},
+{id:"B71",name:"How to Win Friends and Influence People",hours:7,type:"book",section:"Core",genre:"Psychology"},
+{id:"B72",name:"PreSuasion",hours:10,type:"book",section:"Core",genre:"Psychology"},
+{id:"B73",name:"Never Split the Difference",hours:9,type:"book",section:"Core",genre:"Law"},
 {id:"B74",name:"Good Strategy/Bad Strategy",hours:6,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B75",name:"Economics in One Lesson",hours:6,type:"book",section:"Core",genre:"Investor"},
-{id:"B76",name:"The Intelligent Investor",hours:13,type:"book",section:"Core",genre:"Investor"},
-{id:"B77",name:"The Most Important Thing",hours:6,type:"book",section:"Core",genre:"Investor"},
-{id:"B78",name:"Market Wizards",hours:9,type:"book",section:"Core",genre:"Investor"},
-{id:"B79",name:"When Money Dies",hours:8,type:"book",section:"Core",genre:"Investor"},
-{id:"B80",name:"Lords of Finance",hours:14,type:"book",section:"Core",genre:"Investor"},
-{id:"B81",name:"When Genius Failed",hours:8,type:"book",section:"Core",genre:"Investor"},
-{id:"B82",name:"Manias, Panics & Crashes",hours:12,type:"book",section:"Core",genre:"Investor"},
-{id:"B83",name:"Common Stocks & Uncommon Profits",hours:8,type:"book",section:"Core",genre:"Investor"},
-{id:"B84",name:"The World for Sale",hours:9,type:"book",section:"Core",genre:"Investor"},
-{id:"B85",name:"A Random Walk Down Wall Street",hours:13,type:"book",section:"Core",genre:"Investor"},
-{id:"B86",name:"Against the Gods",hours:9,type:"book",section:"Core",genre:"Investor"},
-{id:"B87",name:"You Can Be a Stock Market Genius",hours:7,type:"book",section:"Core",genre:"Investor"},
-{id:"B88",name:"Reminiscences of a Stock Operator",hours:9,type:"book",section:"Core",genre:"Investor"},
-{id:"B89",name:"Berkshire Letters to Shareholders",hours:16,type:"book",section:"Core",genre:"Investor"},
-{id:"B90",name:"The Great Crash 1929",hours:6,type:"book",section:"Core",genre:"Hacker"},
-{id:"B91",name:"The Lords of Easy Money",hours:10,type:"book",section:"Core",genre:"Hacker"},
-{id:"B92",name:"This Time Is Different",hours:13,type:"book",section:"Core",genre:"Hacker"},
-{id:"B93",name:"Devil Take the Hindmost",hours:12,type:"book",section:"Core",genre:"Hacker"},
-{id:"B94",name:"The Dao of Capital",hours:7,type:"book",section:"Core",genre:"Hacker"},
-{id:"B95",name:"Antifragile",hours:12,type:"book",section:"Core",genre:"Hacker"},
-{id:"B96",name:"Don't Make Me Think",hours:3.5,type:"book",section:"Core",genre:"Hacker"},
-{id:"B97",name:"The Three Body Problem",hours:10,type:"book",section:"Core",genre:"Hacker"},
-{id:"B98",name:"Foundation Trilogy",hours:17,type:"book",section:"Core",genre:"Hacker"},
-{id:"B99",name:"The War of Art",hours:4,type:"book",section:"Core",genre:"Maker"},
-{id:"B100",name:"Nicomachean Ethics",hours:6,type:"book",section:"Core",genre:"Maker"},
-{id:"B101",name:"Scientific Revolution",hours:4,type:"book",section:"Core",genre:"Maker"},
-{id:"B102",name:"The Diamond Age",hours:13,type:"book",section:"Core",genre:"Maker"},
-{id:"B103",name:"The Martian",hours:10,type:"book",section:"Core",genre:"Maker"},
-{id:"B104",name:"The Divine Comedy",hours:9,type:"book",section:"Optional",genre:"Classics"},
-{id:"B105",name:"Blood Meridian",hours:13,type:"book",section:"Optional",genre:"Classics"},
-{id:"B106",name:"The Lord of the Rings",hours:40,type:"book",section:"Optional",genre:"Classics"},
-{id:"B107",name:"Stranger in a Strange Land",hours:13,type:"book",section:"Optional",genre:"Classics"},
-{id:"B108",name:"The Jungle",hours:13,type:"book",section:"Optional",genre:"Classics"},
-{id:"B109",name:"The Old Man and the Sea",hours:2,type:"book",section:"Optional",genre:"Classics"},
-{id:"B110",name:"The Fountainhead",hours:28,type:"book",section:"Optional",genre:"Classics"},
-{id:"B111",name:"Decline & Fall of the Roman Empire Vol 1",hours:17,type:"book",section:"Optional",genre:"Classics"},
-{id:"B112",name:"The Canterbury Tales",hours:9,type:"book",section:"Optional",genre:"Classics"},
-{id:"B113",name:"War and Peace",hours:48,type:"book",section:"Optional",genre:"Classics"},
-{id:"B114",name:"Don Quixote",hours:33,type:"book",section:"Optional",genre:"Classics"},
-{id:"B115",name:"Glory Road",hours:8,type:"book",section:"Optional",genre:"Classics"},
-{id:"B116",name:"Novum Organum",hours:3,type:"book",section:"Optional",genre:"Classics"},
-{id:"B117",name:"The Time Machine",hours:3,type:"book",section:"Optional",genre:"Classics"},
-{id:"B118",name:"Hitchhiker's Guide to the Galaxy",hours:4,type:"book",section:"Optional",genre:"Classics"},
-{id:"B119",name:"Dragon's Egg",hours:8,type:"book",section:"Optional",genre:"Classics"},
-{id:"B120",name:"Moby Dick",hours:18,type:"book",section:"Optional",genre:"Classics"},
-{id:"B121",name:"Slaughterhouse Five",hours:5,type:"book",section:"Optional",genre:"Classics"},
-{id:"B122",name:"One Second After",hours:9,type:"book",section:"Optional",genre:"Classics"},
-{id:"B123",name:"Lonesome Dove",hours:24,type:"book",section:"Optional",genre:"Classics"},
-{id:"B124",name:"In the Heart of the Sea",hours:8,type:"book",section:"Optional",genre:"Classics"},
-{id:"B125",name:"For Whom The Bell Tolls",hours:11,type:"book",section:"Optional",genre:"Classics"},
-{id:"B126",name:"The Portable Greek Historians",hours:9,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B127",name:"The Enlightenment",hours:4,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B128",name:"Confessions",hours:8,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B129",name:"Before France & Germany",hours:8,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B130",name:"The Carolingians",hours:8,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B131",name:"Magna Carta",hours:7,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B132",name:"Heart of Europe",hours:17,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B133",name:"The Fall of Rome",hours:6,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B134",name:"The Holy Roman Empire",hours:15,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B135",name:"Collapse",hours:18,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B136",name:"What Has Government Done to Our Money",hours:12.7,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B137",name:"The Silk Roads",hours:20,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B138",name:"The Russian Revolution",hours:7,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B139",name:"The Gulag Archipelago",hours:46,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B140",name:"Hagakure",hours:4,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B141",name:"Bhagavad Gita",hours:4,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B142",name:"A History of the US in Five Crashes",hours:8,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B143",name:"A Demon of Our Own Design",hours:7,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B144",name:"Once in Golconda",hours:7,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B145",name:"Skeletons on the Zahara",hours:7.5,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B146",name:"The Prince",hours:3,type:"book",section:"Optional",genre:"Power/State"},
-{id:"B147",name:"Outwitting the Devil",hours:7,type:"book",section:"Optional",genre:"Personal Mastery"},
-{id:"B148",name:"Put Your Ass Where Your Heart Wants to Be",hours:3,type:"book",section:"Optional",genre:"Personal Mastery"},
-{id:"B149",name:"Memories, Dreams, Reflections",hours:10,type:"book",section:"Optional",genre:"Personal Mastery"},
-{id:"B150",name:"12 Rules for Life",hours:10,type:"book",section:"Optional",genre:"Personal Mastery"},
-{id:"B151",name:"About Face",hours:19,type:"book",section:"Optional",genre:"Personal Mastery"},
-{id:"B152",name:"With the Old Breed",hours:8,type:"book",section:"Optional",genre:"Personal Mastery"},
-{id:"B153",name:"Napoleon: A Life",hours:25,type:"book",section:"Optional",genre:"Personal Mastery"},
-{id:"B154",name:"Stilwell and the American Experience in China",hours:16,type:"book",section:"Optional",genre:"Personal Mastery"},
-{id:"B155",name:"The Fourth Turning",hours:8,type:"book",section:"Optional",genre:"Enterprise"},
-{id:"B156",name:"Dumbing Us Down",hours:2,type:"book",section:"Optional",genre:"Enterprise"},
-{id:"B157",name:"The Singularity is Near",hours:10,type:"book",section:"Optional",genre:"Enterprise"},
-{id:"B158",name:"The Machinery of Freedom",hours:8,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B159",name:"The Bitcoin Standard",hours:7,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B160",name:"The Wealth of Nations",hours:31,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B161",name:"Wealth, War & Wisdom",hours:10,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B162",name:"Beating the Street",hours:9,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B163",name:"The Little Book That Still Beats the Market",hours:5,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B164",name:"What Works on Wall Street",hours:12,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B165",name:"Adaptive Markets",hours:13,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B166",name:"The Alchemy of Finance",hours:14,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B167",name:"House of Morgan",hours:22,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B168",name:"The Panic of 1907",hours:7,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B169",name:"Misbehavior of Markets",hours:7,type:"book",section:"Optional",genre:"Money & Markets"},
-{id:"B170",name:"Financial Statement Analysis & Security Valuation",hours:20,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B171",name:"The Psychology of Money",hours:5,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B172",name:"The Price of Time",hours:9,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B173",name:"The Fruits of Graft",hours:14,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B174",name:"Only Yesterday (OPT)",hours:10,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B175",name:"The Hard Thing About Hard Things",hours:9,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B176",name:"Confessions of the Pricing Man",hours:6,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B177",name:"Zig Ziglar's Secrets of Closing the Sale",hours:6,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B178",name:"The Resilient Farm and Homestead",hours:12,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B179",name:"Holistic Management Handbook",hours:12,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B180",name:"Breakthrough Copywriting",hours:5,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B181",name:"Scientific Advertising",hours:3,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B182",name:"Making Them Believe",hours:7,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B183",name:"The 10 Commandments of A-List Copywriters",hours:3,type:"book",section:"Optional",genre:"Skills & Craft"},
-{id:"B184",name:"The No-Code Revolution",hours:6,type:"book",section:"Optional",genre:"Skills & Craft"},
+{id:"B75",name:"Economics in One Lesson",hours:6,type:"book",section:"Core",genre:"Economics"},
+{id:"B76",name:"The Intelligent Investor",hours:13,type:"book",section:"Core",genre:"Investing"},
+{id:"B77",name:"The Most Important Thing",hours:6,type:"book",section:"Core",genre:"Investing"},
+{id:"B78",name:"Market Wizards",hours:9,type:"book",section:"Core",genre:"Investing"},
+{id:"B79",name:"When Money Dies",hours:8,type:"book",section:"Core",genre:"Investing"},
+{id:"B80",name:"Lords of Finance",hours:14,type:"book",section:"Core",genre:"Investing"},
+{id:"B81",name:"When Genius Failed",hours:8,type:"book",section:"Core",genre:"Investing"},
+{id:"B82",name:"Manias, Panics & Crashes",hours:12,type:"book",section:"Core",genre:"Investing"},
+{id:"B83",name:"Common Stocks & Uncommon Profits",hours:8,type:"book",section:"Core",genre:"Investing"},
+{id:"B84",name:"The World for Sale",hours:9,type:"book",section:"Core",genre:"Investing"},
+{id:"B85",name:"A Random Walk Down Wall Street",hours:13,type:"book",section:"Core",genre:"Investing"},
+{id:"B86",name:"Against the Gods",hours:9,type:"book",section:"Core",genre:"Investing"},
+{id:"B87",name:"You Can Be a Stock Market Genius",hours:7,type:"book",section:"Core",genre:"Investing"},
+{id:"B88",name:"Reminiscences of a Stock Operator",hours:9,type:"book",section:"Core",genre:"Investing"},
+{id:"B89",name:"Berkshire Letters to Shareholders",hours:16,type:"book",section:"Core",genre:"Investing"},
+{id:"B90",name:"The Great Crash 1929",hours:6,type:"book",section:"Core",genre:"Investing"},
+{id:"B91",name:"The Lords of Easy Money",hours:10,type:"book",section:"Core",genre:"Investing"},
+{id:"B92",name:"This Time Is Different",hours:13,type:"book",section:"Core",genre:"Investing"},
+{id:"B93",name:"Devil Take the Hindmost",hours:12,type:"book",section:"Core",genre:"Investing"},
+{id:"B94",name:"The Dao of Capital",hours:7,type:"book",section:"Core",genre:"Investing"},
+{id:"B95",name:"Antifragile",hours:12,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B96",name:"Don't Make Me Think",hours:3.5,type:"book",section:"Core",genre:"Tinker"},
+{id:"B97",name:"The Three Body Problem",hours:10,type:"book",section:"Core",genre:"Literature"},
+{id:"B98",name:"Foundation Trilogy",hours:17,type:"book",section:"Core",genre:"Literature"},
+{id:"B99",name:"The War of Art",hours:4,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B100",name:"Nicomachean Ethics",hours:6,type:"book",section:"Core",genre:"Philosophy"},
+{id:"B101",name:"Scientific Revolution",hours:4,type:"book",section:"Core",genre:"Science"},
+{id:"B102",name:"The Diamond Age",hours:13,type:"book",section:"Core",genre:"Literature"},
+{id:"B103",name:"The Martian",hours:10,type:"book",section:"Core",genre:"Literature"},
+{id:"B104",name:"The Divine Comedy",hours:9,type:"book",section:"Optional",genre:"Literature"},
+{id:"B105",name:"Blood Meridian",hours:13,type:"book",section:"Optional",genre:"Literature"},
+{id:"B106",name:"The Lord of the Rings",hours:40,type:"book",section:"Optional",genre:"Literature"},
+{id:"B107",name:"Stranger in a Strange Land",hours:13,type:"book",section:"Optional",genre:"Literature"},
+{id:"B108",name:"The Jungle",hours:13,type:"book",section:"Optional",genre:"Literature"},
+{id:"B109",name:"The Old Man and the Sea",hours:2,type:"book",section:"Optional",genre:"Literature"},
+{id:"B110",name:"The Fountainhead",hours:28,type:"book",section:"Optional",genre:"Philosophy"},
+{id:"B111",name:"Decline & Fall of the Roman Empire Vol 1",hours:17,type:"book",section:"Optional",genre:"World History"},
+{id:"B112",name:"The Canterbury Tales",hours:9,type:"book",section:"Optional",genre:"Literature"},
+{id:"B113",name:"War and Peace",hours:48,type:"book",section:"Optional",genre:"Literature"},
+{id:"B114",name:"Don Quixote",hours:33,type:"book",section:"Optional",genre:"Literature"},
+{id:"B115",name:"Glory Road",hours:8,type:"book",section:"Optional",genre:"Literature"},
+{id:"B116",name:"Novum Organum",hours:3,type:"book",section:"Optional",genre:"Philosophy"},
+{id:"B117",name:"The Time Machine",hours:3,type:"book",section:"Optional",genre:"Literature"},
+{id:"B118",name:"Hitchhiker's Guide to the Galaxy",hours:4,type:"book",section:"Optional",genre:"Literature"},
+{id:"B119",name:"Dragon's Egg",hours:8,type:"book",section:"Optional",genre:"Literature"},
+{id:"B120",name:"Moby Dick",hours:18,type:"book",section:"Optional",genre:"Literature"},
+{id:"B121",name:"Slaughterhouse Five",hours:5,type:"book",section:"Optional",genre:"Literature"},
+{id:"B122",name:"One Second After",hours:9,type:"book",section:"Optional",genre:"Literature"},
+{id:"B123",name:"Lonesome Dove",hours:24,type:"book",section:"Optional",genre:"American History"},
+{id:"B124",name:"In the Heart of the Sea",hours:8,type:"book",section:"Optional",genre:"Nature"},
+{id:"B125",name:"For Whom The Bell Tolls",hours:11,type:"book",section:"Optional",genre:"Literature"},
+{id:"B126",name:"The Portable Greek Historians",hours:9,type:"book",section:"Optional",genre:"World History"},
+{id:"B127",name:"The Enlightenment",hours:4,type:"book",section:"Optional",genre:"World History"},
+{id:"B128",name:"Confessions",hours:8,type:"book",section:"Optional",genre:"Philosophy"},
+{id:"B129",name:"Before France & Germany",hours:8,type:"book",section:"Optional",genre:"World History"},
+{id:"B130",name:"The Carolingians",hours:8,type:"book",section:"Optional",genre:"World History"},
+{id:"B131",name:"Magna Carta",hours:7,type:"book",section:"Optional",genre:"Law"},
+{id:"B132",name:"Heart of Europe",hours:17,type:"book",section:"Optional",genre:"World History"},
+{id:"B133",name:"The Fall of Rome",hours:6,type:"book",section:"Optional",genre:"World History"},
+{id:"B134",name:"The Holy Roman Empire",hours:15,type:"book",section:"Optional",genre:"World History"},
+{id:"B135",name:"Collapse",hours:18,type:"book",section:"Optional",genre:"World History"},
+{id:"B136",name:"What Has Government Done to Our Money",hours:12.7,type:"book",section:"Optional",genre:"Economics"},
+{id:"B137",name:"The Silk Roads",hours:20,type:"book",section:"Optional",genre:"World History"},
+{id:"B138",name:"The Russian Revolution",hours:7,type:"book",section:"Optional",genre:"World History"},
+{id:"B139",name:"The Gulag Archipelago",hours:46,type:"book",section:"Optional",genre:"World History"},
+{id:"B140",name:"Hagakure",hours:4,type:"book",section:"Optional",genre:"Philosophy"},
+{id:"B141",name:"Bhagavad Gita",hours:4,type:"book",section:"Optional",genre:"Philosophy"},
+{id:"B142",name:"A History of the US in Five Crashes",hours:8,type:"book",section:"Optional",genre:"American History"},
+{id:"B143",name:"A Demon of Our Own Design",hours:7,type:"book",section:"Optional",genre:"Investing"},
+{id:"B144",name:"Once in Golconda",hours:7,type:"book",section:"Optional",genre:"Investing"},
+{id:"B145",name:"Skeletons on the Zahara",hours:7.5,type:"book",section:"Optional",genre:"Nature"},
+{id:"B146",name:"The Prince",hours:3,type:"book",section:"Optional",genre:"Philosophy"},
+{id:"B147",name:"Outwitting the Devil",hours:7,type:"book",section:"Optional",genre:"Entrepreneur"},
+{id:"B148",name:"Put Your Ass Where Your Heart Wants to Be",hours:3,type:"book",section:"Optional",genre:"Philosophy"},
+{id:"B149",name:"Memories, Dreams, Reflections",hours:10,type:"book",section:"Optional",genre:"Psychology"},
+{id:"B150",name:"12 Rules for Life",hours:10,type:"book",section:"Optional",genre:"Psychology"},
+{id:"B151",name:"About Face",hours:19,type:"book",section:"Optional",genre:"World History"},
+{id:"B152",name:"With the Old Breed",hours:8,type:"book",section:"Optional",genre:"World History"},
+{id:"B153",name:"Napoleon: A Life",hours:25,type:"book",section:"Optional",genre:"World History"},
+{id:"B154",name:"Stilwell and the American Experience in China",hours:16,type:"book",section:"Optional",genre:"World History"},
+{id:"B155",name:"The Fourth Turning",hours:8,type:"book",section:"Optional",genre:"World History"},
+{id:"B156",name:"Dumbing Us Down",hours:2,type:"book",section:"Optional",genre:"Psychology"},
+{id:"B157",name:"The Singularity is Near",hours:10,type:"book",section:"Optional",genre:"Tinker"},
+{id:"B158",name:"The Machinery of Freedom",hours:8,type:"book",section:"Optional",genre:"Economics"},
+{id:"B159",name:"The Bitcoin Standard",hours:7,type:"book",section:"Optional",genre:"Investing"},
+{id:"B160",name:"The Wealth of Nations",hours:31,type:"book",section:"Optional",genre:"Economics"},
+{id:"B161",name:"Wealth, War & Wisdom",hours:10,type:"book",section:"Optional",genre:"Investing"},
+{id:"B162",name:"Beating the Street",hours:9,type:"book",section:"Optional",genre:"Investing"},
+{id:"B163",name:"The Little Book That Still Beats the Market",hours:5,type:"book",section:"Optional",genre:"Investing"},
+{id:"B164",name:"What Works on Wall Street",hours:12,type:"book",section:"Optional",genre:"Investing"},
+{id:"B165",name:"Adaptive Markets",hours:13,type:"book",section:"Optional",genre:"Investing"},
+{id:"B166",name:"The Alchemy of Finance",hours:14,type:"book",section:"Optional",genre:"Investing"},
+{id:"B167",name:"House of Morgan",hours:22,type:"book",section:"Optional",genre:"Investing"},
+{id:"B168",name:"The Panic of 1907",hours:7,type:"book",section:"Optional",genre:"Investing"},
+{id:"B169",name:"Misbehavior of Markets",hours:7,type:"book",section:"Optional",genre:"Investing"},
+{id:"B170",name:"Financial Statement Analysis & Security Valuation",hours:20,type:"book",section:"Optional",genre:"Accounting"},
+{id:"B171",name:"The Psychology of Money",hours:5,type:"book",section:"Optional",genre:"Investing"},
+{id:"B172",name:"The Price of Time",hours:9,type:"book",section:"Optional",genre:"Economics"},
+{id:"B173",name:"The Fruits of Graft",hours:14,type:"book",section:"Optional",genre:"World History"},
+{id:"B174",name:"Only Yesterday (OPT)",hours:10,type:"book",section:"Optional",genre:"American History"},
+{id:"B175",name:"The Hard Thing About Hard Things",hours:9,type:"book",section:"Optional",genre:"Entrepreneur"},
+{id:"B176",name:"Confessions of the Pricing Man",hours:6,type:"book",section:"Optional",genre:"Sales"},
+{id:"B177",name:"Zig Ziglar's Secrets of Closing the Sale",hours:6,type:"book",section:"Optional",genre:"Sales"},
+{id:"B178",name:"The Resilient Farm and Homestead",hours:12,type:"book",section:"Optional",genre:"Nature"},
+{id:"B179",name:"Holistic Management Handbook",hours:12,type:"book",section:"Optional",genre:"Nature"},
+{id:"B180",name:"Breakthrough Copywriting",hours:5,type:"book",section:"Optional",genre:"Sales"},
+{id:"B181",name:"Scientific Advertising",hours:3,type:"book",section:"Optional",genre:"Sales"},
+{id:"B182",name:"Making Them Believe",hours:7,type:"book",section:"Optional",genre:"Sales"},
+{id:"B183",name:"The 10 Commandments of A-List Copywriters",hours:3,type:"book",section:"Optional",genre:"Sales"},
+{id:"B184",name:"The No-Code Revolution",hours:6,type:"book",section:"Optional",genre:"Tinker"},
 ];
 
 const ALL_DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
 const gc = g => {
-  const m = {Biology:"#4ade80",Physics:"#60a5fa",Marketing:"#f472b6",Sales:"#fb923c",
+  const m = {
+    Biology:"#4ade80",Physics:"#60a5fa",Marketing:"#f472b6",Sales:"#fb923c",
     Investing:"#facc15",Law:"#a78bfa",Literature:"#38bdf8","World History":"#f97316",
     "American History":"#ef4444",Art:"#e879f9",Geology:"#86efac",Chemistry:"#fde68a",
-    Pilot:"#7dd3fc",Welder:"#fca5a5",Maker:"#6ee7b7",Fighter:"#fcd34d",Sailor:"#93c5fd",
-    Survivalist:"#86efac",Farmer:"#d9f99d",Entrepreneur:"#fdba74",Investor:"#fbbf24",
-    Hacker:"#67e8f9",Builder:"#c4b5fd",Medic:"#6ee7b7",Chef:"#fb923c",Music:"#e879f9",
-    Tinker:"#67e8f9","Personal Mastery":"#c084fc","Money & Markets":"#fbbf24",
-    "Skills & Craft":"#94a3b8","Power/State":"#ef4444",Classics:"#e2e8f0",
-    Astronomy:"#a5b4fc","Music Theory":"#f0abfc",Meteorology:"#7dd3fc"};
+    Pilot:"#7dd3fc",Welder:"#fca5a5",Maker:"#6ee7b7",Philosophy:"#fcd34d",
+    Nature:"#86efac",Entrepreneur:"#fdba74",Accounting:"#94a3b8",
+    Tinker:"#67e8f9",Psychology:"#c4b5fd",Chef:"#fb923c",Music:"#e879f9",
+    Science:"#a5b4fc","Music Theory":"#f0abfc",Meteorology:"#7dd3fc",
+    Economics:"#fbbf24",Astronomy:"#a5b4fc",
+  };
   if (!g) return "#94a3b8";
-  for (const [k,v] of Object.entries(m)) if (g.toLowerCase().includes(k.toLowerCase())) return v;
+  for (const [k,v] of Object.entries(m)) if (g.toLowerCase()===k.toLowerCase()) return v;
   return "#94a3b8";
 };
 
@@ -434,7 +437,10 @@ function isMonday(){ return new Date().getDay()===1; }
 const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_REVIEWS="tp_reviews2",SK_PROFILE="tp_profile2";
 const SK_PLAN="tp_plan2",SK_QUEUE="tp_queue1",SK_WEEKLY_HOURS="tp_wkhours1",SK_CUSTOM="tp_custom1";
 const SK_SUNDAY_DONE="tp_sundaydone1",SK_SETTINGS="tp_settings1";
+const SK_NOTIFS="tp_notifs1";
+const SK_HIDDEN="tp_hidden1";
 const MAX_REVIEWS=20;
+const NOTIF_TTL_MS = 3*24*60*60*1000; // 3 days
 
 const DEFAULT_SETTINGS={
   weeklyTarget: 20,
@@ -456,7 +462,8 @@ SEQUENCING RULES:
 - Complete Core before Optional in any genre.
 - Vary genre every session — never same genre twice in one day.
 - Max 2-3 active courses, always pair 2-4 books alongside.
-- Always keep 1 Fighter/philosophy book and 1 narrative book active.
+- Always keep 1 Philosophy book active.
+- When user asks for specific topics (e.g. "roman history"), map to real curriculum item IDs.
 
 4-YEAR ARC: Year 1 Foundations → Year 2 Applied → Year 3 Specialization → Year 4 Integration`;
 
@@ -502,6 +509,14 @@ const GLOBAL_CSS = `
     from { opacity:0; transform:translateX(-50%) translateY(-8px) scale(0.95); }
     to   { opacity:1; transform:translateX(-50%) translateY(0)    scale(1); }
   }
+  @keyframes bannerSlideDown {
+    from { opacity:0; transform:translateY(-100%); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  @keyframes bannerSlideUp {
+    from { opacity:1; transform:translateY(0); }
+    to   { opacity:0; transform:translateY(-100%); }
+  }
   .btn-press { transition: transform 0.15s ease, opacity 0.15s ease; }
   .btn-press:active { transform: scale(0.97); opacity:0.88; }
   .tab-content { animation: fadeUp 0.32s ease both; }
@@ -545,6 +560,154 @@ function SplashScreen({ onDone }) {
           color:"rgba(255,255,255,0.2)",fontFamily:T.fontUI,fontWeight:600}}>LEARNING TRACKER</div>
         <div style={{width:40,height:1,margin:"18px auto 0",
           background:"linear-gradient(90deg, transparent, rgba(96,165,250,0.5), transparent)"}}/>
+      </div>
+    </div>
+  );
+}
+
+// ── Notification system ───────────────────────────────────────────────────────
+function useNotifications() {
+  const [notifs, setNotifs] = useState(() => {
+    const saved = load(SK_NOTIFS, []);
+    const cutoff = Date.now() - NOTIF_TTL_MS;
+    return saved.filter(n => n.ts > cutoff);
+  });
+  const [banner, setBanner] = useState(null);
+  const bannerTimer = useRef(null);
+
+  useEffect(() => { save(SK_NOTIFS, notifs); }, [notifs]);
+
+  const push = useCallback((title, body, action = null) => {
+    const n = { id: Date.now(), ts: Date.now(), title, body, action, read: false };
+    setNotifs(prev => [n, ...prev].slice(0, 40));
+    setBanner(n);
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    bannerTimer.current = setTimeout(() => setBanner(null), 4000);
+  }, []);
+
+  const markRead = useCallback(id => {
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  }, []);
+
+  const clearAll = useCallback(() => setNotifs([]), []);
+  const dismiss = useCallback(id => setNotifs(prev => prev.filter(n => n.id !== id)), []);
+  const dismissBanner = useCallback(() => {
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    setBanner(null);
+  }, []);
+
+  const unreadCount = notifs.filter(n => !n.read).length;
+  return { notifs, banner, push, markRead, clearAll, dismiss, dismissBanner, unreadCount };
+}
+
+function NotifBanner({ banner, onDismiss, onAction }) {
+  const [phase, setPhase] = useState("in");
+  useEffect(() => {
+    if (!banner) return;
+    setPhase("in");
+    const t = setTimeout(() => setPhase("out"), 3600);
+    return () => clearTimeout(t);
+  }, [banner?.id]);
+  if (!banner) return null;
+  return (
+    <div style={{
+      position:"fixed",top:0,left:0,right:0,zIndex:600,
+      paddingTop:"env(safe-area-inset-top)",
+      animation:phase==="in"?"bannerSlideDown 0.35s cubic-bezier(0.4,0,0.2,1) both":"bannerSlideUp 0.35s cubic-bezier(0.4,0,0.2,1) both",
+      pointerEvents:"auto",
+    }}>
+      <div style={{
+        margin:"8px 12px 0",background:"#1e2a3a",
+        border:`1px solid ${T.blue}40`,borderRadius:14,
+        padding:"12px 14px",
+        boxShadow:`0 8px 32px rgba(0,0,0,0.8), 0 0 0 1px ${T.blue}20`,
+        display:"flex",alignItems:"flex-start",gap:12,
+      }}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.blue,marginBottom:2}}>{banner.title}</div>
+          <div style={{fontSize:11,color:T.textMid,lineHeight:1.4}}>{banner.body}</div>
+        </div>
+        <div style={{display:"flex",gap:6,flexShrink:0,alignItems:"center"}}>
+          {banner.action && (
+            <button onClick={() => { onAction(banner); onDismiss(); }} className="btn-press"
+              style={{background:T.blue,border:"none",color:"#000",borderRadius:8,
+                padding:"5px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}}>
+              {banner.action.label}
+            </button>
+          )}
+          <button onClick={onDismiss} className="btn-press"
+            style={{background:T.surface3,border:"none",color:T.textMid,borderRadius:8,
+              padding:"5px 8px",fontSize:12,cursor:"pointer"}}>✕</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NotifInbox({ notifs, onMarkRead, onDismiss, onClearAll, onAction, onClose }) {
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:400,
+      backdropFilter:"blur(4px)",animation:"fadeIn 0.2s ease both"}}
+      onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()}
+        style={{position:"absolute",top:0,right:0,bottom:0,width:"min(88vw,340px)",
+          background:T.surface0,borderLeft:`1px solid ${T.border}`,
+          display:"flex",flexDirection:"column",
+          boxShadow:"-8px 0 40px rgba(0,0,0,0.7)",
+          animation:"slideInLeft 0.3s cubic-bezier(0.4,0,0.2,1) both",
+          // slide from right
+          transform:"translateX(0)",
+        }}>
+        <div style={{padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
+          borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+            <div style={{fontSize:16,fontWeight:800}}>Notifications</div>
+            <div style={{display:"flex",gap:8}}>
+              {notifs.length>0&&<button onClick={onClearAll} className="btn-press"
+                style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
+                  borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>Clear all</button>}
+              <button onClick={onClose} className="btn-press"
+                style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.textMid,
+                  borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
+            </div>
+          </div>
+          <div style={{fontSize:10,color:T.textDim}}>{notifs.length} notification{notifs.length!==1?"s":""} · saved 3 days</div>
+        </div>
+        <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"12px 16px 40px"}}>
+          {notifs.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.textDim,fontSize:13}}>
+            No notifications yet
+          </div>}
+          {notifs.map((n,i)=>(
+            <div key={n.id} style={{
+              background:n.read?T.surface1:`${T.blue}08`,
+              border:`1px solid ${n.read?T.border:T.blue+"25"}`,
+              borderRadius:12,padding:"12px 14px",marginBottom:8,
+              animation:`fadeUp 0.15s ease ${i*0.04}s both`,
+            }}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                <div style={{flex:1,minWidth:0}}>
+                  {!n.read&&<div style={{width:6,height:6,borderRadius:"50%",background:T.blue,
+                    display:"inline-block",marginRight:6,marginBottom:2,verticalAlign:"middle"}}/>}
+                  <span style={{fontSize:12,fontWeight:700,color:n.read?T.textMid:T.text}}>{n.title}</span>
+                  <div style={{fontSize:11,color:T.textDim,marginTop:3,lineHeight:1.4}}>{n.body}</div>
+                  <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>
+                    {new Date(n.ts).toLocaleDateString()} {new Date(n.ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
+                  </div>
+                </div>
+                <button onClick={()=>onDismiss(n.id)} className="btn-press"
+                  style={{background:"none",border:"none",color:T.textFaint,fontSize:14,
+                    cursor:"pointer",padding:"0 2px",flexShrink:0}}>✕</button>
+              </div>
+              {n.action&&<button onClick={()=>{onAction(n);onMarkRead(n.id);}} className="btn-press"
+                style={{width:"100%",marginTop:10,background:"#0a1220",border:`1px solid ${T.blue}30`,
+                  color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                {n.action.label}</button>}
+              {!n.read&&<button onClick={()=>onMarkRead(n.id)} className="btn-press"
+                style={{background:"none",border:"none",color:T.textDim,fontSize:10,
+                  cursor:"pointer",marginTop:6,padding:0}}>Mark read</button>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -613,7 +776,8 @@ function SessionHistory({item,sessions,onEdit}){
     </div>
   </div>;
 }
-function SectionBlock({sec,focusIds,getP,setLogging,onReset,settings}){
+
+function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
   const [open,setOpen]=useState(false);
   const done=sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
   const active=sec.items.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length;
@@ -661,7 +825,7 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,settings}){
               <div style={{fontSize:9,color:T.textFaint,marginTop:2}}>
                 {item.hours}h content{item.genre?` · ${item.genre}`:""}
                 {!isDone&&isTouched?` · ${realLeft.toFixed(1)}h real left`:""}
-                {inFocus?" · 🎯":""}
+                {inFocus?" · focus":""}
                 {item.custom?" · custom":""}
               </div>
             </div>
@@ -674,6 +838,9 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,settings}){
               {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
                 style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
                   borderRadius:7,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:600}}>Log</button>}
+              <button onClick={()=>onDelete(item)} className="btn-press"
+                style={{background:"none",border:`1px solid ${T.red}15`,color:T.red,
+                  borderRadius:7,padding:"3px 7px",fontSize:9,cursor:"pointer",fontWeight:600,opacity:0.6}}>✕</button>
             </div>
           </div>;
         })}
@@ -687,9 +854,6 @@ async function requestNotificationPermission(){
   if(Notification.permission==="granted") return true;
   return (await Notification.requestPermission())==="granted";
 }
-function sendNotification(title,body,tag){
-  if(Notification.permission==="granted") new Notification(title,{body,icon:"/icon.png",tag});
-}
 function buildItemContext(item,p,settings){
   const contentDone=p.courseHoursComplete||0;
   const contentLeft=Math.max(0,(item.hours||0)-contentDone);
@@ -701,6 +865,7 @@ function buildItemContext(item,p,settings){
 const callAI=async(prompt,max_tokens=1500,model="claude-haiku-4-5-20251001")=>{
   const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({model,max_tokens,messages:[{role:"user",content:prompt}]})});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
   const d=await r.json();
   if(d.error) throw new Error(d.error.message||"API error");
   return d.content.map(c=>c.text||"").join("");
@@ -740,6 +905,9 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
     });
   };
 
+  // Snap ratio to nearest 0.5
+  const snapRatio = v => Math.round(parseFloat(v) * 2) / 2;
+
   const inputSt = {width:"100%",background:T.surface0,border:`1px solid ${T.surface3}`,
     borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,
     boxSizing:"border-box",fontFamily:"inherit"};
@@ -747,18 +915,11 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
 
   return (
     <>
-      {/* Overlay — blocks all interaction behind menu */}
-      <div
-        onClick={onClose}
-        style={{
-          position:"fixed",inset:0,zIndex:200,
-          background:"rgba(0,0,0,0.6)",backdropFilter:"blur(3px)",
-          opacity:open?1:0,
-          pointerEvents:open?"all":"none",
-          transition:"opacity 0.28s ease",
-          touchAction: open ? "none" : "auto",
-        }}
-      />
+      <div onClick={onClose} style={{
+        position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(3px)",
+        opacity:open?1:0,pointerEvents:open?"all":"none",
+        transition:"opacity 0.28s ease",touchAction:open?"none":"auto",
+      }}/>
       <div style={{
         position:"fixed",top:0,left:0,bottom:0,width:"min(88vw,360px)",
         background:T.surface0,zIndex:201,borderRight:`1px solid ${T.border}`,
@@ -767,10 +928,8 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
         transition:"transform 0.35s cubic-bezier(0.4,0,0.2,1)",
         overflowY:"auto",WebkitOverflowScrolling:"touch",
       }}>
-        <div style={{
-          padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
-          borderBottom:`1px solid ${T.border}`,flexShrink:0,
-        }}>
+        <div style={{padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
+          borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
           <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{fontSize:18,fontWeight:800,letterSpacing:-0.3}}>Learning Tracker</div>
@@ -795,7 +954,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
 
             {/* Learning Profile */}
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
-              🧠 Learning Profile
+              Learning Profile
             </div>
             <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
               <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:10}}>
@@ -811,7 +970,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
 
             {/* Schedule */}
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
-              📅 Schedule
+              Schedule
             </div>
             <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
               <div style={{marginBottom:16}}>
@@ -819,8 +978,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   Weekly Hour Target
                 </label>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <input
-                    type="number" min="5" max="60" step="1"
+                  <input type="number" min="5" max="45" step="1"
                     value={localSettings.weeklyTarget}
                     onChange={e => {
                       const raw = e.target.value;
@@ -829,12 +987,12 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                     onBlur={() => {
                       setLocalSettings(s => ({
                         ...s,
-                        weeklyTarget: Math.max(5, Math.min(60, parseInt(s.weeklyTarget) || 20))
+                        weeklyTarget: Math.max(5, Math.min(45, parseInt(s.weeklyTarget) || 20))
                       }));
                     }}
                     style={{...numSt, width:90}}
                   />
-                  <div style={{fontSize:12,color:T.textDim}}>hrs / week<br/><span style={{fontSize:10,color:T.textFaint}}>(5 – 60)</span></div>
+                  <div style={{fontSize:12,color:T.textDim}}>hrs / week<br/><span style={{fontSize:10,color:T.textFaint}}>(5 – 45)</span></div>
                 </div>
               </div>
               <div>
@@ -860,64 +1018,68 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
             <button onClick={()=>onSaveSettings(localSettings)} className="btn-press"
               style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
                 borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20}}>
-              Save Schedule ✓
+              Save Schedule
             </button>
 
             {/* Study Ratios */}
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
-              ⚖️ Study Ratios
+              Study Ratios
             </div>
             <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
               <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:12}}>
-                How many real hours does 1h of content take? Courses default 2:1, books default 1:1. Changes apply everywhere — planning, logging, AI prompts.
+                How many real hours does 1h of content take? Courses default 2:1, books default 1:1. Allowed: 1.0, 1.5, 2.0, 2.5, 3.0.
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
                 <div>
                   <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,fontWeight:600}}>Course ratio</label>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="number" min="1" max="4" step="0.25"
-                      value={localSettings.courseRatio??2}
-                      onChange={e=>setLocalSettings(s=>({...s,courseRatio:parseFloat(e.target.value)||2}))}
-                      onBlur={()=>setLocalSettings(s=>({...s,courseRatio:Math.max(1,Math.min(4,parseFloat(s.courseRatio)||2))}))}
-                      style={{...numSt,width:70}}/>
-                    <span style={{fontSize:11,color:T.textDim}}>:1</span>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {[1,1.5,2,2.5,3].map(v=>{
+                      const on=(localSettings.courseRatio??2)===v;
+                      return <button key={v} onClick={()=>setLocalSettings(s=>({...s,courseRatio:v}))} className="btn-press"
+                        style={{background:on?`${T.blue}20`:T.surface2,border:`1px solid ${on?T.blue+"50":T.surface3}`,
+                          color:on?T.blue:T.textDim,borderRadius:8,padding:"5px 8px",fontSize:11,
+                          cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>{v}</button>;
+                    })}
                   </div>
-                  <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>1h content = {localSettings.courseRatio??2}h real</div>
+                  <div style={{fontSize:10,color:T.textFaint,marginTop:6}}>1h content = {localSettings.courseRatio??2}h real</div>
                 </div>
                 <div>
                   <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,fontWeight:600}}>Book ratio</label>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="number" min="0.5" max="3" step="0.25"
-                      value={localSettings.bookRatio??1}
-                      onChange={e=>setLocalSettings(s=>({...s,bookRatio:parseFloat(e.target.value)||1}))}
-                      onBlur={()=>setLocalSettings(s=>({...s,bookRatio:Math.max(0.5,Math.min(3,parseFloat(s.bookRatio)||1))}))}
-                      style={{...numSt,width:70}}/>
-                    <span style={{fontSize:11,color:T.textDim}}>:1</span>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                    {[1,1.5,2,2.5,3].map(v=>{
+                      const on=(localSettings.bookRatio??1)===v;
+                      return <button key={v} onClick={()=>setLocalSettings(s=>({...s,bookRatio:v}))} className="btn-press"
+                        style={{background:on?`${T.blue}20`:T.surface2,border:`1px solid ${on?T.blue+"50":T.surface3}`,
+                          color:on?T.blue:T.textDim,borderRadius:8,padding:"5px 8px",fontSize:11,
+                          cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>{v}</button>;
+                    })}
                   </div>
-                  <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>1h content = {localSettings.bookRatio??1}h real</div>
+                  <div style={{fontSize:10,color:T.textFaint,marginTop:6}}>1h content = {localSettings.bookRatio??1}h real</div>
                 </div>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                <div>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,fontWeight:600}}>Course max session</label>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="number" min="0.5" max="6" step="0.25"
+              {/* Max session */}
+              <div style={{borderTop:`1px solid ${T.surface3}`,paddingTop:12,marginTop:4}}>
+                <div style={{fontSize:11,color:T.textMid,marginBottom:10,fontWeight:600}}>Max real hours per session (0.5 – 5)</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  <div>
+                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Course max</label>
+                    <input type="number" min="0.5" max="5" step="0.5"
                       value={localSettings.courseMaxSession??1.5}
                       onChange={e=>setLocalSettings(s=>({...s,courseMaxSession:parseFloat(e.target.value)||1.5}))}
-                      onBlur={()=>setLocalSettings(s=>({...s,courseMaxSession:Math.max(0.5,Math.min(6,parseFloat(s.courseMaxSession)||1.5))}))}
-                      style={{...numSt,width:70}}/>
-                    <span style={{fontSize:11,color:T.textDim}}>h</span>
+                      onBlur={()=>setLocalSettings(s=>({...s,courseMaxSession:Math.max(0.5,Math.min(5,
+                        Math.round((parseFloat(s.courseMaxSession)||1.5)*2)/2))}))}
+                      style={{...numSt,width:80}}/>
+                    <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>{localSettings.courseMaxSession??1.5}h max</div>
                   </div>
-                </div>
-                <div>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,fontWeight:600}}>Book max session</label>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="number" min="0.5" max="6" step="0.25"
+                  <div>
+                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Book max</label>
+                    <input type="number" min="0.5" max="5" step="0.5"
                       value={localSettings.bookMaxSession??2}
                       onChange={e=>setLocalSettings(s=>({...s,bookMaxSession:parseFloat(e.target.value)||2}))}
-                      onBlur={()=>setLocalSettings(s=>({...s,bookMaxSession:Math.max(0.5,Math.min(6,parseFloat(s.bookMaxSession)||2))}))}
-                      style={{...numSt,width:70}}/>
-                    <span style={{fontSize:11,color:T.textDim}}>h</span>
+                      onBlur={()=>setLocalSettings(s=>({...s,bookMaxSession:Math.max(0.5,Math.min(5,
+                        Math.round((parseFloat(s.bookMaxSession)||2)*2)/2))}))}
+                      style={{...numSt,width:80}}/>
+                    <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>{localSettings.bookMaxSession??2}h max</div>
                   </div>
                 </div>
               </div>
@@ -925,7 +1087,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
             <button onClick={()=>onSaveSettings(localSettings)} className="btn-press"
               style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
                 borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20}}>
-              Save Ratios ✓
+              Save Ratios
             </button>
 
             {/* Data Backup */}
@@ -1065,21 +1227,22 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
 // Main App
 // ══════════════════════════════════════════════════════════════════════════════
 export default function App(){
-  // ── 1. Settings first — WEEKLY_TARGET and ACTIVE_DAYS derived here ──
+  // ── 1. Settings ──
   const [settings, setSettings] = useState(() => {
     const saved = load(SK_SETTINGS, {});
     return { ...DEFAULT_SETTINGS, ...saved };
   });
-  const WEEKLY_TARGET = Math.max(5, Math.min(60, settings.weeklyTarget ?? 20));
+  const WEEKLY_TARGET = Math.max(5, Math.min(45, settings.weeklyTarget ?? 20));
   const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
-  // Dynamic course/book limits based on weekly hours
   const MAX_COURSES = WEEKLY_TARGET >= 40 ? 5 : WEEKLY_TARGET >= 30 ? 4 : WEEKLY_TARGET >= 20 ? 3 : 2;
   const MAX_BOOKS   = WEEKLY_TARGET >= 40 ? 6 : WEEKLY_TARGET >= 30 ? 5 : 4;
 
-  // ── 2. Core state ──────────────────────────────────────────────────────────
-  const [splash,setSplash]          = useState(true);
-  const [customItems,setCustomItems]= useState(()=>load(SK_CUSTOM,[]));
-  const CURRICULUM = [...BASE_CURRICULUM,...customItems];
+  // ── 2. Core state ──
+  const [splash, setSplash]           = useState(true);
+  const [customItems, setCustomItems] = useState(()=>load(SK_CUSTOM,[]));
+  const [hiddenIds, setHiddenIds]     = useState(()=>load(SK_HIDDEN,[]));
+
+  const CURRICULUM = [...BASE_CURRICULUM,...customItems].filter(i=>!hiddenIds.includes(i.id));
   const SECTIONS=[
     {label:"Core Courses",    items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Core")},
     {label:"Optional Courses",items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Optional")},
@@ -1087,26 +1250,29 @@ export default function App(){
     {label:"Optional Books",  items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Optional")},
   ];
 
-  const [progress,setProgress]      = useState(()=>load(SK_P,{}));
-  const [week,setWeek]              = useState(()=>{
+  const [progress, setProgress]       = useState(()=>load(SK_P,{}));
+  const [week, setWeek]               = useState(()=>{
     const w=load(SK_W,{weekStart:getMonday(),hoursLogged:0}),mon=getMonday();
     return w.weekStart!==mon?{weekStart:mon,hoursLogged:0}:w;
   });
-  const [focus,setFocus]            = useState(()=>{
+  const [focus, setFocus]             = useState(()=>{
     const f=load(SK_F,{courses:["A1"],books:["B99","B34"],manual:false});
     if(f.primary!==undefined) return{courses:[f.primary,f.secondary].filter(Boolean),books:f.books||[],manual:false};
     return f;
   });
-  const [weekPlan,setWeekPlan]      = useState(()=>{const p=load(SK_PLAN,null);return p?.weekStart===getMonday()?p:null;});
-  const [weeklyHours,setWeeklyHours]= useState(()=>load(SK_WEEKLY_HOURS,[]));
-  const [reviews,setReviews]        = useState(()=>load(SK_REVIEWS,[]));
-  const [profile,setProfile]        = useState(()=>localStorage.getItem(SK_PROFILE)||DEFAULT_PROFILE);
+  const [weekPlan, setWeekPlan]       = useState(()=>{const p=load(SK_PLAN,null);return p?.weekStart===getMonday()?p:null;});
+  const [weeklyHours, setWeeklyHours] = useState(()=>load(SK_WEEKLY_HOURS,[]));
+  const [reviews, setReviews]         = useState(()=>load(SK_REVIEWS,[]));
+  const [profile, setProfile]         = useState(()=>localStorage.getItem(SK_PROFILE)||DEFAULT_PROFILE);
 
-  // ── 3. Derived values (before any functions) ───────────────────────────────
+  // ── 3. Derived values ──
   const getP = id => progress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
 
   const totalSpentRealH = CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
   const totalRealRemaining = CURRICULUM.filter(i=>getP(i.id).percentComplete<100)
+    .reduce((s,i)=>s+realHoursRemaining(i,getP(i.id),settings),0);
+  const coreItems = CURRICULUM.filter(i=>i.section==="Core");
+  const coreRealRemaining = coreItems.filter(i=>getP(i.id).percentComplete<100)
     .reduce((s,i)=>s+realHoursRemaining(i,getP(i.id),settings),0);
   const weekNum = Math.round(totalSpentRealH / WEEKLY_TARGET) + 1;
   const completedGenres = [...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.genre))];
@@ -1123,47 +1289,47 @@ export default function App(){
     ALL_DAYS.slice(fromIdx).filter(d=>ACTIVE_DAYS.includes(d));
   const dLeft = getRemainingActiveDays().length;
 
-  // ── 4. UI state ────────────────────────────────────────────────────────────
-  const [view,setView]                     = useState("today");
-  const [sideOpen,setSideOpen]             = useState(false);
-  const [logging,setLogging]               = useState(null);
-  const [logForm,setLogForm]               = useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
-  const [confirmLog,setConfirmLog]         = useState(false);
-  const [toast,setToast]                   = useState(null);
-  const [aiLoading,setAiLoading]           = useState(false);
-  const [adaptLoading,setAdaptLoading]     = useState(false);
-  const [adaptNote,setAdaptNote]           = useState("");
-  const [planGuidance,setPlanGuidance]     = useState("");
-  const [aiResult,setAiResult]             = useState(null);
-  const [editFocus,setEditFocus]           = useState(false);
-  const [completionBanner,setCompletionBanner] = useState([]);
-  const [graduationProposal,setGraduationProposal] = useState(null);
-  const [editSession,setEditSession]       = useState(null);
-  const [editSessionForm,setEditSessionForm] = useState({hours:"",courseHours:"",note:""});
-  const [missedDayBanner,setMissedDayBanner] = useState(false);
-  const [offlineQueue,setOfflineQueue]     = useState(()=>loadQueue());
-  const [isOnline,setIsOnline]             = useState(navigator.onLine);
-  const [markCompleteConfirm,setMarkCompleteConfirm] = useState(null);
-  const [bonusItems,setBonusItems]         = useState(()=>load("tp_bonus1",[]));
-  const [bonusLoading,setBonusLoading]     = useState(false);
-  const [exportReminder,setExportReminder] = useState(false);
-  const [newItem,setNewItem]               = useState({name:"",hours:"",type:"course",section:"Core",genre:""});
-  const [showSundayReview,setShowSundayReview] = useState(false);
-  const [sundayForm,setSundayForm]         = useState({stars:0,note:""});
-  const [sundaySubmitting,setSundaySubmitting] = useState(false);
+  // ── 4. UI state ──
+  const [view, setView]                         = useState("today");
+  const [sideOpen, setSideOpen]                 = useState(false);
+  const [notifOpen, setNotifOpen]               = useState(false);
+  const [logging, setLogging]                   = useState(null);
+  const [logForm, setLogForm]                   = useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
+  const [confirmLog, setConfirmLog]             = useState(false);
+  const [toast, setToast]                       = useState(null);
+  const [aiLoading, setAiLoading]               = useState(false);
+  const [adaptLoading, setAdaptLoading]         = useState(false);
+  const [planGuidance, setPlanGuidance]         = useState("");
+  const [aiResult, setAiResult]                 = useState(null);
+  const [editFocus, setEditFocus]               = useState(false);
+  const [completionBanner, setCompletionBanner] = useState([]);
+  const [graduationProposal, setGraduationProposal] = useState(null);
+  const [editSession, setEditSession]           = useState(null);
+  const [editSessionForm, setEditSessionForm]   = useState({hours:"",courseHours:"",note:""});
+  const [missedDayBanner, setMissedDayBanner]   = useState(false);
+  const [offlineQueue, setOfflineQueue]         = useState(()=>loadQueue());
+  const [isOnline, setIsOnline]                 = useState(navigator.onLine);
+  const [markCompleteConfirm, setMarkCompleteConfirm] = useState(null);
+  const [bonusItems, setBonusItems]             = useState(()=>load("tp_bonus1",[]));
+  const [bonusLoading, setBonusLoading]         = useState(false);
+  const [exportReminder, setExportReminder]     = useState(false);
+  const [newItem, setNewItem]                   = useState({name:"",hours:"",type:"course",section:"Core",genre:""});
+  const [showSundayReview, setShowSundayReview] = useState(false);
+  const [sundayForm, setSundayForm]             = useState({stars:0,note:""});
+  const [sundaySubmitting, setSundaySubmitting] = useState(false);
   const prevProgressRef = useRef({});
 
-  // ── 5. Lock body scroll when menu open ────────────────────────────────────
+  const { notifs, banner, push, markRead, clearAll: clearNotifs, dismiss: dismissNotif,
+    dismissBanner, unreadCount } = useNotifications();
+
+  // ── 5. Body scroll lock ──
   useEffect(() => {
-    if (sideOpen) {
-      document.body.classList.add("menu-open");
-    } else {
-      document.body.classList.remove("menu-open");
-    }
+    if (sideOpen) document.body.classList.add("menu-open");
+    else document.body.classList.remove("menu-open");
     return () => document.body.classList.remove("menu-open");
   }, [sideOpen]);
 
-  // ── 6. Persistence ────────────────────────────────────────────────────────
+  // ── 6. Persistence ──
   useEffect(()=>save(SK_P,progress),[progress]);
   useEffect(()=>save(SK_W,week),[week]);
   useEffect(()=>save(SK_F,focus),[focus]);
@@ -1174,8 +1340,9 @@ export default function App(){
   useEffect(()=>save(SK_PLAN,weekPlan),[weekPlan]);
   useEffect(()=>save(SK_CUSTOM,customItems),[customItems]);
   useEffect(()=>save(SK_SETTINGS,settings),[settings]);
+  useEffect(()=>save(SK_HIDDEN,hiddenIds),[hiddenIds]);
 
-  // ── 7. Other effects ──────────────────────────────────────────────────────
+  // ── 7. Effects ──
   useEffect(()=>{
     const reconciled=reconcileWeekHours(progress);
     setWeek(w=>{
@@ -1215,11 +1382,11 @@ export default function App(){
       const doneSunday=load(SK_SUNDAY_DONE,null);
       if(doneSunday!==todayISO&&new Date().getHours()>=18){
         setShowSundayReview(true);
-        sendNotification("The Preparation","Time to review your week ✍️","sunday-review");
+        push("Week Review","Time to review your week and summarize your progress.",{label:"Review Now",type:"sundayReview"});
       }
     }
     if(isMonday()&&new Date().getHours()>=7&&!(weekPlan?.weekStart===getMonday())){
-      sendNotification("The Preparation","Ready to plan your week? Open the app →","monday-plan");
+      push("Plan Your Week","Monday — ready to set this week's study plan?",{label:"Plan Now",type:"planWeek"});
       setTimeout(()=>runPlanWeek(true),1500);
     }
   },[]);
@@ -1248,6 +1415,7 @@ export default function App(){
       setCompletionBanner(b=>[...new Set([...b,...newlyDone])]);
       newlyDone.forEach(id=>{
         const item=CURRICULUM.find(i=>i.id===id);
+        if(item) push(`Completed: ${item.id}`,`"${item.name}" — 100% done!`);
         if(!item||item.section!=="Core") return;
         const isInFocus=(focus.courses||[]).includes(id)||(focus.books||[]).includes(id);
         if(!isInFocus) return;
@@ -1259,7 +1427,7 @@ export default function App(){
     prevProgressRef.current=progress;
   },[progress]);
 
-  // ── 8. Helpers ────────────────────────────────────────────────────────────
+  // ── 8. Helpers ──
   const toast_ = m=>{setToast(m);setTimeout(()=>setToast(null),2600);};
   const updateWeeklyHours = h=>{
     const iso=getWeekISO();
@@ -1273,7 +1441,7 @@ export default function App(){
   const longestStreak = (()=>{let max=0,cur=0;[...weeklyHours].reverse().forEach(w=>{if(w.realH>=WEEKLY_TARGET){cur++;max=Math.max(max,cur);}else cur=0;});return max;})();
   const genreBalance = (()=>{const map={};CURRICULUM.forEach(i=>{const p=getP(i.id);if(p.hoursSpent>0)map[i.genre]=(map[i.genre]||0)+(p.hoursSpent||0);});return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);})();
 
-  // ── 9. AI context builder ─────────────────────────────────────────────────
+  // ── 9. AI context builder ──
   const buildAIContext = () => {
     const reviewHistory=reviews.slice(0,6).map((r,i)=>
       `REVIEW ${i+1} (${r.date}, ${r.hoursLogged?.toFixed(1)||0}h, ${r.stars||"?"}★): ${r.summary||r.note||"no summary"}`
@@ -1314,10 +1482,16 @@ export default function App(){
       :recentWeeks[0].realH<recentWeeks[1].realH?"↓ decelerating":"→ stable"
       :"insufficient data";
     const avgH=recentWeeks.length>0?(recentWeeks.reduce((s,w)=>s+(w.realH||0),0)/recentWeeks.length).toFixed(1):"—";
-    return{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH};
+
+    // Full curriculum index for AI guidance matching
+    const fullCurriculumIndex = CURRICULUM
+      .map(i=>`${i.id}:"${i.name}"(${i.type},${i.genre},${i.section})`)
+      .join("|");
+
+    return{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,fullCurriculumIndex};
   };
 
-  // ── 10. Today items ───────────────────────────────────────────────────────
+  // ── 10. Today items ──
   const todayItems = () => {
     if(weekH>=WEEKLY_TARGET) return [];
     const todayName=getDayName();
@@ -1357,15 +1531,15 @@ export default function App(){
     },[]);
   };
 
-  // ── 11. AI functions ──────────────────────────────────────────────────────
+  // ── 11. AI functions ──
   const processQueue = useCallback(async()=>{
     const q=loadQueue();
     if(!q.length||!navigator.onLine) return;
     for(const item of q){
       try{
         if(item.type==="plan") await runPlanWeek(false);
-        else if(item.type==="adapt") await runAdaptPlan(item.payload?.note||"");
-        dequeue(item.id);setOfflineQueue(loadQueue());toast_("✓ Queued plan synced");
+        else if(item.type==="adapt") await runAdaptPlan();
+        dequeue(item.id);setOfflineQueue(loadQueue());toast_("Queued plan synced");
       }catch(e){break;}
     }
   },[]);
@@ -1373,7 +1547,7 @@ export default function App(){
   const runPlanWeek = async(auto=false) => {
     if(!navigator.onLine){enqueue("plan",{auto});setOfflineQueue(loadQueue());toast_("Offline — plan queued");return;}
     setAiLoading(true);setAiResult(null);
-    const{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH}=buildAIContext();
+    const{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,fullCurriculumIndex}=buildAIContext();
     const todayStr_=new Date().toLocaleDateString();
     const loggedToday_=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr_));
     const effectiveDayIdx_=loggedToday_?getDayIdx()+1:getDayIdx();
@@ -1383,16 +1557,17 @@ export default function App(){
     if(effectiveDLeft===0||effectiveWkRem===0){toast_("Week complete");setAiLoading(false);return;}
     const dayBudgets=distributeDays(effectiveWkRem,remainingDayNames);
 
-    const prompt=`Learning coach. Plan this learner's week. Respond ONLY with valid JSON.
+    const prompt=`Learning coach. Plan this learner's week. Respond ONLY with valid JSON — no commentary, no markdown.
 
-HOUR RULES:
+STRICT HOUR RULES:
 - Courses: 1h content = ${settings.courseRatio}h real. Max ${settings.courseMaxSession}h real/session.
 - Books: 1h content = ${settings.bookRatio}h real. Max ${settings.bookMaxSession}h real/session.
 - targetPct = floor((contentDone + contentGain) / totalContent × 100)
+- ONLY use item IDs that exist in the curriculum index below. Never invent items.
 
-WEEK BUDGET:
-- Target: ${WEEKLY_TARGET}h real. Logged: ${weekH.toFixed(2)}h. Remaining: ${effectiveWkRem.toFixed(2)}h across ${effectiveDLeft} days: ${remainingDayNames.join(",")}.
-- Day budgets (MUST total exactly ${effectiveWkRem.toFixed(2)}h): ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
+WEEK BUDGET (MUST match exactly):
+- Target: ${WEEKLY_TARGET}h real. Logged: ${weekH}h. Remaining: ${effectiveWkRem}h across ${effectiveDLeft} days: ${remainingDayNames.join(",")}.
+- Day budgets: ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
 - Vary genres — never same genre twice in one day.
 
 LEARNER PROFILE:
@@ -1400,25 +1575,29 @@ ${profile}
 
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 VELOCITY: ${velocityTrend}. 4-week avg: ${avgH}h/wk.
-${planGuidance?`\nLEARNER GUIDANCE THIS WEEK: ${planGuidance}`:""}
+${planGuidance?`\nLEARNER GUIDANCE: ${planGuidance}\nIMPORTANT: Map any topic/theme in this guidance to real item IDs from the curriculum index.`:""}
+
 CURRENT FOCUS (${focus.manual?"MANUAL — respect it":"AI-managed"}): ${focusIds.join(",")}
 
 REVIEW HISTORY:
 ${reviewHistory||"None yet."}
 
 FOCUS PROPOSAL RULES:
-- Max ${MAX_COURSES} active courses + max ${MAX_BOOKS} books. Scale up as weekly hours increase.
-- Always keep at least 1 Fighter/philosophy book active.
+- Max ${MAX_COURSES} active courses + max ${MAX_BOOKS} books.
+- Always keep at least 1 Philosophy book active.
 - Never propose Optional if genre has unfinished Core items.
 - Only rotate if >85% complete OR 0 momentum 2+ weeks.
 
-ACTIVE ITEMS (with momentum):
+ACTIVE ITEMS:
 ${touchedAndFocus||"None."}
 
 NEXT UNTOUCHED CORE:
-${nextCore.split('\n').slice(0,6).join('\n')}
+${nextCore.slice(0,400)}
 
-JSON:
+FULL CURRICULUM INDEX (use ONLY these IDs):
+${fullCurriculumIndex.slice(0,3000)}
+
+JSON format:
 {"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":10}]}],"insight":"1 sentence","assessment":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
@@ -1431,6 +1610,7 @@ JSON:
         return{...day,totalDayRealH:budget,
           items:scaleDayItems(day.items||[],budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
       });
+      // Enforce exact total
       const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
       const drift=parseFloat((effectiveWkRem-grandTotal).toFixed(2));
       if(Math.abs(drift)>=0.05&&validatedDays.length>0){
@@ -1445,30 +1625,32 @@ JSON:
         reasoning:parsed.insight||"",focusReasoning:parsed.focusProposal?.reasoning||""};
       setWeekPlan(plan);setAiResult(parsed);
       updateWeeklyHours(weekH);
-      if(auto) sendNotification("The Preparation","Your week plan is ready.","weekly-plan");
+      push("Week Plan Ready",parsed.insight||"Your week has been planned.",{label:"View Week",type:"viewWeek"});
     }catch(e){console.error(e);toast_("Couldn't generate — try again");}
     setAiLoading(false);
   };
 
-  const runAdaptPlan = async(contextNote="") => {
-    if(!navigator.onLine){enqueue("adapt",{note:contextNote});setOfflineQueue(loadQueue());toast_("Offline — adapt queued");return;}
+  const runAdaptPlan = async() => {
+    if(!navigator.onLine){enqueue("adapt",{});setOfflineQueue(loadQueue());toast_("Offline — adapt queued");return;}
     setAdaptLoading(true);
-    const{planVsActual,touchedAndFocus,nextCore,velocityTrend}=buildAIContext();
+    const{planVsActual,touchedAndFocus,nextCore,velocityTrend,fullCurriculumIndex}=buildAIContext();
     const todayStr=new Date().toLocaleDateString();
     const loggedToday=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr));
     const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
     const remainingDays=ALL_DAYS.slice(effectiveDayIdx).filter(d=>ACTIVE_DAYS.includes(d));
     const dLeftEffective=remainingDays.length;
     const freshWeekH=reconcileWeekHours(progress);
-    const freshWkRem=Math.max(0,WEEKLY_TARGET-freshWeekH);
+    const freshWkRem=parseFloat(Math.max(0,WEEKLY_TARGET-freshWeekH).toFixed(2));
     if(dLeftEffective===0||freshWkRem===0){toast_("Week complete");setAdaptLoading(false);return;}
     const dayBudgets=distributeDays(freshWkRem,remainingDays);
+    // Compute exact required total to avoid drift
+    const exactTotal=parseFloat(dayBudgets.reduce((s,h)=>s+h,0).toFixed(2));
 
-    const prompt=`Learning coach. Adapt remaining week plan. JSON only.
-HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books:1h=${settings.bookRatio}h real, max ${settings.bookMaxSession}h/session.
-Grand total MUST equal exactly ${freshWkRem.toFixed(2)}h across these days.
-Day budgets: ${remainingDays.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
+    const prompt=`Learning coach. Adapt remaining week plan. JSON only — no commentary.
+STRICT HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books:1h=${settings.bookRatio}h real, max ${settings.bookMaxSession}h/session.
+Grand total MUST equal exactly ${exactTotal}h. Day budgets are fixed: ${remainingDays.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
 Vary genres — never same genre twice in one day.
+ONLY use item IDs from curriculum index. Never invent items.
 
 LEARNER PROFILE:
 ${profile}
@@ -1476,24 +1658,26 @@ ${profile}
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 VELOCITY: ${velocityTrend}.
 
-TRIGGER: ${contextNote||"Manual adapt."}
-THIS WEEK: ${freshWeekH.toFixed(2)}h logged. Remaining: ${freshWkRem.toFixed(2)}h across ${dLeftEffective} day(s): ${remainingDays.join(",")}.
+THIS WEEK: ${freshWeekH}h logged. Remaining: ${freshWkRem}h across ${dLeftEffective} day(s): ${remainingDays.join(",")}.
 Today: ${getDayName()}${loggedToday?" (already logged — do not schedule today)":""}.
 
-PLAN VS ACTUAL SO FAR:
+PLAN VS ACTUAL:
 ${planVsActual}
 
-FOCUS RULES: Max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Fighter/philosophy book. Never Optional if Core genre unfinished. Only rotate if >85% done or 0 momentum 2+ weeks.
+FOCUS RULES: Max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Philosophy book. Never Optional if Core genre unfinished. Only rotate >85% or 0 momentum 2+ weeks.
 CURRENT FOCUS (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(",")}
 
 ACTIVE ITEMS:
 ${touchedAndFocus||"None."}
 
 NEXT UNTOUCHED CORE:
-${nextCore.split('\n').slice(0,4).join(' | ')}
+${nextCore.slice(0,300)}
 
-JSON only:
-{"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44}]}],"totalPlannedHours":${freshWkRem.toFixed(2)},"note":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+FULL CURRICULUM INDEX:
+${fullCurriculumIndex.slice(0,2000)}
+
+JSON:
+{"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44}]}],"totalPlannedHours":${exactTotal},"note":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
       const raw=await callAI(prompt,1500);
@@ -1505,9 +1689,10 @@ JSON only:
         return{...day,totalDayRealH:budget,
           items:scaleDayItems(day.items||[],budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
       });
+      // Final drift correction — enforce exact total
       const actualTotal=parseFloat(adaptDays.reduce((s,d)=>
         s+d.items.reduce((ss,it)=>ss+(it.realHours||0),0),0).toFixed(2));
-      const drift=parseFloat((freshWkRem-actualTotal).toFixed(2));
+      const drift=parseFloat((exactTotal-actualTotal).toFixed(2));
       if(Math.abs(drift)>=0.05&&adaptDays.length>0){
         const lastDay=adaptDays[adaptDays.length-1];
         const newDayH=parseFloat((lastDay.totalDayRealH+drift).toFixed(2));
@@ -1520,9 +1705,8 @@ JSON only:
       if(parsed.focusProposal){
         setAiResult(r=>({...(r||{}),focusProposal:parsed.focusProposal,quickNote:parsed.note}));
       } else {
-        toast_(`✓ Adapted — ${parsed.note||"plan updated"}`);
+        toast_(`Adapted — ${parsed.note||"plan updated"}`);
       }
-      setAdaptNote("");
     }catch(e){toast_(`Adapt failed: ${e.message?.slice(0,60)||"unknown"}`);}
     setAdaptLoading(false);
   };
@@ -1550,7 +1734,7 @@ JSON only:
     updateWeeklyHours(weekH);
     save(SK_SUNDAY_DONE,getTodayISO());
     setShowSundayReview(false);setSundayForm({stars:0,note:""});setSundaySubmitting(false);
-    toast_("✓ Week reviewed & summarized");
+    toast_("Week reviewed and summarized");
   };
 
   const markItemComplete = async(item) => {
@@ -1569,28 +1753,36 @@ JSON only:
     } else {
       setProgress(prev=>({...prev,[item.id]:{...prev[item.id],percentComplete:100}}));
     }
-    setMarkCompleteConfirm(null);toast_(`✓ ${item.name} complete`);
-    setTimeout(()=>runAdaptPlan(`${item.id} "${item.name}" marked complete. Swap it out and pull in next logical item.`),400);
+    setMarkCompleteConfirm(null);toast_(`${item.name} complete`);
+    setTimeout(()=>runAdaptPlan(),400);
   };
 
   const runBonusSuggestions = async() => {
     if(!navigator.onLine){toast_("Offline");return;}
     setBonusLoading(true);
-    const{touchedAndFocus,nextCore}=buildAIContext();
-    const prompt=`Learner hit ${WEEKLY_TARGET}h target. Suggest 1-2 bonus sessions. JSON only.
+    const{touchedAndFocus,nextCore,fullCurriculumIndex}=buildAIContext();
+    const prompt=`Learner hit their ${WEEKLY_TARGET}h weekly target. Suggest 1-2 bonus sessions for ONE extra study day. JSON only — no commentary.
 PROFILE: ${profile}
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books:1h=${settings.bookRatio}h real, max ${settings.bookMaxSession}h/session.
-FOCUS RULES: max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Fighter/philosophy book. No Optional if Core genre unfinished.
+FOCUS RULES: max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Philosophy book. No Optional if Core genre unfinished.
 CURRENT FOCUS: ${focusIds.join(",")}
-STATUS: ${touchedAndFocus||"None."}
-NEXT CORE: ${nextCore}
+ACTIVE: ${touchedAndFocus||"None."}
+NEXT CORE: ${nextCore.slice(0,300)}
+CURRICULUM INDEX (use only these IDs): ${fullCurriculumIndex.slice(0,1500)}
+Respond ONLY with valid JSON:
 {"items":[{"id":"A1","realHours":1.5,"contentHours":0.75}],"note":"one sentence"}`;
     try{
       const raw=await callAI(prompt,600);
-      const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
-      setBonusItems({items:parsed.items||[],note:parsed.note||"",generatedAt:new Date().toISOString()});
-    }catch(e){toast_("Couldn't generate bonus");}
+      const clean=raw.replace(/```json|```/g,"").trim();
+      const jsonMatch=clean.match(/\{[\s\S]*\}/);
+      if(!jsonMatch) throw new Error("No JSON found");
+      const parsed=JSON.parse(jsonMatch[0]);
+      if(!parsed.items||!Array.isArray(parsed.items)) throw new Error("Invalid structure");
+      // Validate IDs exist
+      const validItems=parsed.items.filter(it=>CURRICULUM.find(c=>c.id===it.id));
+      setBonusItems({items:validItems,note:parsed.note||"",generatedAt:new Date().toISOString()});
+    }catch(e){console.error("Bonus error:",e);toast_(`Couldn't generate bonus: ${e.message?.slice(0,40)||"unknown"}`);}
     setBonusLoading(false);
   };
 
@@ -1616,7 +1808,7 @@ NEXT CORE: ${nextCore}
     setConfirmLog(false);
     const mon=new Date(getMonday()),sun=new Date(mon);sun.setDate(mon.getDate()+6);
     const sd=new Date(dateStr);
-    toast_(`✓ ${realH}h logged · ${logging.name}${sd<mon||sd>sun?" (prev week)":""}`);
+    toast_(`${realH}h logged · ${logging.name}${sd<mon||sd>sun?" (prev week)":""}`);
   };
 
   const openEditSession=(itemId,idx)=>{
@@ -1656,7 +1848,7 @@ NEXT CORE: ${nextCore}
   const applyFocusProposal=proposal=>{
     setFocus({courses:proposal.courses,books:proposal.books,manual:false});
     setAiResult(r=>({...r,focusProposal:null}));
-    toast_("✓ Focus updated");
+    toast_("Focus updated");
   };
   const addCustomItem=()=>{
     const{name,hours,type,section,genre}=newItem;
@@ -1667,16 +1859,33 @@ NEXT CORE: ${nextCore}
     const id=`${prefix}${maxNum+1}`;
     setCustomItems(prev=>[...prev,{id,name:name.trim(),hours:parseFloat(hours),type,section,genre:genre.trim(),custom:true}]);
     setNewItem({name:"",hours:"",type:"course",section:"Core",genre:""});
-    toast_(`✓ Added ${id}: ${name}`);
+    toast_(`Added ${id}: ${name}`);
   };
   const removeCustomItem=id=>{setCustomItems(prev=>prev.filter(i=>i.id!==id));toast_("Item removed");};
+
+  const deleteItem = (item) => {
+    if(!window.confirm(`Remove "${item.name}" from curriculum? Progress data kept.`)) return;
+    if(item.custom){
+      removeCustomItem(item.id);
+    } else {
+      setHiddenIds(prev=>[...prev,item.id]);
+    }
+    // Remove from focus if present
+    setFocus(f=>({
+      ...f,
+      courses:(f.courses||[]).filter(id=>id!==item.id),
+      books:(f.books||[]).filter(id=>id!==item.id),
+    }));
+    toast_(`${item.id} removed from curriculum`);
+  };
+
   const doExport=()=>{
-    const data={progress,week,focus,reviews,profile,weekPlan,weeklyHours,customItems,settings};
+    const data={progress,week,focus,reviews,profile,weekPlan,weeklyHours,customItems,settings,hiddenIds};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;
     a.download=`the-preparation-${getTodayISO()}.json`;a.click();URL.revokeObjectURL(url);
-    localStorage.setItem("tp_last_export",String(Date.now()));toast_("✓ Exported");
+    localStorage.setItem("tp_last_export",String(Date.now()));toast_("Exported");
   };
   const doImport=()=>{
     const inp=document.createElement("input");inp.type="file";inp.accept=".json";
@@ -1695,7 +1904,8 @@ NEXT CORE: ${nextCore}
           if(d.weeklyHours) setWeeklyHours(d.weeklyHours);
           if(d.customItems) setCustomItems(d.customItems);
           if(d.settings) setSettings(d.settings);
-          toast_("✓ Imported");
+          if(d.hiddenIds) setHiddenIds(d.hiddenIds);
+          toast_("Imported");
         }catch{toast_("Import failed");}
       };
       reader.readAsText(file);
@@ -1705,21 +1915,25 @@ NEXT CORE: ${nextCore}
   const doClearAll=()=>{
     if(!window.confirm("Clear ALL data? Export first.")) return;
     if(!window.confirm("Are you sure? Cannot be undone.")) return;
-    [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export",SK_SETTINGS]
+    [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export",SK_SETTINGS,SK_NOTIFS,SK_HIDDEN]
       .forEach(k=>localStorage.removeItem(k));
     setProgress({});setWeek({weekStart:getMonday(),hoursLogged:0});
     setFocus({courses:["A1"],books:["B99","B34"]});setReviews([]);
     setProfile(DEFAULT_PROFILE);setWeekPlan(null);setWeeklyHours([]);
     setBonusItems([]);setOfflineQueue([]);setCustomItems([]);
-    setSettings(DEFAULT_SETTINGS);
-    toast_("✓ All data cleared");
+    setSettings(DEFAULT_SETTINGS);setHiddenIds([]);
+    toast_("All data cleared");
   };
 
-  // ── Derived render values ─────────────────────────────────────────────────
+  // ── Derived render values ──
   const totalItems  = CURRICULUM.length;
   const doneItems   = CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
+  const coreDoneItems = coreItems.filter(i=>getP(i.id).percentComplete>=100).length;
   const wksLeft     = Math.round(totalRealRemaining/WEEKLY_TARGET);
+  const coreWksLeft = Math.round(coreRealRemaining/WEEKLY_TARGET);
   const estDate     = new Date(Date.now()+wksLeft*7*24*60*60*1000)
+    .toLocaleDateString("en-CA",{year:"numeric",month:"short"});
+  const coreEstDate = new Date(Date.now()+coreWksLeft*7*24*60*60*1000)
     .toLocaleDateString("en-CA",{year:"numeric",month:"short"});
   const planIsFromThisWeek = weekPlan&&weekPlan.weekStart===getMonday();
   const today = todayItems();
@@ -1753,34 +1967,39 @@ NEXT CORE: ${nextCore}
   })();
   const chartMax=Math.max(WEEKLY_TARGET,Math.max(...chartWeeks.map(w=>w.h),1));
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Notification action handler ──
+  const handleNotifAction = (notif) => {
+    if(!notif.action) return;
+    const {type} = notif.action;
+    if(type==="viewWeek") { setView("week"); }
+    else if(type==="planWeek") { setView("ai"); }
+    else if(type==="sundayReview") { setShowSundayReview(true); }
+  };
+
+  // ── Render ──
   return(
     <>
       <style>{GLOBAL_CSS}</style>
       {splash&&<SplashScreen onDone={()=>setSplash(false)}/>}
 
-      {/* Root container — full height, safe areas, no overflow bleed */}
       <div style={{
-        background:T.bg,
-        minHeight:"100dvh",
-        color:T.text,
-        fontFamily:T.fontUI,
+        background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,
         paddingBottom:`calc(env(safe-area-inset-bottom) + 88px)`,
-        opacity:splash?0:1,
-        transition:"opacity 0.4s ease 0.1s",
-        WebkitFontSmoothing:"antialiased",
-        MozOsxFontSmoothing:"grayscale",
+        opacity:splash?0:1,transition:"opacity 0.4s ease 0.1s",
+        WebkitFontSmoothing:"antialiased",MozOsxFontSmoothing:"grayscale",
       }}>
-        {/* Safe area top spacer */}
         <div style={{height:"env(safe-area-inset-top)",background:T.surface0}}/>
 
+        {/* In-app notification banner */}
+        <NotifBanner banner={banner} onDismiss={dismissBanner} onAction={handleNotifAction}/>
+
         {toast&&<div style={{
-          position:"fixed",
-          top:`calc(env(safe-area-inset-top) + 12px)`,
-          left:"50%",transform:"translateX(-50%)",
-          background:T.green,color:"#000",padding:"10px 20px",borderRadius:99,fontWeight:700,
-          zIndex:500,fontSize:12,letterSpacing:0.3,boxShadow:`0 4px 24px ${T.green}50`,
-          whiteSpace:"nowrap",animation:"toastIn 0.25s ease both"}}>{toast}</div>}
+          position:"fixed",top:`calc(env(safe-area-inset-top) + 12px)`,left:"50%",
+          transform:"translateX(-50%)",background:T.green,color:"#000",padding:"10px 20px",
+          borderRadius:99,fontWeight:700,zIndex:500,fontSize:12,letterSpacing:0.3,
+          boxShadow:`0 4px 24px ${T.green}50`,whiteSpace:"nowrap",animation:"toastIn 0.25s ease both"}}>
+          {toast}
+        </div>}
 
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
@@ -1792,31 +2011,38 @@ NEXT CORE: ${nextCore}
           onSaveSettings={s=>{
             const clean={
               ...s,
-              weeklyTarget:Math.max(5,Math.min(60,parseInt(s.weeklyTarget)||20)),
-              courseRatio:Math.max(1,Math.min(4,parseFloat(s.courseRatio)||2)),
-              bookRatio:Math.max(0.5,Math.min(3,parseFloat(s.bookRatio)||1)),
-              courseMaxSession:Math.max(0.5,Math.min(6,parseFloat(s.courseMaxSession)||1.5)),
-              bookMaxSession:Math.max(0.5,Math.min(6,parseFloat(s.bookMaxSession)||2)),
+              weeklyTarget:Math.max(5,Math.min(45,parseInt(s.weeklyTarget)||20)),
+              courseRatio:[1,1.5,2,2.5,3].includes(parseFloat(s.courseRatio))?parseFloat(s.courseRatio):2,
+              bookRatio:[1,1.5,2,2.5,3].includes(parseFloat(s.bookRatio))?parseFloat(s.bookRatio):1,
+              courseMaxSession:Math.max(0.5,Math.min(5,Math.round((parseFloat(s.courseMaxSession)||1.5)*2)/2)),
+              bookMaxSession:Math.max(0.5,Math.min(5,Math.round((parseFloat(s.bookMaxSession)||2)*2)/2)),
             };
             setSettings(clean);
-            toast_("✓ Settings saved");
+            toast_("Settings saved");
           }}
         />
+
+        {notifOpen&&<NotifInbox
+          notifs={notifs} onMarkRead={markRead} onDismiss={dismissNotif}
+          onClearAll={clearNotifs} onAction={handleNotifAction}
+          onClose={()=>setNotifOpen(false)}
+        />}
 
         {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&!showSundayReview&&
           <button onClick={()=>setShowSundayReview(true)} className="btn-press"
             style={{position:"fixed",bottom:`calc(env(safe-area-inset-bottom) + 100px)`,right:16,
-              width:44,height:44,borderRadius:"50%",
-              background:`${T.yellow}20`,border:`1px solid ${T.yellow}50`,color:T.yellow,
-              fontSize:16,cursor:"pointer",zIndex:60,boxShadow:`0 4px 16px ${T.yellow}30`,
-              display:"flex",alignItems:"center",justifyContent:"center",animation:"fadeIn 0.3s ease both"}}>✍</button>}
+              width:44,height:44,borderRadius:"50%",background:`${T.yellow}20`,
+              border:`1px solid ${T.yellow}50`,color:T.yellow,fontSize:16,cursor:"pointer",
+              zIndex:60,boxShadow:`0 4px 16px ${T.yellow}30`,
+              display:"flex",alignItems:"center",justifyContent:"center",animation:"fadeIn 0.3s ease both"}}>
+            ✍
+          </button>}
 
         {(!isOnline||offlineQueue.length>0)&&<div style={{background:isOnline?"#1a1200":"#180808",
-          borderBottom:`1px solid ${isOnline?T.yellow:T.red}30`,
-          padding:"8px 16px",
+          borderBottom:`1px solid ${isOnline?T.yellow:T.red}30`,padding:"8px 16px",
           display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{fontSize:10,color:isOnline?T.yellow:T.red,fontWeight:700,letterSpacing:0.5}}>
-            {isOnline?`✓ Back online — ${offlineQueue.length} queued`:"Offline — AI features queued"}
+            {isOnline?`Back online — ${offlineQueue.length} queued`:"Offline — AI features queued"}
           </div>
           {isOnline&&offlineQueue.length>0&&<button onClick={processQueue} className="btn-press"
             style={{background:"none",border:`1px solid ${T.yellow}30`,color:T.yellow,
@@ -1828,7 +2054,7 @@ NEXT CORE: ${nextCore}
           padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
           animation:"fadeUp 0.25s ease both"}}>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>💾 Time to back up</div>
+            <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>Time to back up</div>
             <div style={{fontSize:10,color:T.textDim,marginTop:2}}>2+ weeks since last export</div>
           </div>
           <div style={{display:"flex",gap:6}}>
@@ -1846,7 +2072,7 @@ NEXT CORE: ${nextCore}
           animation:"fadeUp 0.25s ease both"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
-              🎯 {completionBanner.length} item{completionBanner.length>1?"s":""} completed
+              {completionBanner.length} item{completionBanner.length>1?"s":""} completed
             </div>
             <div style={{fontSize:10,color:"#2a5a2a",marginTop:2}}>
               {completionBanner.map(id=>CURRICULUM.find(i=>i.id===id)?.name||id).join(", ")}
@@ -1867,7 +2093,7 @@ NEXT CORE: ${nextCore}
           animation:"fadeUp 0.25s ease both"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>
-              🎓 {graduationProposal.completed.id} complete
+              {graduationProposal.completed.id} complete
             </div>
             <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
               Add {graduationProposal.next.id} "{graduationProposal.next.name}"?
@@ -1880,7 +2106,7 @@ NEXT CORE: ${nextCore}
             <button onClick={()=>{
               const key=graduationProposal.next.type==="course"?"courses":"books";
               setFocus(f=>({...f,[key]:[...(f[key]||[]).filter(id=>id!==graduationProposal.completed.id),graduationProposal.next.id],manual:false}));
-              setGraduationProposal(null);toast_(`✓ ${graduationProposal.next.id} added to focus`);
+              setGraduationProposal(null);toast_(`${graduationProposal.next.id} added to focus`);
             }} className="btn-press"
               style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
                 padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Add to Focus</button>
@@ -1891,25 +2117,23 @@ NEXT CORE: ${nextCore}
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
           animation:"fadeUp 0.25s ease both"}}>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>⚠ Missed session yesterday</div>
+            <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>Missed session yesterday</div>
             <div style={{fontSize:10,color:"#5a4a00",marginTop:2}}>Redistribute those hours?</div>
           </div>
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>setMissedDayBanner(false)} className="btn-press"
               style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
                 borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Skip</button>
-            <button onClick={()=>{setMissedDayBanner(false);runAdaptPlan("Missed yesterday — redistribute hours.");}} className="btn-press"
+            <button onClick={()=>{setMissedDayBanner(false);runAdaptPlan();}} className="btn-press"
               style={{background:T.yellow,border:"none",color:"#000",borderRadius:7,
-                padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Adapt →</button>
+                padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Adapt</button>
           </div>
         </div>}
 
         {/* ── Header ── */}
         <div style={{
-          background:T.surface0,
-          padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
-          borderBottom:`1px solid ${T.border}`,
-          position:"sticky",top:0,zIndex:50,
+          background:T.surface0,padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
+          borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
           boxShadow:"0 4px 24px rgba(0,0,0,0.6)",
         }}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
@@ -1927,19 +2151,35 @@ NEXT CORE: ${nextCore}
                 <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.5}}>Learning Tracker</div>
               </div>
             </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
-                color:weekH>=WEEKLY_TARGET?T.green:T.text,
-                textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none",
-                transition:"color 0.4s ease"}}>
-                {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
+            <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+              {/* Bell icon */}
+              <button onClick={()=>setNotifOpen(true)} className="btn-press"
+                style={{position:"relative",background:"none",border:`1px solid ${unreadCount>0?T.blue+"40":T.surface3}`,
+                  color:unreadCount>0?T.blue:T.textDim,borderRadius:10,
+                  padding:"6px 10px",fontSize:14,cursor:"pointer",marginTop:2,
+                  transition:"all 0.2s",minWidth:36,height:36,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <span style={{fontSize:14}}>🔔</span>
+                {unreadCount>0&&<div style={{position:"absolute",top:-4,right:-4,
+                  background:T.blue,color:"#000",borderRadius:"50%",
+                  width:16,height:16,fontSize:9,fontWeight:800,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  border:`2px solid ${T.surface0}`}}>{unreadCount>9?"9+":unreadCount}</div>}
+              </button>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
+                  color:weekH>=WEEKLY_TARGET?T.green:T.text,
+                  textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none",
+                  transition:"color 0.4s ease"}}>
+                  {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
+                </div>
+                <div style={{fontSize:9,color:T.textDim,marginTop:1}}>{getDayName()} · {dLeft}d left</div>
               </div>
-              <div style={{fontSize:9,color:T.textDim,marginTop:1}}>{getDayName()} · {dLeft}d left</div>
             </div>
           </div>
           <Bar pct={(weekH/WEEKLY_TARGET)*100} color={weekH>=WEEKLY_TARGET?T.green:T.blue} height={3} glow style={{marginBottom:4}}/>
           <div style={{fontSize:9,color:T.textDim,marginBottom:14,textAlign:"right",letterSpacing:0.3}}>
-            {weekH>=WEEKLY_TARGET?"✓ Target hit":`${(wkRem/Math.max(dLeft,1)).toFixed(1)}h/day to finish`}
+            {weekH>=WEEKLY_TARGET?"Target hit":`${(wkRem/Math.max(dLeft,1)).toFixed(1)}h/day to finish`}
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,flex:1,paddingRight:8}}>
@@ -1949,9 +2189,8 @@ NEXT CORE: ${nextCore}
             </div>
             <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
               style={{background:"none",border:`1px solid ${editFocus?T.blue+"40":T.surface3}`,
-                color:editFocus?T.blue:T.textDim,
-                borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer",letterSpacing:0.3,
-                flexShrink:0,transition:"all 0.2s"}}>
+                color:editFocus?T.blue:T.textDim,borderRadius:8,padding:"5px 12px",fontSize:11,
+                cursor:"pointer",letterSpacing:0.3,flexShrink:0,transition:"all 0.2s"}}>
               {editFocus?"Done":"Edit Focus"}
             </button>
           </div>
@@ -1984,7 +2223,7 @@ NEXT CORE: ${nextCore}
                     style={{background:on?`${c}15`:T.surface2,border:`1px solid ${on?c+"40":T.surface3}`,
                       color:on?c:T.textDim,borderRadius:20,padding:"4px 10px",fontSize:10,
                       cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>
-                    {i.id}{i.custom?" ✦":""}
+                    {i.id}{i.custom?" *":""}
                   </button>;
                 })}
               </div>
@@ -2003,22 +2242,22 @@ NEXT CORE: ${nextCore}
                 </div>
                 <div style={{fontSize:12,fontWeight:800,
                   color:todayLoggedH>=todayPlannedH?T.green:todayLoggedH>0?T.yellow:T.textMid}}>
-                  {todayLoggedH.toFixed(1)}h / {todayPlannedH.toFixed(1)}h
+                  {todayLoggedH.toFixed(2)}h / {todayPlannedH.toFixed(2)}h
                 </div>
               </div>
               <Bar pct={todayPlannedH>0?(todayLoggedH/todayPlannedH)*100:0}
                 color={todayLoggedH>=todayPlannedH?T.green:T.blue} height={5} glow/>
               <div style={{fontSize:10,color:T.textDim,marginTop:6,textAlign:"right"}}>
                 {todayLoggedH>=todayPlannedH
-                  ? "✓ Today's sessions complete"
+                  ? "Today's sessions complete"
                   : todayLoggedH>0
-                  ? `${todayRemainingH.toFixed(1)}h remaining today`
-                  : `${todayPlannedH.toFixed(1)}h planned today`}
+                  ? `${todayRemainingH.toFixed(2)}h remaining today`
+                  : `${todayPlannedH.toFixed(2)}h planned today`}
               </div>
             </Card>}
 
             <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-              {weekH>=WEEKLY_TARGET?"🎯 Target hit — bonus mode":planIsFromThisWeek?`Plan · ${getDayName()}`:"No plan yet — estimated"}
+              {weekH>=WEEKLY_TARGET?"Target hit — bonus mode":planIsFromThisWeek?`Plan · ${getDayName()}`:"No plan yet — estimated"}
             </div>
 
             {today.length===0&&weekH<WEEKLY_TARGET&&<Card style={{padding:20,textAlign:"center",marginBottom:10}}>
@@ -2026,7 +2265,7 @@ NEXT CORE: ${nextCore}
               <button onClick={()=>setView("ai")} className="btn-press"
                 style={{background:T.surface2,border:`1px solid ${T.blue}30`,color:T.blue,
                   borderRadius:10,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                Go to Check-In →</button>
+                Go to Check-In</button>
             </Card>}
 
             {today.map((item,idx)=>{
@@ -2043,8 +2282,8 @@ NEXT CORE: ${nextCore}
                   <div style={{flex:1,paddingRight:10}}>
                     <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
                       {item.type==="course"?"Course":"Book"}
-                      {sessionDoneToday&&!isComplete&&<span style={{marginLeft:8,color:T.blue}}>· {loggedTodayH}h logged</span>}
-                      {isComplete&&<span style={{marginLeft:8,color:T.green}}>· ✓ Complete</span>}
+                      {sessionDoneToday&&!isComplete&&<span style={{marginLeft:8,color:T.blue}}>· {loggedTodayH.toFixed(2)}h logged</span>}
+                      {isComplete&&<span style={{marginLeft:8,color:T.green}}>· Complete</span>}
                     </div>
                     <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
                     <div style={{marginTop:7}}><Pill color={isComplete?T.green:c} label={item.genre||item.id}/></div>
@@ -2055,7 +2294,7 @@ NEXT CORE: ${nextCore}
                       :<div>
                         <div style={{fontSize:22,fontWeight:900,
                           color:remainingH<item.allocRealH?T.yellow:T.blue,transition:"color 0.3s"}}>
-                          {remainingH}h
+                          {remainingH.toFixed(2)}h
                         </div>
                         <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{sessionDoneToday?"remaining":"real study"}</div>
                       </div>}
@@ -2082,7 +2321,7 @@ NEXT CORE: ${nextCore}
                 {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)} className="btn-press"
                   style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
                     color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                  ✓ Mark Complete &amp; Adapt
+                  Mark Complete &amp; Adapt
                 </button>}
               </Card>;
             })}
@@ -2091,7 +2330,7 @@ NEXT CORE: ${nextCore}
               animation:"fadeUp 0.2s ease both"}}>
               <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>Bonus Mode</div>
               <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
-                {weekH.toFixed(1)}h logged — target hit.
+                {weekH.toFixed(2)}h logged — target hit.
               </div>
               {bonusItems?.items?.length>0&&<div>
                 {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic"}}>{bonusItems.note}</div>}
@@ -2118,7 +2357,7 @@ NEXT CORE: ${nextCore}
                 style={{width:"100%",background:T.surface2,border:`1px solid ${T.green}20`,
                   color:bonusLoading?T.textDim:T.green,borderRadius:10,padding:"10px 0",
                   fontSize:12,fontWeight:700,cursor:"pointer",transition:"color 0.2s"}}>
-                {bonusLoading?"Thinking…":"⚡ Suggest Bonus Sessions"}
+                {bonusLoading?"Thinking…":"Suggest Bonus Sessions"}
               </button>}
             </Card>}
           </div>}
@@ -2126,10 +2365,11 @@ NEXT CORE: ${nextCore}
           {/* ══ WEEK ══ */}
           {view==="week"&&<div className="tab-content">
             <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-              {planIsFromThisWeek?"This week's plan":"Active focus"} · {weekH.toFixed(1)}h logged
-              {weekH>=WEEKLY_TARGET&&<span style={{color:T.green,fontWeight:700}}> · 🎯 Target hit</span>}
+              {planIsFromThisWeek?"This week's plan":"Active focus"} · {weekH.toFixed(2)}h logged
+              {weekH>=WEEKLY_TARGET&&<span style={{color:T.green,fontWeight:700}}> · Target hit</span>}
             </div>
 
+            {/* Projected finish — only show in-progress items */}
             {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).length>0&&
             <Card style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
@@ -2145,7 +2385,7 @@ NEXT CORE: ${nextCore}
                   alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.surface2}`}}>
                   <div>
                     <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name.slice(0,32)}{item.name.length>32?"…":""}</div>
-                    <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{realLeft.toFixed(1)}h real left · {getP(item.id).percentComplete}%</div>
+                    <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{realLeft.toFixed(2)}h real left · {getP(item.id).percentComplete}%</div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
                     {finishDate&&<div style={{fontSize:12,fontWeight:800,color:c}}>{finishDate}</div>}
@@ -2155,13 +2395,33 @@ NEXT CORE: ${nextCore}
               })}
             </Card>}
 
+            {/* Bonus day in week tab — only if target hit */}
+            {weekH>=WEEKLY_TARGET&&bonusItems?.items?.length>0&&<Card style={{
+              padding:"13px 14px",marginBottom:12,border:`1px solid ${T.green}20`}}>
+              <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:8}}>Bonus Day</div>
+              {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic"}}>{bonusItems.note}</div>}
+              {bonusItems.items.map(it=>{
+                const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
+                const c=gc(item.genre);
+                return <div key={it.id} style={{background:T.surface0,borderRadius:10,
+                  padding:"8px 12px",marginBottom:6,borderLeft:`2px solid ${c}`}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8}}>{item.name}</div>
+                    <div style={{fontSize:13,fontWeight:800,color:T.blue}}>{it.realHours}h</div>
+                  </div>
+                  <div style={{fontSize:9,color:T.textDim,marginTop:3}}>{item.genre} · {item.type}</div>
+                </div>;
+              })}
+            </Card>}
+
+            {/* Week schedule — only show remaining/past days, not future if target hit */}
             {planIsFromThisWeek&&weekPlan.days&&<Card style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>
                   {weekH>=WEEKLY_TARGET?"Week Plan (Complete)":"Week Schedule"}
                 </div>
                 <div style={{fontSize:13,fontWeight:900,color:weekH>=WEEKLY_TARGET?T.green:T.textMid}}>
-                  {weekH.toFixed(1)}h
+                  {weekH.toFixed(2)}h
                 </div>
               </div>
               {weekPlan.days.map(day=>{
@@ -2169,6 +2429,7 @@ NEXT CORE: ${nextCore}
                 const dayIdx=ALL_DAYS.indexOf(day.day);
                 const todayIdx=getDayIdx();
                 const isPast=dayIdx<todayIdx,isFuture=dayIdx>todayIdx;
+                // Hide future days if week target is hit
                 if(weekH>=WEEKLY_TARGET&&isFuture) return null;
                 const dayActualH=parseFloat((day.items||[]).reduce((s,it)=>s+(it.realHours||0),0).toFixed(2));
                 const dayDate=new Date(getMonday()+"T12:00:00");
@@ -2186,8 +2447,8 @@ NEXT CORE: ${nextCore}
                     <div style={{fontSize:10,
                       color:isPast?(dayLoggedH===0?T.red:hitRate>=0.85?T.green:T.yellow):T.textDim}}>
                       {isPast||isToday
-                        ? `${dayLoggedH.toFixed(1)}h logged of ${dayActualH.toFixed(1)}h`
-                        : `${dayActualH.toFixed(1)}h planned`}
+                        ? `${dayLoggedH.toFixed(2)}h logged of ${dayActualH.toFixed(2)}h`
+                        : `${dayActualH.toFixed(2)}h planned`}
                     </div>
                   </div>
                   {day.items?.map(it=>{
@@ -2211,7 +2472,7 @@ NEXT CORE: ${nextCore}
                         </div>
                         <div style={{flexShrink:0,textAlign:"right"}}>
                           {!isComplete&&<div style={{fontSize:13,fontWeight:800,color:wasLogged?T.yellow:T.blue}}>
-                            {wasLogged?`${remainingH}h`:it.realHours+"h"}
+                            {wasLogged?`${remainingH.toFixed(2)}h`:it.realHours.toFixed(2)+"h"}
                           </div>}
                           {isComplete&&<div style={{fontSize:11,color:T.green,fontWeight:700}}>✓</div>}
                         </div>
@@ -2241,7 +2502,7 @@ NEXT CORE: ${nextCore}
                     </div>
                     <div style={{fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
                     <div style={{fontSize:9,color:T.textDim,marginTop:2}}>
-                      {item.id} · {(p.courseHoursComplete||0).toFixed(2)}h/{item.hours}h · {realLeft.toFixed(1)}h real left
+                      {item.id} · {(p.courseHoursComplete||0).toFixed(2)}h/{item.hours}h · {realLeft.toFixed(2)}h real left
                     </div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
@@ -2270,14 +2531,14 @@ NEXT CORE: ${nextCore}
               style={{width:"100%",background:`${T.yellow}10`,border:`1px solid ${T.yellow}30`,
                 color:T.yellow,borderRadius:10,padding:13,fontSize:13,fontWeight:800,
                 cursor:"pointer",marginBottom:12,letterSpacing:0.3}}>
-              ✍ Write This Week's Review
+              Write This Week's Review
             </button>}
 
             {planIsFromThisWeek&&<div style={{background:T.surface1,borderRadius:12,padding:"10px 14px",
               marginBottom:12,border:`1px solid ${T.green}20`,animation:"fadeUp 0.2s ease both",
               display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
-                <div style={{fontSize:10,fontWeight:700,color:T.green,letterSpacing:0.5}}>✓ Week plan active</div>
+                <div style={{fontSize:10,fontWeight:700,color:T.green,letterSpacing:0.5}}>Week plan active</div>
                 <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
                   {new Date(weekPlan.generatedAt).toLocaleDateString()} · {weekPlan.totalPlannedHours}h
                   {weekPlan.lastAdapted?` · Adapted ${new Date(weekPlan.lastAdapted).toLocaleDateString()}`:""}
@@ -2289,7 +2550,7 @@ NEXT CORE: ${nextCore}
               <label style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",
                 fontWeight:700,display:"block",marginBottom:7}}>Guidance for AI (optional)</label>
               <textarea value={planGuidance} onChange={e=>setPlanGuidance(e.target.value)}
-                placeholder="e.g. focus more on books this week, skip geology, I want to push harder on A1..."
+                placeholder="e.g. focus more on books this week, I want roman history, push harder on A1..."
                 style={{...inputSt,fontSize:12,resize:"none",height:56,lineHeight:1.5,padding:"10px 12px"}}/>
             </div>
 
@@ -2299,28 +2560,21 @@ NEXT CORE: ${nextCore}
                 color:aiLoading?T.textDim:T.blue,borderRadius:10,padding:13,fontSize:14,
                 fontWeight:800,cursor:aiLoading?"default":"pointer",marginBottom:12,
                 letterSpacing:0.3,transition:"all 0.2s"}}>
-              {aiLoading?"Thinking…":planIsFromThisWeek?"↺ Replan Week":"📅 Plan Week"}
+              {aiLoading?"Thinking…":planIsFromThisWeek?"Replan Week":"Plan Week"}
             </button>
 
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
-                Adapt Plan
-              </div>
-              <textarea value={adaptNote} onChange={e=>setAdaptNote(e.target.value)}
-                placeholder="finished A1 early, took Wednesday off, feeling behind..."
-                style={{...inputSt,fontSize:12,resize:"none",height:56,lineHeight:1.5,marginBottom:8}}/>
-              <button onClick={()=>runAdaptPlan(adaptNote)} disabled={adaptLoading||!planIsFromThisWeek} className="btn-press"
-                style={{width:"100%",background:adaptLoading?T.surface1:T.surface2,
-                  border:`1px solid ${adaptLoading||!planIsFromThisWeek?T.surface3:T.orange+"40"}`,
-                  color:adaptLoading?T.textDim:!planIsFromThisWeek?T.textDim:T.orange,
-                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,
-                  cursor:adaptLoading||!planIsFromThisWeek?"default":"pointer",transition:"all 0.2s"}}>
-                {adaptLoading?"Adapting…":"⚡ Adapt Remaining Week"}
-              </button>
-              {!planIsFromThisWeek&&<div style={{fontSize:10,color:T.textDim,marginTop:6,textAlign:"center"}}>
-                Plan your week first, then adapt as needed
-              </div>}
-            </div>
+            <button onClick={()=>runAdaptPlan()} disabled={adaptLoading||!planIsFromThisWeek} className="btn-press"
+              style={{width:"100%",background:adaptLoading?T.surface1:T.surface2,
+                border:`1px solid ${adaptLoading||!planIsFromThisWeek?T.surface3:T.orange+"40"}`,
+                color:adaptLoading?T.textDim:!planIsFromThisWeek?T.textDim:T.orange,
+                borderRadius:10,padding:12,fontSize:13,fontWeight:800,marginBottom:4,
+                cursor:adaptLoading||!planIsFromThisWeek?"default":"pointer",transition:"all 0.2s"}}>
+              {adaptLoading?"Adapting…":"Adapt Remaining Week"}
+            </button>
+            {!planIsFromThisWeek&&<div style={{fontSize:10,color:T.textDim,marginBottom:16,textAlign:"center"}}>
+              Plan your week first, then adapt as needed
+            </div>}
+            {planIsFromThisWeek&&<div style={{marginBottom:16}}/>}
 
             {aiResult&&<div style={{animation:"fadeUp 0.2s ease both"}}>
               {[["assessment",T.blue,"Assessment"],["insight",T.pink,"Insight"],["nextMilestone",T.green,"Next Milestone"]]
@@ -2348,7 +2602,7 @@ NEXT CORE: ${nextCore}
                         <div style={{flex:1}}>
                           <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name}</div>
                           <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
-                            {item.genre} · {p.percentComplete}% · {realHoursRemaining(item,p,settings).toFixed(1)}h real left
+                            {item.genre} · {p.percentComplete}% · {realHoursRemaining(item,p,settings).toFixed(2)}h real left
                           </div>
                         </div>
                         {!current&&<span style={{fontSize:9,color:T.green,fontWeight:700}}>NEW</span>}
@@ -2365,7 +2619,7 @@ NEXT CORE: ${nextCore}
                   <button onClick={()=>applyFocusProposal(aiResult.focusProposal)} className="btn-press"
                     style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
                       borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
-                    Apply New Focus ✓</button>
+                    Apply New Focus</button>
                 </div>
               </Card>}
             </div>}
@@ -2434,20 +2688,37 @@ NEXT CORE: ${nextCore}
                   {totalSpentRealH.toFixed(1)}<span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
                 </div>
               </div>
+
+              {/* Core completion bar */}
+              <div style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textDim,marginBottom:5}}>
+                  <span style={{fontWeight:600,color:T.blue}}>Core</span>
+                  <span style={{color:T.textMid,fontWeight:600}}>{coreDoneItems} of {coreItems.length}</span>
+                </div>
+                <Bar pct={(coreDoneItems/Math.max(coreItems.length,1))*100} color={T.blue} height={5} glow/>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5,paddingBottom:10,borderBottom:`1px solid ${T.surface3}`}}>
+                  <span style={{color:T.textDim}}>Est. Core at {WEEKLY_TARGET}h/week</span>
+                  <span style={{color:T.blue,fontWeight:700}}>{coreEstDate}</span>
+                </div>
+              </div>
+
+              {/* Total completion bar */}
               <div style={{marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.textDim,marginBottom:5}}>
-                  <span>Items completed</span><span style={{color:T.textMid,fontWeight:600}}>{doneItems} of {totalItems}</span>
+                  <span style={{fontWeight:600}}>Total</span>
+                  <span style={{color:T.textMid,fontWeight:600}}>{doneItems} of {totalItems}</span>
                 </div>
                 <Bar pct={(doneItems/totalItems)*100} color={T.green} height={5} glow/>
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11,paddingTop:10,borderTop:`1px solid ${T.surface2}`}}>
-                <span style={{color:T.textDim}}>Est. completion at {WEEKLY_TARGET}h/week</span>
-                <span style={{color:T.yellow,fontWeight:700}}>{estDate}</span>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:6,paddingTop:10,borderTop:`1px solid ${T.surface2}`}}>
+                  <span style={{color:T.textDim}}>Est. completion at {WEEKLY_TARGET}h/week</span>
+                  <span style={{color:T.yellow,fontWeight:700}}>{estDate}</span>
+                </div>
               </div>
             </Card>
             {SECTIONS.map(sec=>(
               <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP}
                 setLogging={setLogging} settings={settings}
+                onDelete={deleteItem}
                 onReset={item=>{
                   if(!window.confirm(`Reset "${item.name}" to 0%?`)) return;
                   setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});
@@ -2471,7 +2742,7 @@ NEXT CORE: ${nextCore}
           }}>
             <div style={{fontSize:17,fontWeight:800,letterSpacing:-0.3,marginBottom:4}}>Week Review</div>
             <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>
-              {weekH.toFixed(1)}h logged · AI will summarize &amp; store for future plans
+              {weekH.toFixed(2)}h logged · AI will summarize and store for future plans
             </div>
             <div style={{marginBottom:20}}>
               <div style={{fontSize:11,color:T.textMid,marginBottom:10,fontWeight:600}}>How was this week?</div>
@@ -2493,7 +2764,7 @@ NEXT CORE: ${nextCore}
                 style={{flex:2,background:"#1a1200",border:`1px solid ${T.yellow}30`,
                   color:sundaySubmitting?T.textDim:T.yellow,
                   borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
-                {sundaySubmitting?"Summarizing…":"Save &amp; Summarize ✓"}</button>
+                {sundaySubmitting?"Summarizing…":"Save & Summarize"}</button>
             </div>
           </div>
         </div>}
@@ -2521,7 +2792,7 @@ NEXT CORE: ${nextCore}
               <button onClick={()=>markItemComplete(markCompleteConfirm)} className="btn-press"
                 style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
                   borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
-                Complete &amp; Adapt ✓</button>
+                Complete & Adapt</button>
             </div>
           </div>
         </div>}
@@ -2568,7 +2839,7 @@ NEXT CORE: ${nextCore}
                     color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Cancel</button>
                 <button onClick={saveEditSession} className="btn-press"
                   style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                    borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>Save ✓</button>
+                    borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>Save</button>
               </div>
             </div>
           </div>;
@@ -2594,10 +2865,10 @@ NEXT CORE: ${nextCore}
             }}>
               <div style={{fontSize:16,fontWeight:800,marginBottom:3}}>{logging.name}</div>
               <div style={{fontSize:11,color:T.textDim,marginBottom:4}}>
-                {logging.id} · {logging.type==="course"?`Course (1h content = ${settings.courseRatio}h real)`:"Book (1:1)"}
+                {logging.id} · {logging.type==="course"?`Course (1h content = ${settings.courseRatio}h real)`:"Book (1:1 ratio)"}
               </div>
               <div style={{fontSize:11,color:T.textDim,marginBottom:16}}>
-                {contentDone.toFixed(2)}h / {logging.hours}h · {p.percentComplete}% · {contentLeft.toFixed(2)}h left
+                {contentDone.toFixed(2)}h / {logging.hours}h · {p.percentComplete}% · {contentLeft.toFixed(2)}h content left
               </div>
               {confirmLog?(
                 <div style={{animation:"fadeUp 0.18s ease both"}}>
@@ -2618,7 +2889,7 @@ NEXT CORE: ${nextCore}
                         color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Edit</button>
                     <button onClick={()=>submitLog()} className="btn-press"
                       style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Confirm ✓</button>
+                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Confirm</button>
                   </div>
                 </div>
               ):(
@@ -2634,13 +2905,13 @@ NEXT CORE: ${nextCore}
                       const sd=new Date(logForm.date),mon=new Date(getMonday());
                       const sun=new Date(mon);sun.setDate(mon.getDate()+6);
                       return sd<mon||sd>sun?<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
-                        ⚠ Previous week — won't count toward this week's {WEEKLY_TARGET}h
+                        Previous week — won't count toward this week's {WEEKLY_TARGET}h
                       </div>:null;
                     })()}
                   </div>
                   <div style={{marginBottom:14}}>
                     <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
-                      Real study hours {`(max ${maxRealPerSession(logging,settings)}h/session)`}
+                      Real study hours (max {maxRealPerSession(logging,settings)}h/session)
                     </label>
                     <input type="number" min="0.25" max={maxRealPerSession(logging,settings)} step="0.25"
                       value={logForm.hours}
@@ -2670,7 +2941,7 @@ NEXT CORE: ${nextCore}
                       style={{...inputSt,border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":T.surface3}`}}
                       placeholder={realH>0?`Standard: ${realToContent(logging,realH,settings).toFixed(3)}h`:"Enter real hours first"}/>
                     {logForm._contentManuallySet&&logForm.courseHours&&logForm.hours&&<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
-                      ⚡ Custom ratio — {logForm.hours}h real → {logForm.courseHours}h content
+                      Custom ratio — {logForm.hours}h real → {logForm.courseHours}h content
                       {(()=>{const ch=parseFloat(logForm.courseHours),tot=logging.hours||1;
                         return ` → ${p.percentComplete}% → ${Math.round((Math.min((p.courseHoursComplete||0)+ch,tot)/tot)*100)}%`;})()}
                     </div>}
@@ -2686,7 +2957,7 @@ NEXT CORE: ${nextCore}
                         color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Cancel</button>
                     <button onClick={()=>submitLog()} className="btn-press"
                       style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Review →</button>
+                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Review</button>
                   </div>
                 </div>
               )}
