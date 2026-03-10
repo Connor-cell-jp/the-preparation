@@ -480,16 +480,16 @@ const GLOBAL_CSS = `
     to { opacity:0; }
   }
   @keyframes fadeUp {
-    from { opacity:0; transform:translateY(10px); }
+    from { opacity:0; transform:translateY(14px); }
     to   { opacity:1; transform:translateY(0); }
   }
   @keyframes fadeIn {
     from { opacity:0; }
     to   { opacity:1; }
   }
-  @keyframes slideInRight {
-    from { transform:translateX(100%); opacity:0; }
-    to   { transform:translateX(0);    opacity:1; }
+  @keyframes slideInLeft {
+    from { transform:translateX(-100%); opacity:0; }
+    to   { transform:translateX(0);     opacity:1; }
   }
   @keyframes slideInUp {
     from { transform:translateY(100%); opacity:0; }
@@ -499,9 +499,9 @@ const GLOBAL_CSS = `
     from { opacity:0; transform:translateX(-50%) translateY(-8px) scale(0.95); }
     to   { opacity:1; transform:translateX(-50%) translateY(0)    scale(1); }
   }
-  .btn-press { transition: transform 0.12s ease, opacity 0.12s ease; }
-  .btn-press:active { transform: scale(0.96); opacity:0.85; }
-  .tab-content { animation: fadeUp 0.22s ease both; }
+  .btn-press { transition: transform 0.15s ease, opacity 0.15s ease; }
+  .btn-press:active { transform: scale(0.97); opacity:0.88; }
+  .tab-content { animation: fadeUp 0.32s ease both; }
   input, textarea { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
   input:focus, textarea:focus { border-color: #60a5fa60 !important; box-shadow: 0 0 0 3px #60a5fa12; outline:none; }
 `;
@@ -780,13 +780,13 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
       }}/>
       {/* Panel */}
       <div style={{
-        position:"fixed",top:0,right:0,bottom:0,width:"min(88vw,360px)",
+        position:"fixed",top:0,left:0,bottom:0,width:"min(88vw,360px)",
         background:T.surface0,zIndex:201,
-        borderLeft:`1px solid ${T.border}`,
-        boxShadow:"-8px 0 40px rgba(0,0,0,0.7)",
+        borderRight:`1px solid ${T.border}`,
+        boxShadow:"8px 0 40px rgba(0,0,0,0.7)",
         display:"flex",flexDirection:"column",
-        transform:open?"translateX(0)":"translateX(100%)",
-        transition:"transform 0.3s cubic-bezier(0.4,0,0.2,1)",
+        transform:open?"translateX(0)":"translateX(-100%)",
+        transition:"transform 0.35s cubic-bezier(0.4,0,0.2,1)",
         overflowY:"auto",
       }}>
         {/* Panel header */}
@@ -814,13 +814,22 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
         </div>
 
         <div style={{flex:1,overflowY:"auto",padding:"16px 18px 40px"}}>
-          {section==="settings"&&<div style={{animation:"fadeUp 0.2s ease both"}}>
-            {/* Profile */}
-            <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Learning Profile</div>
-            <Card style={{padding:"13px 14px",marginBottom:20}}>
+          {section==="settings"&&<div style={{animation:"fadeUp 0.28s ease both"}}>
+            {/* Learning Profile — top of settings, most prominent */}
+            <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
+              🧠 Learning Profile
+            </div>
+            <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
+              <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:10}}>
+                The AI reads this every time it plans, adapts, or makes any decision. Write freely — your goals, pace, what subjects excite you, constraints, where you are in life, what you want upcoming weeks to prioritize.
+              </div>
               <textarea value={profile} onChange={e=>setProfile(e.target.value)}
-                style={{...inputSt,fontSize:11,height:160,resize:"none",lineHeight:1.6}}/>
+                style={{...inputSt,fontSize:12,height:200,resize:"none",lineHeight:1.6}}
+                placeholder={`Example:\nI'm 18, self-directed learner in Kamloops BC. I want to finish Core curriculum before touching Optional. Biology and History excite me most right now. I study best in the mornings, 1-1.5h sessions. Some weeks I only have 15h due to work. Prioritize books that build mental models alongside technical courses. I want to eventually understand markets, law, and how civilizations rise and fall.`}/>
             </Card>
+            <div style={{fontSize:10,color:T.textDim,marginBottom:20,lineHeight:1.5,paddingLeft:2}}>
+              Changes take effect on the next plan or adapt.
+            </div>
 
             {/* Data */}
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
@@ -1369,7 +1378,7 @@ JSON only — no "focus" on items:
     let summary=sundayForm.note||"";
     if(sundayForm.note.trim()&&navigator.onLine){
       try{
-        const sumPrompt=`Summarize this learner's weekly review in 2-3 concise sentences for future AI context. Keep key facts: hours, what went well, what didn't, energy/mood signals. Raw review: "${sundayForm.note}" | Hours: ${weekH.toFixed(1)}h | Stars: ${sundayForm.stars}/5 | Completed: ${completedThisWeek.join(",")||"none"}. Respond with only the summary, no preamble.`;
+        const sumPrompt=`You are summarizing a learner's weekly review for future AI planning context. Keep it 2-3 sentences, factual, and useful for scheduling decisions. Learner profile: "${profile.slice(0,300)}". Raw review: "${sundayForm.note}" | Hours: ${weekH.toFixed(1)}h | Stars: ${sundayForm.stars}/5 | Completed: ${completedThisWeek.join(",")||"none"}. Respond with only the summary, no preamble.`;
         summary=await callAI(sumPrompt,200);
       }catch(e){summary=sundayForm.note;}
     }
@@ -1412,6 +1421,7 @@ JSON only — no "focus" on items:
     setBonusLoading(true);
     const{touchedAndFocus,nextCore}=buildAIContext();
     const prompt=`Learner hit 20h target. Suggest 1-2 bonus sessions. JSON only.
+PROFILE: ${profile}
 COURSES:1h content=2h real.Max 1.5h/session. BOOKS:1h=1h.Max 2h/session.
 STATUS:${touchedAndFocus||"None."} NEXT CORE:${nextCore}
 {"items":[{"id":"A1","realHours":1.5,"contentHours":0.75}],"note":"one sentence"}`;
