@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#141414" />
+    <link rel="manifest" href="/assets/manifest-Ca7uHJLT.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <title>The Preparation</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; background: #1a1a1a; }
+      body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+      #root { min-height: 100%; background: #141414; }
+      /* Overscroll color layers */
+      body::before, body::after {
+        content: "";
+        position: fixed;
+        left: 0; right: 0;
+        height: 50vh;
+        z-index: -1;
+      }
+      body::before { top: 0;    background: #1a1a1a; }
+      body::after  { bottom: 0; background: #141414; }
+      input[type=number]::-webkit-inner-spin-button,
+      input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+      input, textarea, button { font-family: inherit; }
+      @keyframes slideUp {
+        from { transform: translateY(100%); opacity: 0; }
+        to   { transform: translateY(0);    opacity: 1; }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes tickUp {
+        from { transform: translateY(8px); opacity: 0; }
+        to   { transform: translateY(0);   opacity: 1; }
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0.5; }
+      }
+      .slide-up  { animation: slideUp 0.32s cubic-bezier(0.32,0.72,0,1) both; }
+      .fade-in   { animation: fadeIn 0.22s ease both; }
+      .tick-up   { animation: tickUp 0.18s ease both; }
+      .btn-press:active { transform: scale(0.97); transition: transform 0.08s; }
+    </style>
+    <script type="module" crossorigin src="/assets/index-DXCRryY1.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-TP1Ier6M.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

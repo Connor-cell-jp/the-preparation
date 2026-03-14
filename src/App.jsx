@@ -768,13 +768,13 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
               {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
               {isDone&&<button onClick={()=>onReset(item)} className="btn-press"
                 style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
-                  borderRadius:7,padding:"3px 8px",fontSize:9,cursor:"pointer",fontWeight:600}}>Reset</button>}
+                  borderRadius:8,padding:"7px 12px",fontSize:10,cursor:"pointer",fontWeight:600,minHeight:36}}>Reset</button>}
               {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
                 style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
-                  borderRadius:7,padding:"3px 9px",fontSize:10,cursor:"pointer",fontWeight:600}}>Log</button>}
+                  borderRadius:8,padding:"7px 14px",fontSize:11,cursor:"pointer",fontWeight:700,minHeight:36}}>Log</button>}
               <button onClick={()=>onDelete(item)} className="btn-press"
                 style={{background:"none",border:`1px solid ${T.red}15`,color:T.red,
-                  borderRadius:7,padding:"3px 7px",fontSize:9,cursor:"pointer",fontWeight:600,opacity:0.6}}>✕</button>
+                  borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:0.6,minHeight:36}}>✕</button>
             </div>
           </div>;
         })}
@@ -1285,7 +1285,6 @@ export default function App(){
   const [confirmLog, setConfirmLog]             = useState(false);
   const [toast, setToast]                       = useState(null);
   const [aiLoading, setAiLoading]               = useState(false);
-  const [adaptLoading, setAdaptLoading]         = useState(false);
   const [planGuidance, setPlanGuidance]         = useState("");
   const [aiResult, setAiResult]                 = useState(null);
   const [editFocus, setEditFocus]               = useState(false);
@@ -1403,7 +1402,7 @@ export default function App(){
         const item=CURRICULUM.find(i=>i.id===id);
         if(item) push(
           `${item.id} Complete`,
-          `"${item.name}" finished. Plan has been adapted.`,
+          `"${item.name}" finished.`,
           {label:"Check-In",type:"viewCheckin"}
         );
         if(!item||item.section!=="Core") return;
@@ -1527,7 +1526,6 @@ export default function App(){
     for(const item of q){
       try{
         if(item.type==="plan") await runPlanWeek(false);
-        else if(item.type==="adapt") await runAdaptPlan();
         dequeue(item.id);setOfflineQueue(loadQueue());toast_("Queued plan synced");
       }catch(e){break;}
     }
@@ -1632,98 +1630,6 @@ JSON format:
     setAiLoading(false);
   };
 
-  const runAdaptPlan = async() => {
-    if(!navigator.onLine){enqueue("adapt",{});setOfflineQueue(loadQueue());toast_("Offline — adapt queued");return;}
-    setAdaptLoading(true);
-    const{planVsActual,touchedAndFocus,nextCore,velocityTrend,courseIndex,bookIndex}=buildAIContext();
-    const todayStr=new Date().toLocaleDateString();
-    const loggedToday=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr));
-    const effectiveDayIdx=loggedToday?getDayIdx()+1:getDayIdx();
-    const remainingDays=ALL_DAYS.slice(effectiveDayIdx).filter(d=>ACTIVE_DAYS.includes(d));
-    const dLeftEffective=remainingDays.length;
-    const freshWeekH=reconcileWeekHours(progress);
-    const freshWkRem=parseFloat(Math.max(0,WEEKLY_TARGET-freshWeekH).toFixed(2));
-    if(dLeftEffective===0||freshWkRem===0){toast_("Week complete");setAdaptLoading(false);return;}
-    const dayBudgets=distributeDays(freshWkRem,remainingDays);
-    const exactTotal=parseFloat(dayBudgets.reduce((s,h)=>s+h,0).toFixed(2));
-
-    // List of completed item IDs to explicitly exclude
-    const completedIds=CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.id);
-
-    const prompt=`Learning coach. Adapt remaining week plan. JSON only — no commentary.
-STRICT HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books:1h=${settings.bookRatio}h real, max ${settings.bookMaxSession}h/session.
-Grand total MUST equal exactly ${exactTotal}h. Day budgets: ${remainingDays.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
-Vary genres — never same genre twice in one day.
-ONLY use IDs from COURSE INDEX or BOOK INDEX. Never invent IDs.
-COMPLETED ITEMS — NEVER schedule these: ${completedIds.join(",")||"none"}
-
-LEARNER PROFILE:
-${profile}
-
-JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
-VELOCITY: ${velocityTrend}.
-
-THIS WEEK: ${freshWeekH}h logged. Remaining: ${freshWkRem}h across ${dLeftEffective} day(s): ${remainingDays.join(",")}.
-Today: ${getDayName()}${loggedToday?" (already logged — do not schedule today)":""}.
-
-PLAN VS ACTUAL:
-${planVsActual}
-
-FOCUS CAPS: Max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Philosophy book. Never Optional if Core genre unfinished. Only rotate >85% or 0 momentum 2+ weeks.
-CURRENT FOCUS (${focus.manual?"MANUAL":"AI"}): ${focusIds.join(",")}
-
-ACTIVE ITEMS:
-${touchedAndFocus||"None."}
-
-NEXT UNTOUCHED CORE:
-${nextCore.slice(0,300)}
-
-COURSE INDEX:
-${courseIndex.slice(0,1500)}
-
-BOOK INDEX (search by title/genre to match any guidance):
-${bookIndex.slice(0,2000)}
-
-JSON:
-{"days":[{"day":"Tue","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":44}]}],"totalPlannedHours":${exactTotal},"note":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
-
-    try{
-      const raw=await callAI(prompt,1500);
-      const jsonMatch=raw.match(/\{[\s\S]*\}/);
-      if(!jsonMatch) throw new Error("No JSON");
-      const parsed=JSON.parse(jsonMatch[0]);
-      let adaptDays=(parsed.days||[]).map((day,i)=>{
-        const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(freshWkRem/dLeftEffective);
-        // Strip completed items before scaling
-        const filteredItems=(day.items||[]).filter(it=>{
-          const p=getP(it.id);
-          return CURRICULUM.find(c=>c.id===it.id)&&(p.percentComplete||0)<100;
-        });
-        return{...day,totalDayRealH:budget,
-          items:scaleDayItems(filteredItems,budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
-      });
-      // Final drift correction
-      const actualTotal=parseFloat(adaptDays.reduce((s,d)=>
-        s+d.items.reduce((ss,it)=>ss+(it.realHours||0),0),0).toFixed(2));
-      const drift=parseFloat((exactTotal-actualTotal).toFixed(2));
-      if(Math.abs(drift)>=0.05&&adaptDays.length>0){
-        const lastDay=adaptDays[adaptDays.length-1];
-        const newDayH=parseFloat((lastDay.totalDayRealH+drift).toFixed(2));
-        adaptDays[adaptDays.length-1]={...lastDay,totalDayRealH:newDayH,
-          items:scaleDayItems(lastDay.items,newDayH,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
-      }
-      const keptDays=(weekPlan?.days||[]).filter(d=>!remainingDays.includes(d.day));
-      setWeekPlan({...weekPlan,days:[...keptDays,...adaptDays],
-        totalPlannedHours:WEEKLY_TARGET,lastAdapted:new Date().toISOString()});
-      if(parsed.focusProposal){
-        setAiResult(r=>({...(r||{}),focusProposal:parsed.focusProposal,quickNote:parsed.note}));
-      } else {
-        toast_(`Adapted — ${parsed.note||"plan updated"}`);
-      }
-    }catch(e){toast_(`Adapt failed: ${e.message?.slice(0,60)||"unknown"}`);}
-    setAdaptLoading(false);
-  };
-
   const saveSundayReview = async() => {
     if(!sundayForm.stars){toast_("Pick a star rating first");return;}
     setSundaySubmitting(true);
@@ -1773,7 +1679,6 @@ JSON:
       books:(f.books||[]).filter(id=>id!==item.id),
     }));
     setMarkCompleteConfirm(null);toast_(`${item.name} complete`);
-    setTimeout(()=>runAdaptPlan(),400);
   };
 
   const runBonusSuggestions = async() => {
@@ -1992,7 +1897,6 @@ Respond ONLY with valid JSON:
     else if(type==="planWeek") { setView("ai"); setSideOpen(false); }
     else if(type==="viewCheckin") { setView("ai"); setSideOpen(false); }
     else if(type==="sundayReview") { setShowSundayReview(true); setSideOpen(false); }
-    else if(type==="adaptPlan") { runAdaptPlan(); setSideOpen(false); }
     else if(type==="graduation"&&payload) {
       const {next,completed} = payload;
       const key = next.type==="course"?"courses":"books";
@@ -2143,24 +2047,16 @@ Respond ONLY with valid JSON:
         {missedDayBanner&&<div style={{background:"#1a1200",borderBottom:`1px solid #3a2a00`,
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
           animation:"fadeUp 0.25s ease both"}}>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>Missed session yesterday</div>
-            <div style={{fontSize:10,color:"#5a4a00",marginTop:2}}>Redistribute those hours?</div>
-          </div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>setMissedDayBanner(false)} className="btn-press"
-              style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-                borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Skip</button>
-            <button onClick={()=>{setMissedDayBanner(false);runAdaptPlan();}} className="btn-press"
-              style={{background:T.yellow,border:"none",color:"#000",borderRadius:7,
-                padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Adapt</button>
-          </div>
+          <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>Missed session yesterday</div>
+          <button onClick={()=>setMissedDayBanner(false)} className="btn-press"
+            style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
+              borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Dismiss</button>
         </div>}
 
         {/* ── Header ── */}
         <div style={{
           background:T.surface0,
-          padding:`calc(env(safe-area-inset-top) + 16px) 16px 0`,
+          padding:`calc(env(safe-area-inset-top) + 16px) 16px 12px`,
           borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
           boxShadow:"0 4px 24px rgba(0,0,0,0.6)",
         }}>
@@ -2228,17 +2124,6 @@ Respond ONLY with valid JSON:
               {editFocus?"Done":"Edit Focus"}
             </button>
           </div>
-          <div style={{display:"flex"}}>
-            {[["today","Today"],["week","Week"],["ai","Check-In"],["arc","Year Arc"]].map(([k,l])=>(
-              <button key={k} onClick={()=>setView(k)} className="btn-press"
-                style={{flex:1,padding:"10px 2px",background:"none",border:"none",
-                  borderBottom:view===k?`2px solid ${T.blue}`:"2px solid transparent",
-                  color:view===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
-                  textTransform:"uppercase",letterSpacing:1,transition:"color 0.2s, border-color 0.2s"}}>
-                {l}
-              </button>
-            ))}
-          </div>
         </div>
 
         {editFocus&&<div style={{background:T.surface0,padding:"14px 16px",borderBottom:`1px solid ${T.border}`,
@@ -2255,8 +2140,8 @@ Respond ONLY with valid JSON:
                   return <button key={i.id} className="btn-press"
                     onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
                     style={{background:on?`${c}15`:T.surface2,border:`1px solid ${on?c+"40":T.surface3}`,
-                      color:on?c:T.textDim,borderRadius:20,padding:"4px 10px",fontSize:10,
-                      cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>
+                      color:on?c:T.textDim,borderRadius:20,padding:"8px 14px",fontSize:11,
+                      cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:36}}>
                     {i.id}{i.custom?" *":""}
                   </button>;
                 })}
@@ -2372,7 +2257,7 @@ Respond ONLY with valid JSON:
                   {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)} className="btn-press"
                     style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
                       color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
-                    Mark Complete &amp; Adapt
+                    Mark Complete
                   </button>}
                 </Card>;
               })}
@@ -2559,7 +2444,7 @@ Respond ONLY with valid JSON:
                     </div>
                     <button onClick={()=>setLogging(item)} className="btn-press"
                       style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
-                        borderRadius:8,padding:"7px 12px",fontSize:11,cursor:"pointer",fontWeight:700}}>Log</button>
+                        borderRadius:8,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>
                   </div>
                 </div>
                 <Bar pct={p.percentComplete} color={c} glow/>
@@ -2571,7 +2456,7 @@ Respond ONLY with valid JSON:
           {/* ══ CHECK-IN ══ */}
           {view==="ai"&&<div className="tab-content">
             <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-              Plan Monday · Adapt anytime · Review Sunday
+              Plan Monday · Review Sunday
             </div>
 
             {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&
@@ -2589,7 +2474,6 @@ Respond ONLY with valid JSON:
                 <div style={{fontSize:10,fontWeight:700,color:T.green,letterSpacing:0.5}}>Week plan active</div>
                 <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
                   {new Date(weekPlan.generatedAt).toLocaleDateString()} · {weekPlan.totalPlannedHours}h
-                  {weekPlan.lastAdapted?` · Adapted ${new Date(weekPlan.lastAdapted).toLocaleDateString()}`:""}
                 </div>
               </div>
             </div>}
@@ -2614,18 +2498,7 @@ Respond ONLY with valid JSON:
               {aiLoading?"Thinking…":planIsFromThisWeek?"Replan Week":"Plan Week"}
             </button>
 
-            <button onClick={()=>runAdaptPlan()} disabled={adaptLoading||!planIsFromThisWeek} className="btn-press"
-              style={{width:"100%",background:adaptLoading?T.surface1:T.surface2,
-                border:`1px solid ${adaptLoading||!planIsFromThisWeek?T.surface3:T.orange+"40"}`,
-                color:adaptLoading?T.textDim:!planIsFromThisWeek?T.textDim:T.orange,
-                borderRadius:10,padding:12,fontSize:13,fontWeight:800,marginBottom:4,
-                cursor:adaptLoading||!planIsFromThisWeek?"default":"pointer",transition:"all 0.2s"}}>
-              {adaptLoading?"Adapting…":"Adapt Remaining Week"}
-            </button>
-            {!planIsFromThisWeek&&<div style={{fontSize:10,color:T.textDim,marginBottom:16,textAlign:"center"}}>
-              Plan your week first, then adapt as needed
-            </div>}
-            {planIsFromThisWeek&&<div style={{marginBottom:16}}/>}
+            <div style={{marginBottom:16}}/>
 
             {aiResult&&<div style={{animation:"fadeUp 0.2s ease both"}}>
               {[["assessment",T.blue,"Assessment"],["insight",T.pink,"Insight"],["nextMilestone",T.green,"Next Milestone"]]
@@ -2633,10 +2506,6 @@ Respond ONLY with valid JSON:
                   <div style={{fontSize:9,color:c,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7,fontWeight:700}}>{label}</div>
                   <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult[k]}</div>
                 </Card>)}
-              {aiResult.quickNote&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.orange}20`}}>
-                <div style={{fontSize:9,color:T.orange,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7,fontWeight:700}}>Adapt Note</div>
-                <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult.quickNote}</div>
-              </Card>}
               {aiResult.focusProposal&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.pink}20`}}>
                 <div style={{fontSize:9,color:T.pink,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12,fontWeight:700}}>
                   Proposed Focus Update
@@ -2830,7 +2699,7 @@ Respond ONLY with valid JSON:
             <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>Mark Complete?</div>
             <div style={{fontSize:12,color:T.textMid,marginBottom:6}}>{markCompleteConfirm.name}</div>
             <div style={{fontSize:11,color:T.textDim,marginBottom:20,lineHeight:1.5}}>
-              Logs remaining hours, marks 100%, removes from focus, and adapts the plan.
+              Logs remaining hours, marks 100%, and removes from focus.
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setMarkCompleteConfirm(null)} className="btn-press"
@@ -2839,7 +2708,7 @@ Respond ONLY with valid JSON:
               <button onClick={()=>markItemComplete(markCompleteConfirm)} className="btn-press"
                 style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
                   borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
-                Complete & Adapt</button>
+                Mark Complete</button>
             </div>
           </div>
         </div>}
@@ -2914,9 +2783,21 @@ Respond ONLY with valid JSON:
               <div style={{fontSize:11,color:T.textDim,marginBottom:4}}>
                 {logging.id} · {logging.type==="course"?`Course (1h content = ${settings.courseRatio}h real)`:"Book (1:1 ratio)"}
               </div>
-              <div style={{fontSize:11,color:T.textDim,marginBottom:16}}>
+              <div style={{fontSize:11,color:T.textDim,marginBottom:12}}>
                 {contentDone.toFixed(2)}h / {logging.hours}h · {p.percentComplete}% · {contentLeft.toFixed(2)}h content left
               </div>
+              {!confirmLog&&<div style={{marginBottom:16}}>
+                <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>Quick Log</div>
+                <div style={{display:"flex",gap:6}}>
+                  {[0.5,1,1.5,2].filter(h=>h<=maxRealPerSession(logging,settings)).map(h=>(
+                    <button key={h} onClick={()=>submitLog(h,realToContent(logging,h,settings))} className="btn-press"
+                      style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                        color:T.blue,borderRadius:10,padding:"12px 0",
+                        fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                      {h}h</button>
+                  ))}
+                </div>
+              </div>}
               {confirmLog?(
                 <div style={{animation:"fadeUp 0.18s ease both"}}>
                   <div style={{background:T.surface0,borderRadius:12,padding:14,marginBottom:16,border:`1px solid ${T.surface3}`}}>
@@ -3011,6 +2892,39 @@ Respond ONLY with valid JSON:
             </div>
           </div>;
         })()}
+      </div>
+
+      {/* ── Bottom Navigation ── */}
+      <div style={{
+        position:"fixed",bottom:0,left:0,right:0,zIndex:50,
+        background:T.surface0,borderTop:`1px solid ${T.border}`,
+        boxShadow:"0 -4px 24px rgba(0,0,0,0.5)",
+        display:"flex",paddingBottom:"env(safe-area-inset-bottom)",
+      }}>
+        {[
+          ["today","Today","☀"],
+          ["week","Week","▦"],
+          ["ai","Check-In","✦"],
+          ["arc","Arc","△"],
+        ].map(([k,label,icon])=>(
+          <button key={k} onClick={()=>setView(k)} className="btn-press"
+            style={{
+              flex:1,padding:"10px 4px 8px",background:"none",border:"none",
+              cursor:"pointer",display:"flex",flexDirection:"column",
+              alignItems:"center",gap:4,color:view===k?T.blue:T.textDim,
+              transition:"color 0.2s",minHeight:56,position:"relative",
+            }}>
+            {view===k&&<div style={{
+              position:"absolute",top:0,left:"20%",right:"20%",
+              height:2,background:T.blue,borderRadius:"0 0 3px 3px",
+            }}/>}
+            <span style={{fontSize:18,lineHeight:1,opacity:view===k?1:0.6}}>{icon}</span>
+            <span style={{
+              fontSize:10,fontWeight:view===k?800:500,
+              letterSpacing:0.8,textTransform:"uppercase",
+            }}>{label}</span>
+          </button>
+        ))}
       </div>
     </>
   );
