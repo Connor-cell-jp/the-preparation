@@ -433,15 +433,16 @@ const gc = g => {
 const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k))??d; } catch { return d; } };
 const save = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} };
 
+function toLocalISO(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dd}`; }
 function getMonday() {
   const d=new Date(),day=d.getDay(),diff=day===0?-6:1-day;
   d.setDate(d.getDate()+diff);d.setHours(0,0,0,0);
-  return d.toISOString().split('T')[0];
+  return toLocalISO(d);
 }
 function getDayIdx(){ const d=new Date().getDay(); return d===0?6:d-1; }
 function getDayName(){ return ALL_DAYS[getDayIdx()]; }
-function getTodayISO(){ return new Date().toISOString().split('T')[0]; }
-function getWeekISO(){ return new Date().toISOString().split('T')[0].slice(0,7); }
+function getTodayISO(){ return toLocalISO(new Date()); }
+function getWeekISO(){ const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function isSunday(){ return new Date().getDay()===0; }
 function isMonday(){ return new Date().getDay()===1; }
 
@@ -1569,6 +1570,8 @@ STRICT HOUR RULES:
 - Courses: 1h content = ${settings.courseRatio}h real. Max ${settings.courseMaxSession}h real/session.
 - Books: session length is FIXED by mode — passage=0.5h, slow=1h, normal=1.5h, fast=2h. Never deviate.
 - Passage books: always schedule every active study day; exempt from book cap.
+- HARD RULE — Passage books are capped at exactly 0.5h per session, NO EXCEPTIONS. Never schedule a passage book for more than 0.5h under any circumstance, including to hit the weekly hour target.
+- HARD RULE — If the remaining days cannot absorb the full hour target without violating mode caps, the plan MUST run short. The weekly target is a goal, not a requirement. Mode session lengths are non-negotiable.
 - targetPct = floor((contentDone + contentGain) / totalContent × 100)
 - ONLY use item IDs that exist in the COURSE INDEX or BOOK INDEX below. Never invent IDs.
 
@@ -1634,7 +1637,7 @@ JSON format:
 {"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":10}]}],"insight":"1 sentence","assessment":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
 
     try{
-      const raw=await callAI(prompt,2000);
+      const raw=await callAI(prompt,2000,"claude-sonnet-4-20250514");
       const jsonMatch=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim().match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON");
       const parsed=JSON.parse(jsonMatch[0]);
@@ -1679,7 +1682,7 @@ JSON format:
     if(sundayForm.note.trim()&&navigator.onLine){
       try{
         const sumPrompt=`Summarize this learner's weekly review in 2-3 sentences for future AI planning. Learner profile: "${profile.slice(0,300)}". Raw review: "${sundayForm.note}" | Hours: ${weekH.toFixed(1)}h | Stars: ${sundayForm.stars}/5 | Completed: ${completedThisWeek.join(",")||"none"}. Only the summary, no preamble.`;
-        summary=await callAI(sumPrompt,200);
+        summary=await callAI(sumPrompt,200,"claude-sonnet-4-20250514");
       }catch(e){summary=sundayForm.note;}
     }
     const entry={weekStart:getMonday(),date:new Date().toLocaleDateString(),
