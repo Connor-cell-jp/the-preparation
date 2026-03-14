@@ -6,8 +6,15 @@ const contentToReal = (item, contentH, s) =>
   item.type === "course" ? contentH * (s?.courseRatio ?? 2) : contentH * (s?.bookRatio ?? 1);
 const realToContent = (item, realH, s) =>
   item.type === "course" ? realH / (s?.courseRatio ?? 2) : realH / (s?.bookRatio ?? 1);
-const maxRealPerSession = (item, s) =>
-  item.type === "course" ? (s?.courseMaxSession ?? 1.5) : (s?.bookMaxSession ?? 2.0);
+const maxRealPerSession = (item, s) => {
+  if (item.type === "book" && item.mode) {
+    if (item.mode === "passage") return 0.5;
+    if (item.mode === "slow")    return 1.0;
+    if (item.mode === "normal")  return 1.5;
+    if (item.mode === "fast")    return 2.0;
+  }
+  return item.type === "course" ? (s?.courseMaxSession ?? 1.5) : (s?.bookMaxSession ?? 2.0);
+};
 const realHoursRemaining = (item, p, s) => {
   const contentLeft = Math.max(0, (item.hours || 0) - (p.courseHoursComplete || 0));
   return contentToReal(item, contentLeft, s);
@@ -21,11 +28,16 @@ const targetPctAfterSession = (item, p, sessionRealH, s) => {
 const distributeDays = (totalH, dayNames) => {
   const n = dayNames.length;
   if (n === 0) return [];
-  const base = snap25(totalH / n);
-  const budgets = Array(n).fill(base);
+  if (n === 1) return [snap25(totalH)];
+  // Front-load: earlier days get slightly more using a gentle linear taper
+  // weights decrease from n down to 1 so day 0 is heaviest
+  const totalWeight = (n * (n + 1)) / 2;
+  const raw = dayNames.map((_, i) => ((n - i) / totalWeight) * totalH);
+  const budgets = raw.map(h => snap25(h));
   const sum = parseFloat(budgets.reduce((s, h) => s + h, 0).toFixed(2));
   const diff = parseFloat((totalH - sum).toFixed(2));
-  if (Math.abs(diff) >= 0.25) budgets[n - 1] = snap25(budgets[n - 1] + diff);
+  // Apply rounding correction to first day (front-load bias)
+  if (Math.abs(diff) >= 0.25) budgets[0] = Math.max(0.25, snap25(budgets[0] + diff));
   return budgets;
 };
 const scaleDayItems = (items, dayBudget, getCurrItem, getP, s) => {
@@ -214,190 +226,190 @@ const BASE_CURRICULUM = [
 {id:"A158",name:"Freelancers Course",hours:5,type:"course",section:"Optional",genre:"Entrepreneur"},
 {id:"A159",name:"How to Turn Your Passion into Profit",hours:11,type:"course",section:"Optional",genre:"Entrepreneur"},
 {id:"A160",name:"Critical Business Skills for Success",hours:30,type:"course",section:"Optional",genre:"Entrepreneur"},
-{id:"B1",name:"Discovering the German New Medicine",hours:10,type:"book",section:"Core",genre:"Biology"},
-{id:"B2",name:"Caveman Chemistry",hours:50,type:"book",section:"Core",genre:"Chemistry"},
-{id:"B3",name:"Stick and Rudder",hours:15,type:"book",section:"Core",genre:"Pilot"},
-{id:"B4",name:"Mental Math for Pilots",hours:5,type:"book",section:"Core",genre:"Pilot"},
-{id:"B5",name:"Blood and Thunder",hours:15,type:"book",section:"Core",genre:"American History"},
-{id:"B6",name:"Education of a Wandering Man",hours:5,type:"book",section:"Core",genre:"Literature"},
-{id:"B7",name:"Empire of the Summer Moon",hours:14,type:"book",section:"Core",genre:"American History"},
-{id:"B8",name:"The Sackett Series",hours:44,type:"book",section:"Core",genre:"American History"},
-{id:"B9",name:"Virtue of Selfishness",hours:4,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B10",name:"Modern Man in Search of a Soul",hours:9,type:"book",section:"Core",genre:"Psychology"},
-{id:"B11",name:"The Iliad",hours:9,type:"book",section:"Core",genre:"Literature"},
-{id:"B12",name:"Only Yesterday",hours:10,type:"book",section:"Core",genre:"American History"},
-{id:"B13",name:"The Law",hours:2,type:"book",section:"Core",genre:"Economics"},
-{id:"B14",name:"Greek Art",hours:7,type:"book",section:"Core",genre:"Art"},
-{id:"B15",name:"Roman Art",hours:6,type:"book",section:"Core",genre:"Art"},
-{id:"B16",name:"The Republic",hours:3,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B17",name:"Gorgias",hours:2,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B18",name:"Trial and Death of Socrates",hours:3,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B19",name:"Way of the Superior Man",hours:5,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B20",name:"The Count of Monte Cristo",hours:30,type:"book",section:"Core",genre:"Literature"},
-{id:"B21",name:"Adventures of Huckleberry Finn",hours:9,type:"book",section:"Core",genre:"Literature"},
-{id:"B22",name:"Underland: A Deep Time Journey",hours:14,type:"book",section:"Core",genre:"Geology"},
-{id:"B23",name:"Poke The Box",hours:2,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B24",name:"Atlas Shrugged",hours:29,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B25",name:"On Writing",hours:6,type:"book",section:"Core",genre:"Literature"},
-{id:"B26",name:"The Creature from Jekyll Island",hours:10,type:"book",section:"Core",genre:"Investing"},
-{id:"B27",name:"Consider This",hours:8,type:"book",section:"Core",genre:"Literature"},
-{id:"B28",name:"The Elements of Style",hours:2,type:"book",section:"Core",genre:"Literature"},
-{id:"B29",name:"Thank You for Arguing",hours:6,type:"book",section:"Core",genre:"Law"},
-{id:"B30",name:"Zen and the Art of Motorcycle Maintenance",hours:12,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B31",name:"The True Believer",hours:4,type:"book",section:"Core",genre:"Psychology"},
-{id:"B32",name:"Gulliver's Travels",hours:6,type:"book",section:"Core",genre:"Literature"},
-{id:"B33",name:"The Prize",hours:23,type:"book",section:"Core",genre:"World History"},
-{id:"B34",name:"Meditations",hours:6,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B35",name:"The Art of War",hours:1,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B36",name:"Bobby Fischer Teaches Chess",hours:3,type:"book",section:"Core",genre:"Science"},
-{id:"B37",name:"A War Like No Other",hours:9,type:"book",section:"Core",genre:"World History"},
-{id:"B38",name:"Beowulf",hours:4,type:"book",section:"Core",genre:"Literature"},
-{id:"B39",name:"Book of Five Rings",hours:2,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B40",name:"The Guns of August",hours:13,type:"book",section:"Core",genre:"World History"},
-{id:"B41",name:"The Moon is a Harsh Mistress",hours:10,type:"book",section:"Core",genre:"Literature"},
-{id:"B42",name:"Endurance",hours:7,type:"book",section:"Core",genre:"Nature"},
-{id:"B43",name:"Brave New World",hours:7,type:"book",section:"Core",genre:"Literature"},
-{id:"B44",name:"The Odyssey",hours:6,type:"book",section:"Core",genre:"Literature"},
-{id:"B45",name:"The Travels of Marco Polo",hours:7,type:"book",section:"Core",genre:"World History"},
-{id:"B46",name:"1493",hours:11,type:"book",section:"Core",genre:"World History"},
-{id:"B47",name:"The Last Place on Earth",hours:12.5,type:"book",section:"Core",genre:"Nature"},
-{id:"B48",name:"Cosmos",hours:6.5,type:"book",section:"Core",genre:"Astronomy"},
-{id:"B49",name:"The Revenant",hours:8,type:"book",section:"Core",genre:"American History"},
-{id:"B50",name:"Undaunted Courage",hours:11.5,type:"book",section:"Core",genre:"American History"},
-{id:"B51",name:"One Man's Wilderness",hours:8,type:"book",section:"Core",genre:"Nature"},
-{id:"B52",name:"Man's Search for Meaning",hours:4,type:"book",section:"Core",genre:"Psychology"},
-{id:"B53",name:"Touching the Void",hours:6,type:"book",section:"Core",genre:"Nature"},
-{id:"B54",name:"1984",hours:8,type:"book",section:"Core",genre:"Literature"},
-{id:"B55",name:"Animal Farm",hours:3,type:"book",section:"Core",genre:"Literature"},
-{id:"B56",name:"1177 B.C.",hours:7,type:"book",section:"Core",genre:"World History"},
-{id:"B57",name:"Man, Cattle and Veld",hours:10,type:"book",section:"Core",genre:"Nature"},
-{id:"B58",name:"The Ascent of Money",hours:11,type:"book",section:"Core",genre:"Investing"},
-{id:"B59",name:"How to Draw and Think like a Real Artist",hours:30,type:"book",section:"Core",genre:"Art"},
-{id:"B60",name:"Logic: A Very Short Introduction",hours:2.5,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B61",name:"The Art of Thinking Clearly",hours:7,type:"book",section:"Core",genre:"Psychology"},
-{id:"B62",name:"The Reluctant Entrepreneur",hours:5,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B63",name:"The Lean Startup",hours:6,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B64",name:"The Million-Dollar One-Person Business",hours:5,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B65",name:"Ready, Fire, Aim",hours:7,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B66",name:"The 1-Page Marketing Plan",hours:4,type:"book",section:"Core",genre:"Marketing"},
-{id:"B67",name:"The Boron Letters",hours:4,type:"book",section:"Core",genre:"Sales"},
-{id:"B68",name:"Influence",hours:8,type:"book",section:"Core",genre:"Psychology"},
-{id:"B69",name:"Think and Grow Rich",hours:6,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B70",name:"Great Leads",hours:4,type:"book",section:"Core",genre:"Sales"},
-{id:"B71",name:"How to Win Friends and Influence People",hours:7,type:"book",section:"Core",genre:"Psychology"},
-{id:"B72",name:"PreSuasion",hours:10,type:"book",section:"Core",genre:"Psychology"},
-{id:"B73",name:"Never Split the Difference",hours:9,type:"book",section:"Core",genre:"Law"},
-{id:"B74",name:"Good Strategy/Bad Strategy",hours:6,type:"book",section:"Core",genre:"Entrepreneur"},
-{id:"B75",name:"Economics in One Lesson",hours:6,type:"book",section:"Core",genre:"Economics"},
-{id:"B76",name:"The Intelligent Investor",hours:13,type:"book",section:"Core",genre:"Investing"},
-{id:"B77",name:"The Most Important Thing",hours:6,type:"book",section:"Core",genre:"Investing"},
-{id:"B78",name:"Market Wizards",hours:9,type:"book",section:"Core",genre:"Investing"},
-{id:"B79",name:"When Money Dies",hours:8,type:"book",section:"Core",genre:"Investing"},
-{id:"B80",name:"Lords of Finance",hours:14,type:"book",section:"Core",genre:"Investing"},
-{id:"B81",name:"When Genius Failed",hours:8,type:"book",section:"Core",genre:"Investing"},
-{id:"B82",name:"Manias, Panics & Crashes",hours:12,type:"book",section:"Core",genre:"Investing"},
-{id:"B83",name:"Common Stocks & Uncommon Profits",hours:8,type:"book",section:"Core",genre:"Investing"},
-{id:"B84",name:"The World for Sale",hours:9,type:"book",section:"Core",genre:"Investing"},
-{id:"B85",name:"A Random Walk Down Wall Street",hours:13,type:"book",section:"Core",genre:"Investing"},
-{id:"B86",name:"Against the Gods",hours:9,type:"book",section:"Core",genre:"Investing"},
-{id:"B87",name:"You Can Be a Stock Market Genius",hours:7,type:"book",section:"Core",genre:"Investing"},
-{id:"B88",name:"Reminiscences of a Stock Operator",hours:9,type:"book",section:"Core",genre:"Investing"},
-{id:"B89",name:"Berkshire Letters to Shareholders",hours:16,type:"book",section:"Core",genre:"Investing"},
-{id:"B90",name:"The Great Crash 1929",hours:6,type:"book",section:"Core",genre:"Investing"},
-{id:"B91",name:"The Lords of Easy Money",hours:10,type:"book",section:"Core",genre:"Investing"},
-{id:"B92",name:"This Time Is Different",hours:13,type:"book",section:"Core",genre:"Investing"},
-{id:"B93",name:"Devil Take the Hindmost",hours:12,type:"book",section:"Core",genre:"Investing"},
-{id:"B94",name:"The Dao of Capital",hours:7,type:"book",section:"Core",genre:"Investing"},
-{id:"B95",name:"Antifragile",hours:12,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B96",name:"Don't Make Me Think",hours:3.5,type:"book",section:"Core",genre:"Tinker"},
-{id:"B97",name:"The Three Body Problem",hours:10,type:"book",section:"Core",genre:"Literature"},
-{id:"B98",name:"Foundation Trilogy",hours:17,type:"book",section:"Core",genre:"Literature"},
-{id:"B99",name:"The War of Art",hours:4,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B100",name:"Nicomachean Ethics",hours:6,type:"book",section:"Core",genre:"Philosophy"},
-{id:"B101",name:"Scientific Revolution",hours:4,type:"book",section:"Core",genre:"Science"},
-{id:"B102",name:"The Diamond Age",hours:13,type:"book",section:"Core",genre:"Literature"},
-{id:"B103",name:"The Martian",hours:10,type:"book",section:"Core",genre:"Literature"},
-{id:"B104",name:"The Divine Comedy",hours:9,type:"book",section:"Optional",genre:"Literature"},
-{id:"B105",name:"Blood Meridian",hours:13,type:"book",section:"Optional",genre:"Literature"},
-{id:"B106",name:"The Lord of the Rings",hours:40,type:"book",section:"Optional",genre:"Literature"},
-{id:"B107",name:"Stranger in a Strange Land",hours:13,type:"book",section:"Optional",genre:"Literature"},
-{id:"B108",name:"The Jungle",hours:13,type:"book",section:"Optional",genre:"Literature"},
-{id:"B109",name:"The Old Man and the Sea",hours:2,type:"book",section:"Optional",genre:"Literature"},
-{id:"B110",name:"The Fountainhead",hours:28,type:"book",section:"Optional",genre:"Philosophy"},
-{id:"B111",name:"Decline & Fall of the Roman Empire Vol 1",hours:17,type:"book",section:"Optional",genre:"World History"},
-{id:"B112",name:"The Canterbury Tales",hours:9,type:"book",section:"Optional",genre:"Literature"},
-{id:"B113",name:"War and Peace",hours:48,type:"book",section:"Optional",genre:"Literature"},
-{id:"B114",name:"Don Quixote",hours:33,type:"book",section:"Optional",genre:"Literature"},
-{id:"B115",name:"Glory Road",hours:8,type:"book",section:"Optional",genre:"Literature"},
-{id:"B116",name:"Novum Organum",hours:3,type:"book",section:"Optional",genre:"Philosophy"},
-{id:"B117",name:"The Time Machine",hours:3,type:"book",section:"Optional",genre:"Literature"},
-{id:"B118",name:"Hitchhiker's Guide to the Galaxy",hours:4,type:"book",section:"Optional",genre:"Literature"},
-{id:"B119",name:"Dragon's Egg",hours:8,type:"book",section:"Optional",genre:"Literature"},
-{id:"B120",name:"Moby Dick",hours:18,type:"book",section:"Optional",genre:"Literature"},
-{id:"B121",name:"Slaughterhouse Five",hours:5,type:"book",section:"Optional",genre:"Literature"},
-{id:"B122",name:"One Second After",hours:9,type:"book",section:"Optional",genre:"Literature"},
-{id:"B123",name:"Lonesome Dove",hours:24,type:"book",section:"Optional",genre:"American History"},
-{id:"B124",name:"In the Heart of the Sea",hours:8,type:"book",section:"Optional",genre:"Nature"},
-{id:"B125",name:"For Whom The Bell Tolls",hours:11,type:"book",section:"Optional",genre:"Literature"},
-{id:"B126",name:"The Portable Greek Historians",hours:9,type:"book",section:"Optional",genre:"World History"},
-{id:"B127",name:"The Enlightenment",hours:4,type:"book",section:"Optional",genre:"World History"},
-{id:"B128",name:"Confessions",hours:8,type:"book",section:"Optional",genre:"Philosophy"},
-{id:"B129",name:"Before France & Germany",hours:8,type:"book",section:"Optional",genre:"World History"},
-{id:"B130",name:"The Carolingians",hours:8,type:"book",section:"Optional",genre:"World History"},
-{id:"B131",name:"Magna Carta",hours:7,type:"book",section:"Optional",genre:"Law"},
-{id:"B132",name:"Heart of Europe",hours:17,type:"book",section:"Optional",genre:"World History"},
-{id:"B133",name:"The Fall of Rome",hours:6,type:"book",section:"Optional",genre:"World History"},
-{id:"B134",name:"The Holy Roman Empire",hours:15,type:"book",section:"Optional",genre:"World History"},
-{id:"B135",name:"Collapse",hours:18,type:"book",section:"Optional",genre:"World History"},
-{id:"B136",name:"What Has Government Done to Our Money",hours:12.7,type:"book",section:"Optional",genre:"Economics"},
-{id:"B137",name:"The Silk Roads",hours:20,type:"book",section:"Optional",genre:"World History"},
-{id:"B138",name:"The Russian Revolution",hours:7,type:"book",section:"Optional",genre:"World History"},
-{id:"B139",name:"The Gulag Archipelago",hours:46,type:"book",section:"Optional",genre:"World History"},
-{id:"B140",name:"Hagakure",hours:4,type:"book",section:"Optional",genre:"Philosophy"},
-{id:"B141",name:"Bhagavad Gita",hours:4,type:"book",section:"Optional",genre:"Philosophy"},
-{id:"B142",name:"A History of the US in Five Crashes",hours:8,type:"book",section:"Optional",genre:"American History"},
-{id:"B143",name:"A Demon of Our Own Design",hours:7,type:"book",section:"Optional",genre:"Investing"},
-{id:"B144",name:"Once in Golconda",hours:7,type:"book",section:"Optional",genre:"Investing"},
-{id:"B145",name:"Skeletons on the Zahara",hours:7.5,type:"book",section:"Optional",genre:"Nature"},
-{id:"B146",name:"The Prince",hours:3,type:"book",section:"Optional",genre:"Philosophy"},
-{id:"B147",name:"Outwitting the Devil",hours:7,type:"book",section:"Optional",genre:"Entrepreneur"},
-{id:"B148",name:"Put Your Ass Where Your Heart Wants to Be",hours:3,type:"book",section:"Optional",genre:"Philosophy"},
-{id:"B149",name:"Memories, Dreams, Reflections",hours:10,type:"book",section:"Optional",genre:"Psychology"},
-{id:"B150",name:"12 Rules for Life",hours:10,type:"book",section:"Optional",genre:"Psychology"},
-{id:"B151",name:"About Face",hours:19,type:"book",section:"Optional",genre:"World History"},
-{id:"B152",name:"With the Old Breed",hours:8,type:"book",section:"Optional",genre:"World History"},
-{id:"B153",name:"Napoleon: A Life",hours:25,type:"book",section:"Optional",genre:"World History"},
-{id:"B154",name:"Stilwell and the American Experience in China",hours:16,type:"book",section:"Optional",genre:"World History"},
-{id:"B155",name:"The Fourth Turning",hours:8,type:"book",section:"Optional",genre:"World History"},
-{id:"B156",name:"Dumbing Us Down",hours:2,type:"book",section:"Optional",genre:"Psychology"},
-{id:"B157",name:"The Singularity is Near",hours:10,type:"book",section:"Optional",genre:"Tinker"},
-{id:"B158",name:"The Machinery of Freedom",hours:8,type:"book",section:"Optional",genre:"Economics"},
-{id:"B159",name:"The Bitcoin Standard",hours:7,type:"book",section:"Optional",genre:"Investing"},
-{id:"B160",name:"The Wealth of Nations",hours:31,type:"book",section:"Optional",genre:"Economics"},
-{id:"B161",name:"Wealth, War & Wisdom",hours:10,type:"book",section:"Optional",genre:"Investing"},
-{id:"B162",name:"Beating the Street",hours:9,type:"book",section:"Optional",genre:"Investing"},
-{id:"B163",name:"The Little Book That Still Beats the Market",hours:5,type:"book",section:"Optional",genre:"Investing"},
-{id:"B164",name:"What Works on Wall Street",hours:12,type:"book",section:"Optional",genre:"Investing"},
-{id:"B165",name:"Adaptive Markets",hours:13,type:"book",section:"Optional",genre:"Investing"},
-{id:"B166",name:"The Alchemy of Finance",hours:14,type:"book",section:"Optional",genre:"Investing"},
-{id:"B167",name:"House of Morgan",hours:22,type:"book",section:"Optional",genre:"Investing"},
-{id:"B168",name:"The Panic of 1907",hours:7,type:"book",section:"Optional",genre:"Investing"},
-{id:"B169",name:"Misbehavior of Markets",hours:7,type:"book",section:"Optional",genre:"Investing"},
-{id:"B170",name:"Financial Statement Analysis & Security Valuation",hours:20,type:"book",section:"Optional",genre:"Accounting"},
-{id:"B171",name:"The Psychology of Money",hours:5,type:"book",section:"Optional",genre:"Investing"},
-{id:"B172",name:"The Price of Time",hours:9,type:"book",section:"Optional",genre:"Economics"},
-{id:"B173",name:"The Fruits of Graft",hours:14,type:"book",section:"Optional",genre:"World History"},
-{id:"B174",name:"Only Yesterday (OPT)",hours:10,type:"book",section:"Optional",genre:"American History"},
-{id:"B175",name:"The Hard Thing About Hard Things",hours:9,type:"book",section:"Optional",genre:"Entrepreneur"},
-{id:"B176",name:"Confessions of the Pricing Man",hours:6,type:"book",section:"Optional",genre:"Sales"},
-{id:"B177",name:"Zig Ziglar's Secrets of Closing the Sale",hours:6,type:"book",section:"Optional",genre:"Sales"},
-{id:"B178",name:"The Resilient Farm and Homestead",hours:12,type:"book",section:"Optional",genre:"Nature"},
-{id:"B179",name:"Holistic Management Handbook",hours:12,type:"book",section:"Optional",genre:"Nature"},
-{id:"B180",name:"Breakthrough Copywriting",hours:5,type:"book",section:"Optional",genre:"Sales"},
-{id:"B181",name:"Scientific Advertising",hours:3,type:"book",section:"Optional",genre:"Sales"},
-{id:"B182",name:"Making Them Believe",hours:7,type:"book",section:"Optional",genre:"Sales"},
-{id:"B183",name:"The 10 Commandments of A-List Copywriters",hours:3,type:"book",section:"Optional",genre:"Sales"},
-{id:"B184",name:"The No-Code Revolution",hours:6,type:"book",section:"Optional",genre:"Tinker"},
+{id:"B1",name:"Discovering the German New Medicine",hours:10,type:"book",section:"Core",genre:"Biology",mode:"slow"},
+{id:"B2",name:"Caveman Chemistry",hours:50,type:"book",section:"Core",genre:"Chemistry",mode:"normal"},
+{id:"B3",name:"Stick and Rudder",hours:15,type:"book",section:"Core",genre:"Pilot",mode:"slow"},
+{id:"B4",name:"Mental Math for Pilots",hours:5,type:"book",section:"Core",genre:"Pilot",mode:"slow"},
+{id:"B5",name:"Blood and Thunder",hours:15,type:"book",section:"Core",genre:"American History",mode:"fast"},
+{id:"B6",name:"Education of a Wandering Man",hours:5,type:"book",section:"Core",genre:"Literature",mode:"normal"},
+{id:"B7",name:"Empire of the Summer Moon",hours:14,type:"book",section:"Core",genre:"American History",mode:"fast"},
+{id:"B8",name:"The Sackett Series",hours:44,type:"book",section:"Core",genre:"American History",mode:"fast"},
+{id:"B9",name:"Virtue of Selfishness",hours:4,type:"book",section:"Core",genre:"Philosophy",mode:"slow"},
+{id:"B10",name:"Modern Man in Search of a Soul",hours:9,type:"book",section:"Core",genre:"Psychology",mode:"slow"},
+{id:"B11",name:"The Iliad",hours:9,type:"book",section:"Core",genre:"Literature",mode:"slow"},
+{id:"B12",name:"Only Yesterday",hours:10,type:"book",section:"Core",genre:"American History",mode:"normal"},
+{id:"B13",name:"The Law",hours:2,type:"book",section:"Core",genre:"Economics",mode:"slow"},
+{id:"B14",name:"Greek Art",hours:7,type:"book",section:"Core",genre:"Art",mode:"normal"},
+{id:"B15",name:"Roman Art",hours:6,type:"book",section:"Core",genre:"Art",mode:"normal"},
+{id:"B16",name:"The Republic",hours:3,type:"book",section:"Core",genre:"Philosophy",mode:"slow"},
+{id:"B17",name:"Gorgias",hours:2,type:"book",section:"Core",genre:"Philosophy",mode:"slow"},
+{id:"B18",name:"Trial and Death of Socrates",hours:3,type:"book",section:"Core",genre:"Philosophy",mode:"slow"},
+{id:"B19",name:"Way of the Superior Man",hours:5,type:"book",section:"Core",genre:"Philosophy",mode:"passage"},
+{id:"B20",name:"The Count of Monte Cristo",hours:30,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B21",name:"Adventures of Huckleberry Finn",hours:9,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B22",name:"Underland: A Deep Time Journey",hours:14,type:"book",section:"Core",genre:"Geology",mode:"normal"},
+{id:"B23",name:"Poke The Box",hours:2,type:"book",section:"Core",genre:"Entrepreneur",mode:"fast"},
+{id:"B24",name:"Atlas Shrugged",hours:29,type:"book",section:"Core",genre:"Philosophy",mode:"fast"},
+{id:"B25",name:"On Writing",hours:6,type:"book",section:"Core",genre:"Literature",mode:"normal"},
+{id:"B26",name:"The Creature from Jekyll Island",hours:10,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B27",name:"Consider This",hours:8,type:"book",section:"Core",genre:"Literature",mode:"normal"},
+{id:"B28",name:"The Elements of Style",hours:2,type:"book",section:"Core",genre:"Literature",mode:"slow"},
+{id:"B29",name:"Thank You for Arguing",hours:6,type:"book",section:"Core",genre:"Law",mode:"normal"},
+{id:"B30",name:"Zen and the Art of Motorcycle Maintenance",hours:12,type:"book",section:"Core",genre:"Philosophy",mode:"slow"},
+{id:"B31",name:"The True Believer",hours:4,type:"book",section:"Core",genre:"Psychology",mode:"slow"},
+{id:"B32",name:"Gulliver's Travels",hours:6,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B33",name:"The Prize",hours:23,type:"book",section:"Core",genre:"World History",mode:"normal"},
+{id:"B34",name:"Meditations",hours:6,type:"book",section:"Core",genre:"Philosophy",mode:"passage"},
+{id:"B35",name:"The Art of War",hours:1,type:"book",section:"Core",genre:"Philosophy",mode:"passage"},
+{id:"B36",name:"Bobby Fischer Teaches Chess",hours:3,type:"book",section:"Core",genre:"Science",mode:"slow"},
+{id:"B37",name:"A War Like No Other",hours:9,type:"book",section:"Core",genre:"World History",mode:"normal"},
+{id:"B38",name:"Beowulf",hours:4,type:"book",section:"Core",genre:"Literature",mode:"slow"},
+{id:"B39",name:"Book of Five Rings",hours:2,type:"book",section:"Core",genre:"Philosophy",mode:"passage"},
+{id:"B40",name:"The Guns of August",hours:13,type:"book",section:"Core",genre:"World History",mode:"normal"},
+{id:"B41",name:"The Moon is a Harsh Mistress",hours:10,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B42",name:"Endurance",hours:7,type:"book",section:"Core",genre:"Nature",mode:"fast"},
+{id:"B43",name:"Brave New World",hours:7,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B44",name:"The Odyssey",hours:6,type:"book",section:"Core",genre:"Literature",mode:"slow"},
+{id:"B45",name:"The Travels of Marco Polo",hours:7,type:"book",section:"Core",genre:"World History",mode:"normal"},
+{id:"B46",name:"1493",hours:11,type:"book",section:"Core",genre:"World History",mode:"normal"},
+{id:"B47",name:"The Last Place on Earth",hours:12.5,type:"book",section:"Core",genre:"Nature",mode:"fast"},
+{id:"B48",name:"Cosmos",hours:6.5,type:"book",section:"Core",genre:"Astronomy",mode:"normal"},
+{id:"B49",name:"The Revenant",hours:8,type:"book",section:"Core",genre:"American History",mode:"fast"},
+{id:"B50",name:"Undaunted Courage",hours:11.5,type:"book",section:"Core",genre:"American History",mode:"fast"},
+{id:"B51",name:"One Man's Wilderness",hours:8,type:"book",section:"Core",genre:"Nature",mode:"normal"},
+{id:"B52",name:"Man's Search for Meaning",hours:4,type:"book",section:"Core",genre:"Psychology",mode:"slow"},
+{id:"B53",name:"Touching the Void",hours:6,type:"book",section:"Core",genre:"Nature",mode:"fast"},
+{id:"B54",name:"1984",hours:8,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B55",name:"Animal Farm",hours:3,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B56",name:"1177 B.C.",hours:7,type:"book",section:"Core",genre:"World History",mode:"normal"},
+{id:"B57",name:"Man, Cattle and Veld",hours:10,type:"book",section:"Core",genre:"Nature",mode:"slow"},
+{id:"B58",name:"The Ascent of Money",hours:11,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B59",name:"How to Draw and Think like a Real Artist",hours:30,type:"book",section:"Core",genre:"Art",mode:"slow"},
+{id:"B60",name:"Logic: A Very Short Introduction",hours:2.5,type:"book",section:"Core",genre:"Philosophy",mode:"slow"},
+{id:"B61",name:"The Art of Thinking Clearly",hours:7,type:"book",section:"Core",genre:"Psychology",mode:"normal"},
+{id:"B62",name:"The Reluctant Entrepreneur",hours:5,type:"book",section:"Core",genre:"Entrepreneur",mode:"normal"},
+{id:"B63",name:"The Lean Startup",hours:6,type:"book",section:"Core",genre:"Entrepreneur",mode:"normal"},
+{id:"B64",name:"The Million-Dollar One-Person Business",hours:5,type:"book",section:"Core",genre:"Entrepreneur",mode:"normal"},
+{id:"B65",name:"Ready, Fire, Aim",hours:7,type:"book",section:"Core",genre:"Entrepreneur",mode:"normal"},
+{id:"B66",name:"The 1-Page Marketing Plan",hours:4,type:"book",section:"Core",genre:"Marketing",mode:"normal"},
+{id:"B67",name:"The Boron Letters",hours:4,type:"book",section:"Core",genre:"Sales",mode:"passage"},
+{id:"B68",name:"Influence",hours:8,type:"book",section:"Core",genre:"Psychology",mode:"normal"},
+{id:"B69",name:"Think and Grow Rich",hours:6,type:"book",section:"Core",genre:"Entrepreneur",mode:"normal"},
+{id:"B70",name:"Great Leads",hours:4,type:"book",section:"Core",genre:"Sales",mode:"slow"},
+{id:"B71",name:"How to Win Friends and Influence People",hours:7,type:"book",section:"Core",genre:"Psychology",mode:"normal"},
+{id:"B72",name:"PreSuasion",hours:10,type:"book",section:"Core",genre:"Psychology",mode:"slow"},
+{id:"B73",name:"Never Split the Difference",hours:9,type:"book",section:"Core",genre:"Law",mode:"normal"},
+{id:"B74",name:"Good Strategy/Bad Strategy",hours:6,type:"book",section:"Core",genre:"Entrepreneur",mode:"slow"},
+{id:"B75",name:"Economics in One Lesson",hours:6,type:"book",section:"Core",genre:"Economics",mode:"slow"},
+{id:"B76",name:"The Intelligent Investor",hours:13,type:"book",section:"Core",genre:"Investing",mode:"slow"},
+{id:"B77",name:"The Most Important Thing",hours:6,type:"book",section:"Core",genre:"Investing",mode:"slow"},
+{id:"B78",name:"Market Wizards",hours:9,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B79",name:"When Money Dies",hours:8,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B80",name:"Lords of Finance",hours:14,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B81",name:"When Genius Failed",hours:8,type:"book",section:"Core",genre:"Investing",mode:"fast"},
+{id:"B82",name:"Manias, Panics & Crashes",hours:12,type:"book",section:"Core",genre:"Investing",mode:"slow"},
+{id:"B83",name:"Common Stocks & Uncommon Profits",hours:8,type:"book",section:"Core",genre:"Investing",mode:"slow"},
+{id:"B84",name:"The World for Sale",hours:9,type:"book",section:"Core",genre:"Investing",mode:"fast"},
+{id:"B85",name:"A Random Walk Down Wall Street",hours:13,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B86",name:"Against the Gods",hours:9,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B87",name:"You Can Be a Stock Market Genius",hours:7,type:"book",section:"Core",genre:"Investing",mode:"slow"},
+{id:"B88",name:"Reminiscences of a Stock Operator",hours:9,type:"book",section:"Core",genre:"Investing",mode:"fast"},
+{id:"B89",name:"Berkshire Letters to Shareholders",hours:16,type:"book",section:"Core",genre:"Investing",mode:"slow"},
+{id:"B90",name:"The Great Crash 1929",hours:6,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B91",name:"The Lords of Easy Money",hours:10,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B92",name:"This Time Is Different",hours:13,type:"book",section:"Core",genre:"Investing",mode:"slow"},
+{id:"B93",name:"Devil Take the Hindmost",hours:12,type:"book",section:"Core",genre:"Investing",mode:"normal"},
+{id:"B94",name:"The Dao of Capital",hours:7,type:"book",section:"Core",genre:"Investing",mode:"slow"},
+{id:"B95",name:"Antifragile",hours:12,type:"book",section:"Core",genre:"Philosophy",mode:"slow"},
+{id:"B96",name:"Don't Make Me Think",hours:3.5,type:"book",section:"Core",genre:"Tinker",mode:"normal"},
+{id:"B97",name:"The Three Body Problem",hours:10,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B98",name:"Foundation Trilogy",hours:17,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B99",name:"The War of Art",hours:4,type:"book",section:"Core",genre:"Philosophy",mode:"passage"},
+{id:"B100",name:"Nicomachean Ethics",hours:6,type:"book",section:"Core",genre:"Philosophy",mode:"slow"},
+{id:"B101",name:"Scientific Revolution",hours:4,type:"book",section:"Core",genre:"Science",mode:"normal"},
+{id:"B102",name:"The Diamond Age",hours:13,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B103",name:"The Martian",hours:10,type:"book",section:"Core",genre:"Literature",mode:"fast"},
+{id:"B104",name:"The Divine Comedy",hours:9,type:"book",section:"Optional",genre:"Literature",mode:"slow"},
+{id:"B105",name:"Blood Meridian",hours:13,type:"book",section:"Optional",genre:"Literature",mode:"slow"},
+{id:"B106",name:"The Lord of the Rings",hours:40,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B107",name:"Stranger in a Strange Land",hours:13,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B108",name:"The Jungle",hours:13,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B109",name:"The Old Man and the Sea",hours:2,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B110",name:"The Fountainhead",hours:28,type:"book",section:"Optional",genre:"Philosophy",mode:"fast"},
+{id:"B111",name:"Decline & Fall of the Roman Empire Vol 1",hours:17,type:"book",section:"Optional",genre:"World History",mode:"slow"},
+{id:"B112",name:"The Canterbury Tales",hours:9,type:"book",section:"Optional",genre:"Literature",mode:"slow"},
+{id:"B113",name:"War and Peace",hours:48,type:"book",section:"Optional",genre:"Literature",mode:"normal"},
+{id:"B114",name:"Don Quixote",hours:33,type:"book",section:"Optional",genre:"Literature",mode:"normal"},
+{id:"B115",name:"Glory Road",hours:8,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B116",name:"Novum Organum",hours:3,type:"book",section:"Optional",genre:"Philosophy",mode:"slow"},
+{id:"B117",name:"The Time Machine",hours:3,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B118",name:"Hitchhiker's Guide to the Galaxy",hours:4,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B119",name:"Dragon's Egg",hours:8,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B120",name:"Moby Dick",hours:18,type:"book",section:"Optional",genre:"Literature",mode:"slow"},
+{id:"B121",name:"Slaughterhouse Five",hours:5,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B122",name:"One Second After",hours:9,type:"book",section:"Optional",genre:"Literature",mode:"fast"},
+{id:"B123",name:"Lonesome Dove",hours:24,type:"book",section:"Optional",genre:"American History",mode:"fast"},
+{id:"B124",name:"In the Heart of the Sea",hours:8,type:"book",section:"Optional",genre:"Nature",mode:"fast"},
+{id:"B125",name:"For Whom The Bell Tolls",hours:11,type:"book",section:"Optional",genre:"Literature",mode:"normal"},
+{id:"B126",name:"The Portable Greek Historians",hours:9,type:"book",section:"Optional",genre:"World History",mode:"slow"},
+{id:"B127",name:"The Enlightenment",hours:4,type:"book",section:"Optional",genre:"World History",mode:"normal"},
+{id:"B128",name:"Confessions",hours:8,type:"book",section:"Optional",genre:"Philosophy",mode:"slow"},
+{id:"B129",name:"Before France & Germany",hours:8,type:"book",section:"Optional",genre:"World History",mode:"slow"},
+{id:"B130",name:"The Carolingians",hours:8,type:"book",section:"Optional",genre:"World History",mode:"slow"},
+{id:"B131",name:"Magna Carta",hours:7,type:"book",section:"Optional",genre:"Law",mode:"slow"},
+{id:"B132",name:"Heart of Europe",hours:17,type:"book",section:"Optional",genre:"World History",mode:"slow"},
+{id:"B133",name:"The Fall of Rome",hours:6,type:"book",section:"Optional",genre:"World History",mode:"normal"},
+{id:"B134",name:"The Holy Roman Empire",hours:15,type:"book",section:"Optional",genre:"World History",mode:"slow"},
+{id:"B135",name:"Collapse",hours:18,type:"book",section:"Optional",genre:"World History",mode:"normal"},
+{id:"B136",name:"What Has Government Done to Our Money",hours:12.7,type:"book",section:"Optional",genre:"Economics",mode:"slow"},
+{id:"B137",name:"The Silk Roads",hours:20,type:"book",section:"Optional",genre:"World History",mode:"normal"},
+{id:"B138",name:"The Russian Revolution",hours:7,type:"book",section:"Optional",genre:"World History",mode:"normal"},
+{id:"B139",name:"The Gulag Archipelago",hours:46,type:"book",section:"Optional",genre:"World History",mode:"slow"},
+{id:"B140",name:"Hagakure",hours:4,type:"book",section:"Optional",genre:"Philosophy",mode:"passage"},
+{id:"B141",name:"Bhagavad Gita",hours:4,type:"book",section:"Optional",genre:"Philosophy",mode:"passage"},
+{id:"B142",name:"A History of the US in Five Crashes",hours:8,type:"book",section:"Optional",genre:"American History",mode:"normal"},
+{id:"B143",name:"A Demon of Our Own Design",hours:7,type:"book",section:"Optional",genre:"Investing",mode:"normal"},
+{id:"B144",name:"Once in Golconda",hours:7,type:"book",section:"Optional",genre:"Investing",mode:"normal"},
+{id:"B145",name:"Skeletons on the Zahara",hours:7.5,type:"book",section:"Optional",genre:"Nature",mode:"fast"},
+{id:"B146",name:"The Prince",hours:3,type:"book",section:"Optional",genre:"Philosophy",mode:"slow"},
+{id:"B147",name:"Outwitting the Devil",hours:7,type:"book",section:"Optional",genre:"Entrepreneur",mode:"normal"},
+{id:"B148",name:"Put Your Ass Where Your Heart Wants to Be",hours:3,type:"book",section:"Optional",genre:"Philosophy",mode:"passage"},
+{id:"B149",name:"Memories, Dreams, Reflections",hours:10,type:"book",section:"Optional",genre:"Psychology",mode:"slow"},
+{id:"B150",name:"12 Rules for Life",hours:10,type:"book",section:"Optional",genre:"Psychology",mode:"slow"},
+{id:"B151",name:"About Face",hours:19,type:"book",section:"Optional",genre:"World History",mode:"fast"},
+{id:"B152",name:"With the Old Breed",hours:8,type:"book",section:"Optional",genre:"World History",mode:"fast"},
+{id:"B153",name:"Napoleon: A Life",hours:25,type:"book",section:"Optional",genre:"World History",mode:"normal"},
+{id:"B154",name:"Stilwell and the American Experience in China",hours:16,type:"book",section:"Optional",genre:"World History",mode:"normal"},
+{id:"B155",name:"The Fourth Turning",hours:8,type:"book",section:"Optional",genre:"World History",mode:"slow"},
+{id:"B156",name:"Dumbing Us Down",hours:2,type:"book",section:"Optional",genre:"Psychology",mode:"normal"},
+{id:"B157",name:"The Singularity is Near",hours:10,type:"book",section:"Optional",genre:"Tinker",mode:"slow"},
+{id:"B158",name:"The Machinery of Freedom",hours:8,type:"book",section:"Optional",genre:"Economics",mode:"slow"},
+{id:"B159",name:"The Bitcoin Standard",hours:7,type:"book",section:"Optional",genre:"Investing",mode:"slow"},
+{id:"B160",name:"The Wealth of Nations",hours:31,type:"book",section:"Optional",genre:"Economics",mode:"slow"},
+{id:"B161",name:"Wealth, War & Wisdom",hours:10,type:"book",section:"Optional",genre:"Investing",mode:"normal"},
+{id:"B162",name:"Beating the Street",hours:9,type:"book",section:"Optional",genre:"Investing",mode:"normal"},
+{id:"B163",name:"The Little Book That Still Beats the Market",hours:5,type:"book",section:"Optional",genre:"Investing",mode:"normal"},
+{id:"B164",name:"What Works on Wall Street",hours:12,type:"book",section:"Optional",genre:"Investing",mode:"slow"},
+{id:"B165",name:"Adaptive Markets",hours:13,type:"book",section:"Optional",genre:"Investing",mode:"slow"},
+{id:"B166",name:"The Alchemy of Finance",hours:14,type:"book",section:"Optional",genre:"Investing",mode:"slow"},
+{id:"B167",name:"House of Morgan",hours:22,type:"book",section:"Optional",genre:"Investing",mode:"normal"},
+{id:"B168",name:"The Panic of 1907",hours:7,type:"book",section:"Optional",genre:"Investing",mode:"normal"},
+{id:"B169",name:"Misbehavior of Markets",hours:7,type:"book",section:"Optional",genre:"Investing",mode:"slow"},
+{id:"B170",name:"Financial Statement Analysis & Security Valuation",hours:20,type:"book",section:"Optional",genre:"Accounting",mode:"slow"},
+{id:"B171",name:"The Psychology of Money",hours:5,type:"book",section:"Optional",genre:"Investing",mode:"normal"},
+{id:"B172",name:"The Price of Time",hours:9,type:"book",section:"Optional",genre:"Economics",mode:"slow"},
+{id:"B173",name:"The Fruits of Graft",hours:14,type:"book",section:"Optional",genre:"World History",mode:"normal"},
+{id:"B174",name:"Only Yesterday (OPT)",hours:10,type:"book",section:"Optional",genre:"American History",mode:"normal"},
+{id:"B175",name:"The Hard Thing About Hard Things",hours:9,type:"book",section:"Optional",genre:"Entrepreneur",mode:"normal"},
+{id:"B176",name:"Confessions of the Pricing Man",hours:6,type:"book",section:"Optional",genre:"Sales",mode:"slow"},
+{id:"B177",name:"Zig Ziglar's Secrets of Closing the Sale",hours:6,type:"book",section:"Optional",genre:"Sales",mode:"normal"},
+{id:"B178",name:"The Resilient Farm and Homestead",hours:12,type:"book",section:"Optional",genre:"Nature",mode:"slow"},
+{id:"B179",name:"Holistic Management Handbook",hours:12,type:"book",section:"Optional",genre:"Nature",mode:"slow"},
+{id:"B180",name:"Breakthrough Copywriting",hours:5,type:"book",section:"Optional",genre:"Sales",mode:"slow"},
+{id:"B181",name:"Scientific Advertising",hours:3,type:"book",section:"Optional",genre:"Sales",mode:"slow"},
+{id:"B182",name:"Making Them Believe",hours:7,type:"book",section:"Optional",genre:"Sales",mode:"slow"},
+{id:"B183",name:"The 10 Commandments of A-List Copywriters",hours:3,type:"book",section:"Optional",genre:"Sales",mode:"slow"},
+{id:"B184",name:"The No-Code Revolution",hours:6,type:"book",section:"Optional",genre:"Tinker",mode:"normal"},
 ];
 
 const ALL_DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -792,7 +804,8 @@ function buildItemContext(item,p,settings){
   const contentDone=p.courseHoursComplete||0;
   const contentLeft=Math.max(0,(item.hours||0)-contentDone);
   const realLeft=contentToReal(item,contentLeft,settings);
-  return `${item.id} "${item.name}" (${item.type},${item.section},${item.genre}): `
+  const modeTag=item.type==="book"&&item.mode?`|mode=${item.mode}`:"";
+  return `${item.id} "${item.name}" (${item.type},${item.section},${item.genre}${modeTag}): `
     +`totalContent=${item.hours}h|contentDone=${contentDone.toFixed(2)}h|pct=${p.percentComplete}%|`
     +`contentLeft=${contentLeft.toFixed(2)}h|realLeft=${realLeft.toFixed(2)}h|realSpent=${(p.hoursSpent||0).toFixed(2)}h`;
 }
@@ -1218,11 +1231,12 @@ export default function App(){
   const WEEKLY_TARGET = Math.max(5, Math.min(45, settings.weeklyTarget ?? 20));
   const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
 
-  // ── Course/book caps based on cognitive load research ──
-  // 5-14h: 1 course + 2 books | 15-24h: 2 courses + 3 books
-  // 25-34h: 2 courses + 4 books | 35-45h: 3 courses + 5 books
-  const MAX_COURSES = WEEKLY_TARGET >= 35 ? 3 : WEEKLY_TARGET >= 15 ? 2 : 1;
-  const MAX_BOOKS   = WEEKLY_TARGET >= 35 ? 5 : WEEKLY_TARGET >= 25 ? 4 : WEEKLY_TARGET >= 15 ? 3 : 2;
+  // ── Course/book caps based on weekly hour target ──
+  // 5–10h: 1 course, 2 books | 11–15h: 1 course, 3 books | 16–20h: 2 courses, 3 books
+  // 21–25h: 2 courses, 4 books | 26–30h: 2 courses, 4 books | 31–35h: 3 courses, 5 books | 36–45h: 3 courses, 5 books
+  // Passage books are exempt from the book cap
+  const MAX_COURSES = WEEKLY_TARGET >= 31 ? 3 : WEEKLY_TARGET >= 16 ? 2 : 1;
+  const MAX_BOOKS   = WEEKLY_TARGET >= 31 ? 5 : WEEKLY_TARGET >= 21 ? 4 : WEEKLY_TARGET >= 11 ? 3 : 2;
 
   // ── 2. Core state ──
   const [splash, setSplash]           = useState(true);
@@ -1486,7 +1500,7 @@ export default function App(){
       .join("|");
     const bookIndex = CURRICULUM
       .filter(i=>i.type==="book")
-      .map(i=>`${i.id}:"${i.name}"(book,${i.genre},${i.section})`)
+      .map(i=>`${i.id}:"${i.name}"(book,${i.genre},${i.section},mode=${i.mode||"normal"})`)
       .join("|");
 
     return{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,courseIndex,bookIndex};
@@ -1546,21 +1560,44 @@ export default function App(){
 
     const prompt=`Learning coach. Plan this learner's week. Respond ONLY with valid JSON — no commentary, no markdown.
 
+HOUR MATH (pre-calculated — do not change):
+- Total available: ${effectiveWkRem}h across ${effectiveDLeft} days (${remainingDayNames.join(",")}).
+- Day budgets: ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
+- Every day's items MUST sum exactly to that day's budget. Never over or under.
+
 STRICT HOUR RULES:
 - Courses: 1h content = ${settings.courseRatio}h real. Max ${settings.courseMaxSession}h real/session.
-- Books: 1h content = ${settings.bookRatio}h real. Max ${settings.bookMaxSession}h real/session.
+- Books: session length is FIXED by mode — passage=0.5h, slow=1h, normal=1.5h, fast=2h. Never deviate.
+- Passage books: always schedule every active study day; exempt from book cap.
 - targetPct = floor((contentDone + contentGain) / totalContent × 100)
 - ONLY use item IDs that exist in the COURSE INDEX or BOOK INDEX below. Never invent IDs.
 
-WEEK BUDGET (MUST match exactly):
-- Target: ${WEEKLY_TARGET}h real. Logged: ${weekH}h. Remaining: ${effectiveWkRem}h across ${effectiveDLeft} days: ${remainingDayNames.join(",")}.
-- Day budgets: ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
+COURSE SCHEDULING RULES (strictly enforced):
+- Place courses FIRST each day before books. Books fill remaining time after courses are scheduled.
+- Multiple active courses MUST be interleaved — never schedule the same course on two consecutive days.
+- If only one course is active, it may appear daily.
+
+FOCUS CAPS (strictly enforced):
+- Max ${MAX_COURSES} active course(s) + max ${MAX_BOOKS} non-passage books at ${WEEKLY_TARGET}h/week.
+- Passage books (mode=passage) do NOT count toward the book cap — always include them.
+- Working memory handles 4±1 concepts; fewer active items = deeper retention at lower hours.
+
+REPLAN RULES:
+- Days already completed this week are locked — never modify them.
+- Missed sessions are redistributed evenly across remaining days.
+- If there is no room in the current week, flag overflow in the insight field.
+
+DAY DISTRIBUTION:
+- The provided day budgets are already front-loaded (earlier days are heavier).
+- Do not reorder — just populate each day's items to match its exact budget.
 - Vary genres — never same genre twice in one day.
 
-FOCUS CAPS (cognitive load science — strictly enforced):
-- Max ${MAX_COURSES} active course(s) + max ${MAX_BOOKS} active books at ${WEEKLY_TARGET}h/week.
-- Reasoning: Working memory handles 4±1 concepts; interleaving works best with 2-3 subjects.
-- Lower hours = fewer items for deeper retention.
+PLANNING PROCESS — READ ALL CONTEXT BEFORE BUILDING THE PLAN:
+1. Read learner profile, arc position, and velocity trend.
+2. Read completed items and active items with their current progress.
+3. Read the last weekly review summary if available.
+4. Scan the full curriculum for what makes sense next — balance subjects, prioritize items near completion, and use best judgment rather than blindly following sequence.
+5. Only then build the day-by-day schedule.
 
 LEARNER PROFILE:
 ${profile}
@@ -1576,7 +1613,7 @@ REVIEW HISTORY:
 ${reviewHistory||"None yet."}
 
 FOCUS PROPOSAL RULES:
-- Respect MAX_COURSES=${MAX_COURSES} and MAX_BOOKS=${MAX_BOOKS}.
+- Respect MAX_COURSES=${MAX_COURSES} and MAX_BOOKS=${MAX_BOOKS} (passage books excluded from cap).
 - Always keep at least 1 Philosophy book active.
 - Never propose Optional if genre has unfinished Core items.
 - Only rotate if >85% complete OR 0 momentum 2+ weeks.
@@ -1688,8 +1725,8 @@ JSON format:
     const prompt=`Learner hit their ${WEEKLY_TARGET}h weekly target. Suggest 1-2 bonus sessions for ONE extra study day. JSON only — no commentary.
 PROFILE: ${profile}
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
-HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books:1h=${settings.bookRatio}h real, max ${settings.bookMaxSession}h/session.
-FOCUS CAPS: max ${MAX_COURSES} courses + ${MAX_BOOKS} books. Keep 1 Philosophy book. No Optional if Core genre unfinished.
+HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books: session length fixed by mode — passage=0.5h, slow=1h, normal=1.5h, fast=2h.
+FOCUS CAPS: max ${MAX_COURSES} courses + ${MAX_BOOKS} non-passage books. Passage books exempt from cap. Keep 1 Philosophy book. No Optional if Core genre unfinished.
 CURRENT FOCUS: ${focusIds.join(",")}
 ACTIVE: ${touchedAndFocus||"None."}
 NEXT CORE: ${nextCore.slice(0,300)}
