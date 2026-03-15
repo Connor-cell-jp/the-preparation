@@ -6,6 +6,13 @@ const contentToReal = (item, contentH, s) =>
   item.type === "course" ? contentH * (s?.courseRatio ?? 2) : contentH * (s?.bookRatio ?? 1);
 const realToContent = (item, realH, s) =>
   item.type === "course" ? realH / (s?.courseRatio ?? 2) : realH / (s?.bookRatio ?? 1);
+// Course max session derived automatically from weekly target tier — never user-configurable
+const getCourseMaxSession = (weeklyTarget) => {
+  if (weeklyTarget <= 10) return 1.5;
+  if (weeklyTarget <= 20) return 2.0;
+  if (weeklyTarget <= 30) return 2.5;
+  return 3.0; // 31–45h
+};
 const maxRealPerSession = (item, s) => {
   if (item.type === "book" && item.mode) {
     if (item.mode === "passage") return 0.5;
@@ -13,7 +20,8 @@ const maxRealPerSession = (item, s) => {
     if (item.mode === "normal")  return 1.5;
     if (item.mode === "fast")    return 2.0;
   }
-  return item.type === "course" ? (s?.courseMaxSession ?? 1.5) : (s?.bookMaxSession ?? 2.0);
+  if (item.type === "course") return getCourseMaxSession(s?.weeklyTarget ?? 20);
+  return 2.0;
 };
 const realHoursRemaining = (item, p, s) => {
   const contentLeft = Math.max(0, (item.hours || 0) - (p.courseHoursComplete || 0));
@@ -25,19 +33,30 @@ const targetPctAfterSession = (item, p, sessionRealH, s) => {
   const newContent = Math.min(contentDone + contentGain, item.hours || 1);
   return Math.floor((newContent / (item.hours || 1)) * 100);
 };
+// Front-load: Day 1 up to 1.5x avg, Day 2 up to 1.25x avg, rest share equally. All days hard-capped at 8h.
 const distributeDays = (totalH, dayNames) => {
   const n = dayNames.length;
   if (n === 0) return [];
-  if (n === 1) return [snap25(totalH)];
-  // Front-load: earlier days get slightly more using a gentle linear taper
-  // weights decrease from n down to 1 so day 0 is heaviest
-  const totalWeight = (n * (n + 1)) / 2;
-  const raw = dayNames.map((_, i) => ((n - i) / totalWeight) * totalH);
-  const budgets = raw.map(h => snap25(h));
-  const sum = parseFloat(budgets.reduce((s, h) => s + h, 0).toFixed(2));
-  const diff = parseFloat((totalH - sum).toFixed(2));
-  // Apply rounding correction to first day (front-load bias)
-  if (Math.abs(diff) >= 0.25) budgets[0] = Math.max(0.25, snap25(budgets[0] + diff));
+  const avg = totalH / n;
+  const budgets = [];
+  let allocated = 0;
+  for (let i = 0; i < n; i++) {
+    let h;
+    if (i === 0) h = Math.min(avg * 1.5, 8);
+    else if (i === 1) h = Math.min(avg * 1.25, 8);
+    else {
+      const remaining = totalH - allocated;
+      const daysLeft = n - i;
+      h = Math.min(remaining / daysLeft, 8);
+    }
+    h = snap25(Math.max(0, Math.min(h, 8, totalH - allocated)));
+    budgets.push(h);
+    allocated += h;
+    if (allocated >= totalH) {
+      while (budgets.length < n) budgets.push(0);
+      break;
+    }
+  }
   return budgets;
 };
 const scaleDayItems = (items, dayBudget, getCurrItem, getP, s) => {
@@ -63,6 +82,103 @@ const scaleDayItems = (items, dayBudget, getCurrItem, getP, s) => {
   }
   return scaled;
 };
+
+// ── Cognitive demand ranking (lower = schedule earlier / front-load more) ─────
+const COURSE_DEMAND_MAP = {
+  Physics:0, Biology:1, Chemistry:2, Mathematics:3,
+  Meteorology:2, Science:2, Geology:3, Astronomy:4,
+  Pilot:3, Welder:3, Maker:3, Tinker:3,
+  History:5, "World History":5, "American History":5,
+  Philosophy:6, Literature:7, Psychology:7,
+  Business:8, Sales:8, Marketing:8, Investing:8, Law:8,
+  Economics:8, Accounting:8, Entrepreneur:8,
+  Art:9, Music:9, "Music Theory":9, Chef:9, Nature:9,
+};
+const getCourseDemandOrder = genre => COURSE_DEMAND_MAP[genre] ?? 6;
+
+// Re-sort day sessions after AI response: passage → courses by demand → books
+const sortDaySessions = (items, curriculum) => [...items].sort((a, b) => {
+  const rank = id => {
+    const item = curriculum.find(c => c.id === id);
+    if (!item) return 99;
+    if (item.mode === "passage") return 0;
+    if (item.type === "course") return 10 + getCourseDemandOrder(item.genre);
+    return 50; // books (paired then free — further sorting not needed here)
+  };
+  return rank(a.id) - rank(b.id);
+});
+
+// Validate plan against hard rules — returns array of error strings
+const validatePlanRules = (days, curriculum, progressMap, focusIds, maxCourses, maxBooks) => {
+  const errs = [];
+  let prevDayCourseIds = new Set();
+  const dayNamesSeen = new Set();
+  for (const day of days) {
+    if (dayNamesSeen.has(day.day)) { errs.push(`Duplicate day: ${day.day}`); continue; }
+    dayNamesSeen.add(day.day);
+    const items = day.items || [];
+    const dayTotal = parseFloat(items.reduce((s, it) => s + (it.realHours || 0), 0).toFixed(2));
+    if (dayTotal > 8.01) errs.push(`Day ${day.day}: ${dayTotal}h exceeds 8h cap`);
+    const dayCourseIds = new Set();
+    for (const it of items) {
+      const item = curriculum.find(c => c.id === it.id);
+      if (!item) { errs.push(`Unknown ID: ${it.id}`); continue; }
+      if ((progressMap[it.id]?.percentComplete || 0) >= 100) errs.push(`${it.id} already complete`);
+      if (item.mode === "passage" && (it.realHours || 0) > 0.51) errs.push(`${it.id} passage session ${it.realHours}h > 0.5h hard cap`);
+      if (item.type === "course") {
+        if (prevDayCourseIds.has(it.id)) errs.push(`${it.id} scheduled on consecutive days`);
+        dayCourseIds.add(it.id);
+      }
+    }
+    prevDayCourseIds = dayCourseIds;
+  }
+  return errs;
+};
+
+// Normalize AI response (new or old schema) to internal { day, items, totalDayRealH } format
+const normalizeParsedDays = (parsedDays, remainingDayNames) =>
+  (parsedDays || []).map((day, i) => {
+    const dayShort = day.day || (day.dayName ? day.dayName.slice(0, 3) : remainingDayNames[i] || "");
+    const rawItems = day.items || day.sessions || [];
+    const items = rawItems.map(s => ({
+      id: s.id || s.itemId || "",
+      realHours: s.realHours || s.sessionHours || 0,
+      contentHours: s.contentHours || 0,
+      targetPct: s.targetPct || 0,
+    })).filter(s => s.id);
+    return { day: dayShort, items, totalDayRealH: day.totalDayRealH || day.totalHours || 0 };
+  });
+
+// Build pre-computed scheduling context passed to AI as structured data
+const buildSchedulingContext = (curriculum, progressMap, focusIds, settings, weeklyTarget, remainingDayNames, dayBudgets) => ({
+  weeklyHours: weeklyTarget,
+  activeDaysRemaining: remainingDayNames.length,
+  totalAvailableHours: parseFloat(dayBudgets.reduce((s, h) => s + h, 0).toFixed(2)),
+  courseMaxSession: getCourseMaxSession(weeklyTarget),
+  dayBudgets: remainingDayNames.map((d, i) => ({ day: d, budget: dayBudgets[i] })),
+  items: focusIds.map(id => {
+    const item = curriculum.find(c => c.id === id);
+    if (!item) return null;
+    const p = progressMap[id] || { hoursSpent:0, courseHoursComplete:0, percentComplete:0, sessions:[] };
+    const contentLeft = Math.max(0, (item.hours || 0) - (p.courseHoursComplete || 0));
+    const realLeft = contentToReal(item, contentLeft, settings);
+    const sessionMax = maxRealPerSession(item, settings);
+    const isPassage = item.mode === "passage";
+    return {
+      id: item.id, name: item.name, type: item.type,
+      mode: item.mode || null, genre: item.genre, section: item.section,
+      percentComplete: p.percentComplete,
+      hoursRemaining: parseFloat(contentLeft.toFixed(2)),
+      realHoursRemaining: parseFloat(realLeft.toFixed(2)),
+      sessionsToFinish: isPassage ? 999 : Math.ceil(realLeft / Math.max(sessionMax, 0.5)),
+      maxSessionLength: sessionMax, minSessionLength: 0.5,
+      demandOrder: getCourseDemandOrder(item.genre),
+      isPassage,
+      isPairedCandidate: item.type === "book" && !isPassage,
+      isFreeCandidate: item.type === "book" && !isPassage,
+    };
+  }).filter(Boolean),
+});
 
 // ── Book genres remapped to match course categories ───────────────────────────
 const BASE_CURRICULUM = [
@@ -451,6 +567,7 @@ const SK_PLAN="tp_plan2",SK_QUEUE="tp_queue1",SK_WEEKLY_HOURS="tp_wkhours1",SK_C
 const SK_SUNDAY_DONE="tp_sundaydone1",SK_SETTINGS="tp_settings1";
 const SK_NOTIFS="tp_notifs1";
 const SK_HIDDEN="tp_hidden1";
+const SK_SNAPSHOT="tp_snapshot1";
 const MAX_REVIEWS=20;
 const NOTIF_TTL_MS = 3*24*60*60*1000;
 
@@ -459,21 +576,19 @@ const DEFAULT_SETTINGS={
   activeDays: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
   courseRatio: 2,
   bookRatio: 1,
-  courseMaxSession: 1.5,
-  bookMaxSession: 2.0,
 };
 
 const DEFAULT_PROFILE=`LEARNER: Connor, 18, Kamloops BC. Self-directed 4-year curriculum called The Preparation.
 
 TIME RATIOS (configurable in Settings):
-- Courses: 1h content = 2h real study time. Max 1.5h real per session.
-- Books: 1h content = 1h real. Max 2h real per session.
+- Courses: 1h content = 2h real study time. Session length capped automatically by weekly hour tier.
+- Books: 1h content = 1h real. Session length fixed by mode (passage=30min, slow=1h, normal=1.5h, fast=2h).
 - Weekly budget: configurable in Settings (default 20 real hours).
 
 SEQUENCING RULES:
 - Complete Core before Optional in any genre.
 - Vary genre every session — never same genre twice in one day.
-- Max 2-3 active courses, always pair 2-4 books alongside.
+- Number of active courses and books determined by weekly hour tier.
 - Always keep 1 Philosophy book active.
 - When user asks for specific topics (e.g. "roman history"), map to real curriculum item IDs.
 
@@ -506,6 +621,10 @@ const GLOBAL_CSS = `
   }
   @keyframes splashPulse { 0% { opacity:0.6; } 100% { opacity:1; } }
   @keyframes splashOut { to { opacity:0; } }
+  @keyframes compassSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
   @keyframes fadeUp {
     from { opacity:0; transform:translateY(8px); }
     to   { opacity:1; transform:translateY(0); }
@@ -548,40 +667,208 @@ const GLOBAL_CSS = `
 
 // ── Splash ────────────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }) {
-  const [phase, setPhase] = useState("in");
+  const [textVisible,    setTextVisible]    = useState(false);
+  const [compassVisible, setCompassVisible] = useState(false);
+  const [compassSpin,    setCompassSpin]    = useState(false);
+  const [exiting,        setExiting]        = useState(false);
+  const canvasRef    = useRef(null);
+  const rafRef       = useRef(null);
+  const rotStartRef  = useRef(null);
+
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase("pulse"), 400);
-    const t2 = setTimeout(() => setPhase("out"),  1900);
-    const t3 = setTimeout(() => onDone(),          2450);
-    return () => [t1,t2,t3].forEach(clearTimeout);
+    const t1 = setTimeout(() => setTextVisible(true),    50);
+    const t2 = setTimeout(() => setCompassVisible(true), 300);
+    const t3 = setTimeout(() => setCompassSpin(true),    650);
+    const t4 = setTimeout(() => setExiting(true),        3150); // 650 + 2500
+    const t5 = setTimeout(() => onDone(),                3620);
+    return () => [t1,t2,t3,t4,t5].forEach(clearTimeout);
   }, []);
+
+  // Canvas spark + arc trail — starts with the compass spin
+  useEffect(() => {
+    if (!compassSpin) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx   = canvas.getContext("2d");
+    const dpr   = window.devicePixelRatio || 1;
+    const SIZE  = 280;
+    canvas.width  = SIZE * dpr;
+    canvas.height = SIZE * dpr;
+    canvas.style.width  = SIZE + "px";
+    canvas.style.height = SIZE + "px";
+    ctx.scale(dpr, dpr);
+
+    const cx = SIZE / 2, cy = SIZE / 2;
+    const RING_R   = 130;
+    const DURATION = 2500;
+
+    const draw = (ts) => {
+      if (!rotStartRef.current) rotStartRef.current = ts;
+      const elapsed = Math.min(ts - rotStartRef.current, DURATION);
+      ctx.clearRect(0, 0, SIZE, SIZE);
+
+      const progress = elapsed / DURATION;
+      // Start from top (north = -PI/2), travel clockwise
+      const angle = progress * 2 * Math.PI - Math.PI / 2;
+
+      // ── Arc trail: 90° behind spark, fades from transparent → bright ──
+      const TRAIL = Math.PI / 2;
+      const SEG   = 64;
+      for (let i = 0; i < SEG; i++) {
+        const t0 = i / SEG;
+        const t1 = (i + 1) / SEG;
+        ctx.beginPath();
+        ctx.arc(cx, cy, RING_R,
+          angle - TRAIL + t0 * TRAIL,
+          angle - TRAIL + t1 * TRAIL);
+        ctx.strokeStyle = `rgba(59,130,246,${t0 * 0.45})`;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap   = "butt";
+        ctx.stroke();
+      }
+
+      // ── Spark ──
+      const sx = cx + RING_R * Math.cos(angle);
+      const sy = cy + RING_R * Math.sin(angle);
+
+      // Soft outer glow
+      const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, 22);
+      grd.addColorStop(0,    "rgba(255,255,255,0.90)");
+      grd.addColorStop(0.22, "rgba(255,255,255,0.55)");
+      grd.addColorStop(0.50, "rgba(200,225,255,0.20)");
+      grd.addColorStop(1,    "rgba(255,255,255,0)");
+      ctx.beginPath();
+      ctx.arc(sx, sy, 22, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+
+      // Bright solid core (4px)
+      ctx.beginPath();
+      ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,1)";
+      ctx.fill();
+
+      // Tiny specular highlight
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(210,235,255,1)";
+      ctx.fill();
+
+      if (elapsed < DURATION) rafRef.current = requestAnimationFrame(draw);
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [compassSpin]);
+
   return (
-    <div style={{position:"fixed",inset:0,zIndex:9999,background:"linear-gradient(135deg, #0d1b2a 0%, #0f2240 50%, #0d1b2a 100%)",
-      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+    <div style={{
+      position:"fixed", inset:0, zIndex:9999,
+      background:"linear-gradient(135deg, #0d1b2a 0%, #0f2240 50%, #0d1b2a 100%)",
       paddingBottom:"env(safe-area-inset-bottom)",
-      animation:phase==="out"?"splashOut 0.55s ease forwards":"none",pointerEvents:"none"}}>
-      <div style={{position:"absolute",width:320,height:320,borderRadius:"50%",
-        background:"radial-gradient(circle, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.04) 40%, transparent 70%)",
-        animation:phase==="in"?"none":"splashBloom 0.7s ease forwards",
-        opacity:phase==="in"?0:1,transition:"opacity 0.4s ease"}}/>
-      <div style={{position:"absolute",width:480,height:480,borderRadius:"50%",
-        background:"radial-gradient(circle, rgba(59,130,246,0.06) 0%, transparent 65%)",
-        animation:phase==="in"?"none":"splashBloom 1s ease 0.1s forwards",
-        opacity:phase==="in"?0:1}}/>
-      <div style={{position:"relative",textAlign:"center",
-        animation:phase==="in"?"none":phase==="pulse"?"splashBloom 0.5s ease forwards":"none",
-        opacity:phase==="in"?0:1,transition:"opacity 0.4s ease"}}>
-        <div style={{fontSize:11,letterSpacing:7,textTransform:"uppercase",
-          color:"rgba(255,255,255,0.3)",fontFamily:T.fontUI,fontWeight:700,marginBottom:14,
-          animation:phase==="pulse"?"splashPulse 1.2s ease-in-out infinite alternate":"none"}}>THE</div>
-        <div style={{fontSize:36,fontWeight:800,letterSpacing:-1,color:"#ffffff",
-          fontFamily:T.fontUI,lineHeight:1,marginBottom:10,
-          animation:phase==="pulse"?"splashPulse 1.2s ease-in-out infinite alternate":"none"}}>PREPARATION</div>
-        <div style={{fontSize:10,letterSpacing:5,textTransform:"uppercase",
-          color:"rgba(255,255,255,0.25)",fontFamily:T.fontUI,fontWeight:600}}>LEARNING TRACKER</div>
-        <div style={{width:40,height:1,margin:"18px auto 0",
-          background:"linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent)"}}/>
+      pointerEvents:"none",
+      opacity:  exiting ? 0 : 1,
+      transition: exiting ? "opacity 0.47s cubic-bezier(0.4,0,0.2,1)" : "none",
+    }}>
+
+      {/* ── Compass ring + canvas (centered) ── */}
+      <div style={{
+        position:"absolute", top:"50%", left:"50%",
+        transform:"translate(-50%,-50%)",
+        width:280, height:280,
+        opacity:    compassVisible ? 1 : 0,
+        transition: "opacity 0.45s cubic-bezier(0.4,0,0.2,1)",
+      }}>
+        {/* Rotating compass SVG */}
+        <svg viewBox="-140 -140 280 280" width="280" height="280"
+          style={{
+            position:"absolute", top:0, left:0,
+            transformOrigin:"center center",
+            animation: compassSpin ? "compassSpin 2500ms linear forwards" : "none",
+          }}
+        >
+          {/* Outer ring (spark orbit track) */}
+          <circle r="130" fill="none" stroke="rgba(255,255,255,0.88)" strokeWidth="1.5"/>
+          {/* Inner decorative rings */}
+          <circle r="120" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="0.5"/>
+          <circle r="95"  fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="0.5"/>
+          <circle r="72"  fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="2 5"/>
+
+          {/* Tick marks: 5° grid, 15° medium, 45° long, 90° cardinal */}
+          {Array.from({length:72}, (_,i) => {
+            const deg = i * 5;
+            const rad = (deg * Math.PI) / 180;
+            const isCard  = deg % 90 === 0;
+            const isInter = deg % 45 === 0 && !isCard;
+            const isMaj   = deg % 15 === 0 && !isInter && !isCard;
+            let r1, r2, op, sw;
+            if      (isCard)  { r1=107; r2=130; op=0.95; sw=1.5; }
+            else if (isInter) { r1=115; r2=130; op=0.72; sw=1.0; }
+            else if (isMaj)   { r1=123; r2=130; op=0.45; sw=0.7; }
+            else              { r1=127; r2=130; op=0.18; sw=0.5; }
+            const s=Math.sin(rad), c=Math.cos(rad);
+            return (
+              <line key={i}
+                x1={r1*s} y1={-r1*c} x2={r2*s} y2={-r2*c}
+                stroke={`rgba(255,255,255,${op})`}
+                strokeWidth={sw} strokeLinecap="round"/>
+            );
+          })}
+
+          {/* Cardinal labels outside ring */}
+          {[["N",0,"rgba(255,255,255,1)"],["E",90,"rgba(255,255,255,0.78)"],
+            ["S",180,"rgba(255,255,255,0.78)"],["W",270,"rgba(255,255,255,0.78)"]
+          ].map(([lbl,deg,col]) => {
+            const rad=(deg*Math.PI)/180, r=143;
+            return (
+              <text key={lbl} x={r*Math.sin(rad)} y={-r*Math.cos(rad)+4}
+                fill={col} fontSize="11" fontFamily="'DM Sans',sans-serif"
+                fontWeight="700" textAnchor="middle" letterSpacing="1">{lbl}</text>
+            );
+          })}
+
+          {/* Degree notations at intercardinals */}
+          {[["045",45],["135",135],["225",225],["315",315]].map(([lbl,deg]) => {
+            const rad=(deg*Math.PI)/180, r=108;
+            return (
+              <text key={lbl} x={r*Math.sin(rad)} y={-r*Math.cos(rad)+3}
+                fill="rgba(255,255,255,0.27)" fontSize="6.5" fontFamily="monospace"
+                fontWeight="400" textAnchor="middle">{lbl}</text>
+            );
+          })}
+
+          {/* Compass needle — north=white, blue accent at base, south=dim */}
+          <polygon points="0,-85 -5,-15 0,-38 5,-15" fill="rgba(255,255,255,0.95)"/>
+          <polygon points="0,-38 -5,-15 5,-15"        fill="rgba(59,130,246,0.80)"/>
+          <polygon points="0,85  -4.5,15 0,36 4.5,15" fill="rgba(255,255,255,0.20)"/>
+          {/* Center cap */}
+          <circle r="6.5" fill="#0d1b2a" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5"/>
+          <circle r="2.5" fill="rgba(255,255,255,0.9)"/>
+        </svg>
+
+        {/* Canvas — spark + trail (does not rotate) */}
+        <canvas ref={canvasRef}
+          style={{position:"absolute",top:0,left:0,width:280,height:280,pointerEvents:"none"}}/>
       </div>
+
+      {/* ── Text (centered, layered over compass interior) ── */}
+      <div style={{
+        position:"absolute", top:"50%", left:"50%",
+        transform:`translate(-50%,-50%) translateY(${textVisible?0:10}px)`,
+        textAlign:"center", zIndex:1,
+        opacity:    textVisible ? 1 : 0,
+        transition: "opacity 0.60s cubic-bezier(0.4,0,0.2,1), transform 0.60s cubic-bezier(0.4,0,0.2,1)",
+      }}>
+        <div style={{fontSize:28,fontWeight:800,color:"#ffffff",
+          fontFamily:T.fontUI,letterSpacing:-0.4,lineHeight:1}}>
+          The Preparation
+        </div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.50)",
+          fontFamily:T.fontUI,marginTop:9,fontWeight:400,letterSpacing:0.6}}>
+          Your 4-Year Curriculum
+        </div>
+      </div>
+
     </div>
   );
 }
@@ -824,7 +1111,7 @@ function buildItemContext(item,p,settings){
     +`totalContent=${item.hours}h|contentDone=${contentDone.toFixed(2)}h|pct=${p.percentComplete}%|`
     +`contentLeft=${contentLeft.toFixed(2)}h|realLeft=${realLeft.toFixed(2)}h|realSpent=${(p.hoursSpent||0).toFixed(2)}h`;
 }
-const callAI=async(prompt,max_tokens=1500,model="claude-haiku-4-5-20251001")=>{
+const callAI=async(prompt,max_tokens=1500,model="claude-sonnet-4-20250514")=>{
   const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({model,max_tokens,messages:[{role:"user",content:prompt}]})});
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -842,6 +1129,7 @@ function reconcileWeekHours(progress){
   let total=0;
   Object.values(progress).forEach(p=>{
     (p.sessions||[]).forEach(s=>{
+      if(s.isBonus) return; // bonus sessions don't count toward weekly target
       const d=new Date(s.date);
       if(d>=mon&&d<=sun) total+=s.studyHours||0;
     });
@@ -1027,34 +1315,10 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                 </div>
               </div>
               <div style={{borderTop:`1px solid rgba(255,255,255,0.08)`,paddingTop:12,marginTop:4}}>
-                <div style={{fontSize:11,color:T.textMid,marginBottom:10,fontWeight:600}}>Max real hours per session (0.5 – 5)</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  <div>
-                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Course max</label>
-                    <input type="text" inputMode="decimal"
-                      value={localSettings._courseMaxRaw ?? String(localSettings.courseMaxSession ?? 1.5)}
-                      onChange={e=>setLocalSettings(s=>({...s,_courseMaxRaw:e.target.value}))}
-                      onBlur={()=>setLocalSettings(s=>{
-                        const v=Math.max(0.5,Math.min(5,parseFloat(s._courseMaxRaw)||1.5));
-                        const snapped=Math.round(v*2)/2;
-                        return{...s,courseMaxSession:snapped,_courseMaxRaw:String(snapped)};
-                      })}
-                      style={{...numSt,width:80}}/>
-                    <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>{localSettings.courseMaxSession??1.5}h max</div>
-                  </div>
-                  <div>
-                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Book max</label>
-                    <input type="text" inputMode="decimal"
-                      value={localSettings._bookMaxRaw ?? String(localSettings.bookMaxSession ?? 2)}
-                      onChange={e=>setLocalSettings(s=>({...s,_bookMaxRaw:e.target.value}))}
-                      onBlur={()=>setLocalSettings(s=>{
-                        const v=Math.max(0.5,Math.min(5,parseFloat(s._bookMaxRaw)||2));
-                        const snapped=Math.round(v*2)/2;
-                        return{...s,bookMaxSession:snapped,_bookMaxRaw:String(snapped)};
-                      })}
-                      style={{...numSt,width:80}}/>
-                    <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>{localSettings.bookMaxSession??2}h max</div>
-                  </div>
+                <div style={{fontSize:11,color:T.textDim,lineHeight:1.5}}>
+                  Session lengths are set automatically by tier:<br/>
+                  ≤10h → 1.5h/session · ≤20h → 2h · ≤30h → 2.5h · 31h+ → 3h (max 3h absolute).
+                  Books are fixed by mode (passage=30min, slow=1h, normal=1.5h, fast=2h).
                 </div>
               </div>
             </Card>
@@ -1244,7 +1508,9 @@ export default function App(){
   // ── 1. Settings ──
   const [settings, setSettings] = useState(() => {
     const saved = load(SK_SETTINGS, {});
-    return { ...DEFAULT_SETTINGS, ...saved };
+    // Strip removed keys so stale values never bleed into auto-computed logic
+    const { courseMaxSession: _cms, bookMaxSession: _bms, _courseMaxRaw: _cmr, _bookMaxRaw: _bmr, ...cleanSaved } = saved;
+    return { ...DEFAULT_SETTINGS, ...cleanSaved };
   });
   const WEEKLY_TARGET = Math.max(5, Math.min(45, settings.weeklyTarget ?? 20));
   const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
@@ -1337,6 +1603,7 @@ export default function App(){
   const [markCompleteConfirm, setMarkCompleteConfirm] = useState(null);
   const [bonusItems, setBonusItems]             = useState(()=>load("tp_bonus1",[]));
   const [bonusLoading, setBonusLoading]         = useState(false);
+  const [weekCompleteDismissed, setWeekCompleteDismissed] = useState(false);
   const [exportReminder, setExportReminder]     = useState(false);
   const [newItem, setNewItem]                   = useState({name:"",hours:"",type:"course",section:"Core",genre:""});
   const [showSundayReview, setShowSundayReview] = useState(false);
@@ -1394,6 +1661,7 @@ export default function App(){
       const mon=getMonday();
       setWeek(w=>w.weekStart!==mon?{weekStart:mon,hoursLogged:0}:w);
       setWeekPlan(p=>p?.weekStart!==mon?null:p);
+      setBonusItems(b=>b?.weekStart&&b.weekStart!==mon?[]:b);
     };
     check();const t=setInterval(check,60000);return()=>clearInterval(t);
   },[]);
@@ -1439,11 +1707,15 @@ export default function App(){
       setCompletionBanner(b=>[...new Set([...b,...newlyDone])]);
       newlyDone.forEach(id=>{
         const item=CURRICULUM.find(i=>i.id===id);
-        if(item) push(
-          `${item.id} Complete`,
-          `"${item.name}" finished.`,
-          {label:"Check-In",type:"viewCheckin"}
-        );
+        if(item){
+          const todayPlanDay=weekPlan?.days?.find(d=>d.day===getDayName());
+          const todayPlanItems=todayPlanDay?.items||[];
+          const doneIdx=todayPlanItems.findIndex(it=>it.id===id);
+          const nextPlanItem=doneIdx>=0?todayPlanItems.slice(doneIdx+1).find(it=>(progress[it.id]?.percentComplete||0)<100):null;
+          const nextFull=nextPlanItem?CURRICULUM.find(c=>c.id===nextPlanItem.id):null;
+          const nextStep=nextFull?`Up next: ${nextFull.name}`:`All sessions logged — great work`;
+          push(`You finished ${item.name}`,nextStep,{label:"Check-In",type:"viewCheckin"});
+        }
         if(!item||item.section!=="Core") return;
         const isInFocus=(focus.courses||[]).includes(id)||(focus.books||[]).includes(id);
         if(!isInFocus) return;
@@ -1478,6 +1750,19 @@ export default function App(){
 
   // ── 9. AI context builder ──
   const buildAIContext = () => {
+    // Merge snapshot (Sunday baseline) with live progress — live always wins, snapshot fills gaps
+    const snapshot = load(SK_SNAPSHOT, null);
+    const snapshotProgress = snapshot?.progress || {};
+    const mergedProgress = { ...snapshotProgress, ...progress };
+    // Any item the snapshot recorded as complete stays complete even if live data says otherwise
+    Object.keys(snapshotProgress).forEach(id => {
+      if ((snapshotProgress[id]?.percentComplete || 0) >= 100) {
+        if (!mergedProgress[id]) mergedProgress[id] = snapshotProgress[id];
+        else if ((mergedProgress[id].percentComplete || 0) < 100)
+          mergedProgress[id] = { ...mergedProgress[id], percentComplete: 100 };
+      }
+    });
+
     const reviewHistory=reviews.slice(0,6).map((r,i)=>
       `REVIEW ${i+1} (${r.date}, ${r.hoursLogged?.toFixed(1)||0}h, ${r.stars||"?"}★): ${r.summary||r.note||"no summary"}`
     ).join("\n");
@@ -1528,11 +1813,13 @@ export default function App(){
       .map(i=>`${i.id}:"${i.name}"(book,${i.genre},${i.section},mode=${i.mode||"normal"})`)
       .join("|");
 
+    // Use merged (snapshot-aware) progress so completed items are never rescheduled
+    const getMP = id => mergedProgress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
     const completedItems=CURRICULUM
-      .filter(i=>getP(i.id).percentComplete>=100)
+      .filter(i=>getMP(i.id).percentComplete>=100)
       .map(i=>`${i.id} "${i.name}" (${i.genre}): COMPLETE`)
       .join("|");
-    return{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,courseIndex,bookIndex,completedItems};
+    return{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,courseIndex,bookIndex,completedItems,mergedProgress};
   };
 
   // ── 10. Today items ──
@@ -1577,7 +1864,7 @@ export default function App(){
   const runPlanWeek = async(auto=false) => {
     if(!navigator.onLine){enqueue("plan",{auto});setOfflineQueue(loadQueue());toast_("Offline — plan queued");return;}
     setAiLoading(true);setAiResult(null);
-    const{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,courseIndex,bookIndex,completedItems}=buildAIContext();
+    const{reviewHistory,planVsActual,touchedAndFocus,nextCore,velocityTrend,avgH,courseIndex,bookIndex,completedItems,mergedProgress}=buildAIContext();
     const todayStr_=new Date().toLocaleDateString();
     const loggedToday_=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===todayStr_));
     const effectiveDayIdx_=loggedToday_?getDayIdx()+1:getDayIdx();
@@ -1588,153 +1875,222 @@ export default function App(){
     if(effectiveDLeft===0||effectiveWkRem===0){toast_("Week complete");setAiLoading(false);return;}
     const dayBudgets=distributeDays(effectiveWkRem,remainingDayNames);
 
-    const prompt=`Learning coach. Plan this learner's week. Respond ONLY with valid JSON — no commentary, no markdown.
+    const courseMaxThisWeek = getCourseMaxSession(WEEKLY_TARGET);
+    // Pre-compute scheduling context — AI arranges a pre-solved puzzle, not raw math
+    const schedCtx = buildSchedulingContext(CURRICULUM, mergedProgress||progress, focusIds, settings, WEEKLY_TARGET, remainingDayNames, dayBudgets);
+    const prompt=`Learning coach. Build this learner's weekly study plan. Respond ONLY with valid JSON — no commentary, no markdown, no code fences.
 
-HOUR MATH (pre-calculated — do not change):
-- Total available: ${effectiveWkRem}h across ${effectiveDLeft} days (${remainingDayNames.join(",")}).
+═══ HOUR MATH (pre-calculated — use exactly) ═══
+- Total available: ${effectiveWkRem}h real across ${effectiveDLeft} days (${remainingDayNames.join(",")})
 - Day budgets: ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
-- Every day's items MUST sum exactly to that day's budget. Never over or under.
+- Every day's items MUST sum exactly to that day's budget (within 0.25h). Never over or under.
+- Courses use ${settings.courseRatio}:1 ratio — 1h content = ${settings.courseRatio}h real. Books use 1:1.
+- All math in REAL hours only. Never use content hours for totals.
 
-STRICT HOUR RULES:
-- Courses: 1h content = ${settings.courseRatio}h real. Max ${settings.courseMaxSession}h real/session.
-- Books: session length is FIXED by mode — passage=0.5h, slow=1h, normal=1.5h, fast=2h. Never deviate.
-- PASSAGE BOOK RULE (highest priority, cannot be broken for any reason): Passage books are scheduled every active study day at exactly 0.5h (30 min), once per day. Exempt from all book caps. NEVER paired with a course session. Never extended or repeated to fill time.
-- HARD RULE — If the remaining days cannot absorb the full hour target without violating mode caps, the plan MUST run short. The weekly target is a goal, not a requirement. Mode session lengths are non-negotiable.
-- targetPct = floor((contentDone + contentGain) / totalContent × 100)
-- ONLY use item IDs that exist in the COURSE INDEX or BOOK INDEX below. Never invent IDs.
+═══ SESSION LENGTH RULES (non-negotiable) ═══
+COURSE SESSIONS:
+- Minimum per session: 0.5h (30 min) always
+- This week's tier max: ${courseMaxThisWeek}h/session (${WEEKLY_TARGET}h/week tier)
+- Absolute maximum: 3h, never exceeded under any circumstances
+- Course appears once per day only — extra hours extend the single session up to tier max
+- If <0.5h remains for a course after other sessions, complete it using that time
+- Replan caveat: if days were missed, AI may extend course sessions up to 0.5h beyond tier max for the remainder of this week only. Never exceed 3h absolute max.
 
-COURSE SCHEDULING RULES (strictly enforced):
-- Session order each day: (1) Passage books — 0.5h each, every active day. (2) Course session — most demanding first, interleaved across days. (3) Paired book — mode-based length. (4) Free book — mode-based length.
-- The most cognitively demanding course goes FIRST each day (after passage books) and is front-loaded earlier in the week.
-- Multiple active courses MUST be interleaved — never schedule the same course on two consecutive days.
-- If only one course is active, it may appear daily.
-- Below 15h/week: only 1 course regardless of settings or focus list.
-- 2-course tiers (16–30h): both courses MUST be from contrasting subject domains — never two courses from the same or similar genre. Alternate every day; never the same course two days in a row.
-- 3-course tiers (31–45h): all three courses MUST be from different subject domains. Rotate across days so no course repeats on consecutive days.
-- If contrasting options do not exist in the current focus, flag this in the insight and pick the best available pairing.
+BOOK SESSIONS (fixed by mode field — no exceptions ever):
+- passage → exactly 0.5h (30 min) hard cap, NEVER extended for any reason including hitting hour target
+- slow → default 1h, minimum 0.5h, maximum 3h
+- normal → default 1.5h, minimum 0.5h, maximum 3h
+- fast → default 2h, minimum 0.5h, maximum 3h
+- Passage books are identified by mode==="passage" — never use a hardcoded list
 
-FOCUS CAPS (strictly enforced):
-- Max ${MAX_COURSES} active course(s) + max ${MAX_BOOKS} non-passage books at ${WEEKLY_TARGET}h/week.
-- Passage books (mode=passage) do NOT count toward the book cap — always include them.
-- Working memory handles 4±1 concepts; fewer active items = deeper retention at lower hours.
-- At 11–15h: use only 1 course — do NOT activate a second course at this tier. Go deeper on one.
-- At 16–30h: if 2 courses are active they MUST be from contrasting subject domains.
-- At 31–45h: if 3 courses are active all three MUST be from different subject domains.
-- Do not activate a 3rd course until weekly target reaches 31h — depth over breadth.
+═══ DAILY HARD CAP ═══
+- Maximum 8h planned per day, never exceeded (day budgets already reflect this)
+- When 8h cap or budget forces cuts, use this order: cut free books first → reduce paired book sessions to minimum → reduce course sessions to 0.5h minimum → NEVER cut passage books
 
-BOOK PAIRING SYSTEM (strictly enforced):
-- Each active course gets exactly 1 paired book that complements its subject domain:
-  Biology/Natural History course → natural history or science narrative book.
-  History course → same-era narrative or historical account book.
-  Investing/Finance course → financial history or investor biography book.
-  Physics/Science course → science history or technical narrative book.
-  (Apply same logic for other domains — pair by thematic or subject proximity.)
-- Remaining non-passage book slots are FREE books: must contrast with all active subjects — narrative fiction, philosophy, or cross-domain books. Never pick a free book from the same genre as any active course or its paired book.
-- Slot counts at this tier: ${MAX_COURSES} paired book(s), ${Math.max(0, MAX_BOOKS - MAX_COURSES)} free book slot(s).
-- Book auto-selection (when slots are empty): (1) Subject-match with active course for paired slots. (2) Genre contrast for free slots. (3) Curriculum position — prefer next in core sequence. (4) Learning profile weighting. Selections should feel like a real tutor chose them.
-- Book completion mid-week: If a book finishes mid-week, mark it complete and leave the slot empty for the rest of the week. Auto-select a replacement at the next Sunday planning session. Do not start a new book mid-week.
-- Slow book flag: If a book has been active more than 4 weeks with less than 25% progress, flag it in the insight field and suggest increasing session frequency or replacing it.
+═══ PRIORITY HIERARCHY (non-negotiable, enforce in this exact order) ═══
+1. 8h daily hard cap
+2. Passage book 30 min hard cap
+3. Course interleaving (never same course two consecutive days)
+4. Focus caps
+5. Hour target — goal not requirement; plan runs short before breaking any rule above
 
-REPLAN RULES:
-- Days already completed this week are locked — never modify them.
-- Missed sessions are NOT stacked or redistributed. They become context for the next Sunday planning session — the AI sees what was missed and what was completed and absorbs it into the new week naturally.
-- If there is no room in the current week, flag overflow in the insight field.
-- Missed weeks: if an entire week was missed, treat it as a gap. Read all completed items, ignore the missed week entirely, plan fresh from current actual progress. No catch-up stacking ever.
+═══ COURSE SCHEDULING ═══
+- Daily session order: (1) Passage books — 0.5h each. (2) Most demanding course. (3) Paired book. (4) Free book.
+- Cognitive demand ranking (schedule first/front-load in week): Physics/Biology/Chemistry/Mathematics → History/Philosophy/Literature → Business/Sales/Marketing/Investing/Law
+- Most demanding course goes FIRST each day (after passage books) and is front-loaded earlier in the week
+- Multiple courses MUST be interleaved — never the same course two days in a row
+- If only one course is active, it may appear daily
+- Below 15h/week: only 1 course, no exceptions
+- 2-course tiers (16–30h): both courses MUST be from contrasting subject domains — never same or similar genre
+- 3-course tiers (31–45h): all three from different subject domains, rotate so none repeats on consecutive days
+- Course finishes mid-week: mark complete, leave slot empty rest of week, auto-select replacement at Sunday session
 
-DAY DISTRIBUTION:
-- The provided day budgets are already front-loaded (earlier days are heavier).
-- Do not reorder — just populate each day's items to match its exact budget.
-- Vary genres — never same genre twice in one day.
+═══ FOCUS CAPS (strictly enforced) ═══
+- Max active: ${MAX_COURSES} course(s) + ${MAX_BOOKS} non-passage book(s) at ${WEEKLY_TARGET}h/week
+- Passage books (mode=passage) EXEMPT from all caps — always include every active passage book every day
+- 5–10h: 1 course, 1 paired book, 0–1 free books
+- 11–15h: 1 course, 1 paired book, 1 free book — only 1 course at this tier, no exceptions
+- 16–20h: 2 courses, 2 paired books, 1 free book — must be contrasting domains
+- 21–25h: 2 courses, 2 paired books, 1–2 free books
+- 26–30h: 2 courses, 2 paired books, 2 free books
+- 31–35h: 3 courses, 3 paired books, 1–2 free books — all different domains
+- 36–45h: 3 courses, 3 paired books, 2 free books
 
-PLANNING PROCESS — READ ALL CONTEXT BEFORE BUILDING THE PLAN:
-1. Read learner profile, arc position, and velocity trend.
-2. Read ALL COMPLETED ITEMS — mandatory before every plan, replan, and review. This is the source of truth. Never assume progress.
-3. Read all ACTIVE ITEMS with their current progress and momentum.
-4. Read the LAST WEEKLY REVIEW summary for energy/difficulty signals.
-5. Scan the full curriculum — balance subjects, prioritize items near completion (>70%), honor genre variety, use best judgment rather than blindly following sequence.
-6. Apply priority hierarchy strictly: passage books first → mode session caps second → course interleaving third → focus caps fourth → hour target last.
-7. Apply book pairing: assign 1 paired book per active course (subject-domain match), fill remaining book slots with contrasting free books.
-8. Only then build the day-by-day schedule.
-IMPORTANT: Never reschedule COMPLETED ITEMS. Never deviate from mode caps for any reason. If weekly target is 0 or no active days are set, do not build a plan.
+═══ BOOK PAIRING DOMAIN MAP ═══
+Each active course gets exactly 1 PAIRED book. Use ONLY the IDs listed for each domain:
+- Biology, Medicine, Science courses → B1, B2, B22, B48, B52, B56, B101
+- History, World History, American History courses → B5, B7, B11, B12, B20, B21, B26, B33, B37, B40, B42, B44, B45, B46, B47, B50, B58, B80, B81, B82, B90, B91, B111, B123, B124, B126, B127, B128, B129, B130, B131, B132, B133, B134, B135, B137, B138, B139, B142, B143, B144, B151, B152, B153, B154, B173, B174
+- Philosophy, Logic, Ethics courses → B9, B10, B13, B16, B17, B18, B30, B31, B38, B60, B61, B95, B100, B116, B146, B149, B150, B155
+- Investing, Economics, Accounting, Finance courses → B58, B62, B63, B64, B65, B66, B68, B69, B70, B71, B72, B73, B74, B75, B76, B77, B78, B79, B80, B81, B82, B83, B84, B85, B86, B87, B88, B89, B90, B91, B92, B93, B94, B136, B158, B159, B160, B161, B162, B163, B164, B165, B166, B167, B168, B169, B170, B171, B172
+- Marketing, Sales, Entrepreneur courses → B23, B25, B27, B28, B29, B62, B63, B64, B65, B66, B68, B69, B70, B71, B72, B73, B74, B75, B76, B175, B176, B177, B180, B181, B182, B183
+- Physics, Astronomy courses → B3, B4, B48, B101
+- Pilot, Welder, Maker, Tinker courses → B3, B4, B59, B96, B184
+- Literature, Writing courses → B11, B20, B21, B24, B32, B38, B41, B43, B44, B54, B55, B97, B98, B102, B103, B104, B105, B106, B107, B108, B109, B110, B112, B113, B114, B115, B117, B118, B119, B120, B121, B122, B125
+- Law courses → B13, B16, B17, B18, B29
+- Nature, Geology courses → B22, B51, B178, B179
+- Psychology courses → B10, B149, B150
+- Music, Art courses → no direct pairing — use free book slot instead
 
+FREE BOOK SLOTS (${Math.max(0, MAX_BOOKS - MAX_COURSES)} slot(s) at this tier):
+- Must contrast with all active course subjects
+- Prefer: Cowboy (B5, B6, B7, B8), Sailor (B42, B44, B45, B46, B47, B48), Survivalist (B49, B50, B51, B53), Farmer (B57), Chef (B14, B15), narrative fiction, adventure
+- Soften contrast rule — prefer contrast but allow same genre if no alternatives exist within current focus tier
+- Passage books NEVER count as free book slots
+- Book finishes mid-week: mark complete, leave slot empty rest of week, replace at Sunday session
+- Slow book stalled 4+ weeks under 25% progress: flag in insight field and suggest replacement
+
+BOOK AUTO-SELECTION (when slots need filling):
+1. Paired slots: use domain map above to match active course subject
+2. Free slots: prefer genre contrast, then outlier genres (cowboy, sailor, survivalist, chef, adventure)
+3. Prefer earliest unstarted Core book as tiebreaker
+4. Weight by learning profile interests
+Selections must feel like a real tutor chose them, not mechanical sequence following.
+
+═══ REPLAN RULES ═══
+- Completed days are LOCKED — never modify them
+- Missed sessions are NOT redistributed — they become context for next Sunday planning
+- Overflow: flag in insight field, never stack on current plan
+- Missed weeks: treat as gap, plan fresh from actual progress, no catch-up stacking ever
+
+═══ PLANNING PROCESS (execute in this exact order) ═══
+1. Read learner profile, arc position, velocity trend
+2. Read ALL COMPLETED ITEMS — source of truth, never assume progress
+3. Read all active items with current progress and momentum
+4. Read last weekly review for energy/difficulty signals
+5. Scan full curriculum: balance subjects, prioritize items near completion (>70%), honor genre variety, use best judgment not blind sequence
+6. Apply priority hierarchy: passage books → session caps → course interleaving → focus caps → hour target
+7. Assign paired books (1 per course, domain map), fill remaining slots with contrasting free books
+8. Build day-by-day schedule matching exact day budgets
+
+═══ CONTEXT ═══
 LEARNER PROFILE:
 ${profile}
 
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 VELOCITY: ${velocityTrend}. 4-week avg: ${avgH}h/wk.
-${planGuidance?`\nLEARNER GUIDANCE: "${planGuidance}"
-IMPORTANT — For courses: search COURSE INDEX by genre/title keywords. For books: search BOOK INDEX by title keywords and genre. Map the request to real IDs. For example "philosophy books" → search Book Index for genre=Philosophy items like B9,B16,B34,B95,B99,B100 etc.`:""}
+${planGuidance?`\nGUIDANCE FROM LEARNER: "${planGuidance}"\nFor courses: search COURSE INDEX by genre/title. For books: search BOOK INDEX by title and genre. Map to real IDs only. Example: "philosophy books" → B9, B16, B30, B34, B95, B99, B100 etc.`:""}
 
-COMPLETED ITEMS (do NOT reschedule — for context only):
+COMPLETED (do NOT reschedule — context only):
 ${completedItems||"None yet."}
 
 CURRENT FOCUS (${focus.manual?"MANUAL — respect it":"AI-managed"}): ${focusIds.join(",")}
 
-LAST WEEK REVIEW:
+LAST WEEKLY REVIEW:
 ${reviewHistory?.split("\n")[0]||"None yet."}
 
-FOCUS PROPOSAL RULES:
-- Respect MAX_COURSES=${MAX_COURSES} and MAX_BOOKS=${MAX_BOOKS} (passage books excluded from cap).
-- Always keep at least 1 Philosophy book active.
-- Never propose Optional if genre has unfinished Core items.
-- Only rotate if >85% complete OR 0 momentum 2+ weeks.
-- When proposing 2 courses, they MUST be from contrasting subject domains — never two from the same or similar genre. Pick based on learning profile and curriculum position.
-- When proposing 3 courses, all three MUST be from different subject domains.
-- At 11–15h/week, propose only 1 course — do not split focus at this tier.
-- Do not propose a 3rd course unless weekly target is 31h or above.
-- For each proposed course, pair it with a complementary book (subject-domain match). Fill remaining book slots with genre-contrasting free books. Never propose a free book from the same genre as an active course or its paired book.
-- Weekly target changes mid-week: the existing confirmed plan stays locked. New target takes effect at the next Sunday planning session only.
-
-ACTIVE ITEMS:
+ACTIVE ITEMS (progress and momentum):
 ${touchedAndFocus||"None."}
 
 NEXT UNTOUCHED CORE:
 ${nextCore.slice(0,400)}
 
-COURSE INDEX (use ONLY these IDs for courses):
+COURSE INDEX (ONLY use these IDs for courses):
 ${courseIndex.slice(0,2000)}
 
-BOOK INDEX (use ONLY these IDs for books — search by title and genre to match guidance):
+BOOK INDEX (ONLY use these IDs for books):
 ${bookIndex.slice(0,2500)}
 
-JSON format:
-{"days":[{"day":"Mon","totalDayRealH":3,"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"targetPct":10}]}],"insight":"1 sentence","assessment":"1 sentence","nextMilestone":"1 sentence","focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+FOCUS PROPOSAL RULES:
+- Keep MAX_COURSES=${MAX_COURSES}, MAX_BOOKS=${MAX_BOOKS} (passage books excluded)
+- Always keep ≥1 Philosophy book active
+- Never propose Optional when Core genre has unfinished items
+- Only rotate if >85% complete OR 0 momentum for 2+ weeks
+- At 2+ courses: must be contrasting subject domains
+- At 3 courses: all must be different subject domains
+- Below 15h: propose only 1 course
+- For each proposed course, include 1 paired book (domain map) + contrasting free books
 
-    try{
-      const raw=await callAI(prompt,2000,"claude-sonnet-4-20250514");
-      const jsonMatch=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim().match(/\{[\s\S]*\}/);
-      if(!jsonMatch) throw new Error("No JSON");
-      const parsed=JSON.parse(jsonMatch[0]);
-      // Strip completed items from all days
-      const validatedDays=(parsed.days||[]).map((day,i)=>{
-        const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(effectiveWkRem/effectiveDLeft);
-        const filteredItems=(day.items||[]).filter(it=>{
-          const p=getP(it.id);
-          return CURRICULUM.find(c=>c.id===it.id)&&(p.percentComplete||0)<100;
+PRE-COMPUTED SCHEDULE DATA (use these exact numbers — do not recalculate):
+${JSON.stringify(schedCtx, null, 0)}
+
+RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use this exact schema:
+{"days":[{"day":"Mon","totalDayRealH":3,"sessions":[{"itemId":"A1","itemName":"Biology","type":"course","mode":null,"sessionHours":1.5,"order":1}]}],"insight":"1 sentence","assessment":"1 sentence","nextMilestone":"1 sentence","flags":[],"focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+
+    // Attempt AI call with up to 3 retries if validation fails
+    let lastErr = null;
+    for(let attempt=0; attempt<3; attempt++){
+      try{
+        const raw=await callAI(prompt,2200,"claude-sonnet-4-20250514");
+        const jsonMatch=raw.replace(/```json[\s\S]*?```/g,m=>m.slice(7,-3)).replace(/```/g,"").trim().match(/\{[\s\S]*\}/);
+        if(!jsonMatch) throw new Error("No JSON in response");
+        const parsed=JSON.parse(jsonMatch[0]);
+
+        // Normalize new schema → internal format (handles both old .items and new .sessions)
+        const normalizedDays = normalizeParsedDays(parsed.days, remainingDayNames);
+
+        // Strip completed items, apply scaleDayItems
+        const validatedDays=normalizedDays.map((day,i)=>{
+          const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(effectiveWkRem/effectiveDLeft);
+          const filteredItems=day.items.filter(it=>{
+            const p=getP(it.id);
+            return CURRICULUM.find(c=>c.id===it.id)&&(p.percentComplete||0)<100;
+          });
+          const scaledItems=scaleDayItems(filteredItems,budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings);
+          // Lock session order: passage → courses by demand → books
+          const sortedItems=sortDaySessions(scaledItems,CURRICULUM);
+          return{...day,totalDayRealH:budget,items:sortedItems};
         });
-        return{...day,totalDayRealH:budget,
-          items:scaleDayItems(filteredItems,budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
-      });
-      const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
-      const drift=parseFloat((effectiveWkRem-grandTotal).toFixed(2));
-      if(Math.abs(drift)>=0.05&&validatedDays.length>0){
-        const last=validatedDays[validatedDays.length-1];
-        const newDayH=parseFloat((last.totalDayRealH+drift).toFixed(2));
-        validatedDays[validatedDays.length-1]={...last,totalDayRealH:newDayH,
-          items:scaleDayItems(last.items,newDayH,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings)};
+
+        // Budget drift correction on last day
+        const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
+        const drift=parseFloat((effectiveWkRem-grandTotal).toFixed(2));
+        if(Math.abs(drift)>=0.05&&validatedDays.length>0){
+          const last=validatedDays[validatedDays.length-1];
+          const newDayH=parseFloat((last.totalDayRealH+drift).toFixed(2));
+          const rescaled=scaleDayItems(last.items,newDayH,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings);
+          validatedDays[validatedDays.length-1]={...last,totalDayRealH:newDayH,items:sortDaySessions(rescaled,CURRICULUM)};
+        }
+
+        // JS validation layer — reject and retry if hard rules broken
+        const errs=validatePlanRules(validatedDays,CURRICULUM,mergedProgress||progress,focusIds,MAX_COURSES,MAX_BOOKS);
+        if(errs.length>0){
+          console.warn(`Plan validation failed (attempt ${attempt+1}):`,errs);
+          lastErr=`Validation: ${errs[0]}`;
+          continue; // retry
+        }
+
+        const keptDays=(weekPlan?.days||[]).filter(d=>{
+          const dIdx=ALL_DAYS.indexOf(d.day);
+          return dIdx<effectiveDayIdx_;
+        });
+        const insight=parsed.insight||parsed.weekSummary||"";
+        const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
+          days:[...keptDays,...validatedDays],totalPlannedHours:effectiveWkRem,
+          reasoning:insight,assessment:parsed.assessment||"",nextMilestone:parsed.nextMilestone||"",
+          focusReasoning:parsed.focusProposal?.reasoning||"",activeFocusIds:focusIds,
+          flags:parsed.flags||[]};
+        setWeekPlan(plan);
+        setAiResult({...parsed,insight}); // ensure insight is always present for UI
+        updateWeeklyHours(weekH);
+        push("Week Plan Ready",insight||"Your week has been planned. Tap to view.",{label:"View Week",type:"viewWeek"});
+        lastErr=null;
+        break; // success
+      }catch(e){
+        console.error(`Plan attempt ${attempt+1} error:`,e);
+        lastErr=e.message||"Unknown error";
       }
-      const keptDays=(weekPlan?.days||[]).filter(d=>{
-        const dIdx=ALL_DAYS.indexOf(d.day);
-        return dIdx<effectiveDayIdx_;
-      });
-      const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
-        days:[...keptDays,...validatedDays],totalPlannedHours:effectiveWkRem,
-        reasoning:parsed.insight||"",assessment:parsed.assessment||"",nextMilestone:parsed.nextMilestone||"",
-        focusReasoning:parsed.focusProposal?.reasoning||"",activeFocusIds:focusIds};
-      setWeekPlan(plan);setAiResult(parsed);
-      updateWeeklyHours(weekH);
-      push("Week Plan Ready",parsed.insight||"Your week has been planned. Tap to view.",{label:"View Week",type:"viewWeek"});
-    }catch(e){console.error(e);toast_("Couldn't generate — try again");}
+    }
+    if(lastErr) toast_("Couldn't generate — try again");
     setAiLoading(false);
   };
 
@@ -1760,6 +2116,8 @@ JSON format:
     setReviews(prev=>[entry,...prev.filter(r=>r.weekStart!==getMonday())].slice(0,MAX_REVIEWS));
     updateWeeklyHours(weekH);
     save(SK_SUNDAY_DONE,getTodayISO());
+    // Save full progress snapshot — used as planning source of truth for the new week
+    save(SK_SNAPSHOT,{progress,focus,weekStart:getMonday(),savedAt:new Date().toISOString()});
     setShowSundayReview(false);setSundayForm({stars:0,note:""});setSundaySubmitting(false);
     toast_("Week reviewed and summarized");
   };
@@ -1793,29 +2151,87 @@ JSON format:
     if(!navigator.onLine){toast_("Offline");return;}
     setBonusLoading(true);
     const{touchedAndFocus,nextCore,courseIndex,bookIndex}=buildAIContext();
-    const prompt=`Learner hit their ${WEEKLY_TARGET}h weekly target. Suggest 1-2 bonus sessions for ONE extra study day. JSON only — no commentary.
+    const bonusCourseMax = getCourseMaxSession(WEEKLY_TARGET);
+    // Compute genres studied this week
+    const weekGenres=new Set(CURRICULUM.filter(i=>{
+      const mon=new Date(getMonday());
+      return (getP(i.id).sessions||[]).some(s=>new Date(s.date)>=mon);
+    }).map(i=>i.genre));
+    const untouchedGenres=[...new Set(CURRICULUM.filter(i=>(getP(i.id).percentComplete||0)<100).map(i=>i.genre))].filter(g=>!weekGenres.has(g));
+    const mostStudiedGenre=[...weekGenres][0]||"";
+    const prompt=`Learner hit their ${WEEKLY_TARGET}h weekly target. Suggest exactly 3 bonus items — one for each category. Bonus sessions are purely exploratory with no hour cap. JSON only — no commentary.
 PROFILE: ${profile}
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
-HOUR RULES: Courses:1h content=${settings.courseRatio}h real, max ${settings.courseMaxSession}h/session. Books: session length fixed by mode — passage=0.5h, slow=1h, normal=1.5h, fast=2h.
-FOCUS CAPS: max ${MAX_COURSES} courses + ${MAX_BOOKS} non-passage books. Passage books exempt from cap. Keep 1 Philosophy book. No Optional if Core genre unfinished.
+HOUR RULES: Courses: max ${bonusCourseMax}h/session. Books: passage=0.5h, slow=1h, normal=1.5h, fast=2h.
+GENRES STUDIED THIS WEEK: ${[...weekGenres].join(",")||"none"}
+UNTOUCHED GENRES (pick from these for category 1): ${untouchedGenres.slice(0,10).join(",")||"any"}
+MOST STUDIED GENRE (pair with for category 2): ${mostStudiedGenre}
 CURRENT FOCUS: ${focusIds.join(",")}
 ACTIVE: ${touchedAndFocus||"None."}
 NEXT CORE: ${nextCore.slice(0,300)}
-COURSE INDEX: ${courseIndex.slice(0,1000)}
-BOOK INDEX: ${bookIndex.slice(0,1200)}
+COURSE INDEX: ${courseIndex.slice(0,800)}
+BOOK INDEX: ${bookIndex.slice(0,1000)}
+CATEGORIES — suggest exactly one item per category:
+1. "untouched_domain": Item from a genre NOT studied at all this week
+2. "paired": Item that complements or pairs with the most-studied subject this week
+3. "wildcard": Item that matches the learner's profile interests or section of the 4-year arc
 Respond ONLY with valid JSON:
-{"items":[{"id":"A1","realHours":1.5,"contentHours":0.75}],"note":"one sentence"}`;
+{"items":[{"id":"A1","realHours":1.5,"contentHours":0.75,"category":"untouched_domain"},{"id":"B10","realHours":1.0,"contentHours":1.0,"category":"paired"},{"id":"A5","realHours":2.0,"contentHours":1.0,"category":"wildcard"}],"note":"one sentence"}`;
     try{
-      const raw=await callAI(prompt,600);
+      const raw=await callAI(prompt,700);
       const clean=raw.replace(/```json|```/g,"").trim();
       const jsonMatch=clean.match(/\{[\s\S]*\}/);
       if(!jsonMatch) throw new Error("No JSON found");
       const parsed=JSON.parse(jsonMatch[0]);
       if(!parsed.items||!Array.isArray(parsed.items)) throw new Error("Invalid structure");
       const validItems=parsed.items.filter(it=>CURRICULUM.find(c=>c.id===it.id)&&getP(it.id).percentComplete<100);
-      setBonusItems({items:validItems,note:parsed.note||"",generatedAt:new Date().toISOString()});
+      setBonusItems({items:validItems,note:parsed.note||"",generatedAt:new Date().toISOString(),weekStart:getMonday()});
     }catch(e){console.error("Bonus error:",e);toast_(`Couldn't generate bonus: ${e.message?.slice(0,40)||"unknown"}`);}
     setBonusLoading(false);
+  };
+
+  const redistributeLeftover = (completedId, leftoverH) => {
+    if(!weekPlan?.days || leftoverH < 0.25) return;
+    const todayName = getDayName();
+    setWeekPlan(prev => {
+      if(!prev?.days) return prev;
+      const days = prev.days.map(day => {
+        if(day.day !== todayName) return day;
+        const items = [...(day.items || [])];
+        const completedIdx = items.findIndex(it => it.id === completedId);
+        if(completedIdx < 0) return day;
+        // Find next uncompleted session in the day
+        const nextIdx = items.slice(completedIdx + 1).findIndex(it => (progress[it.id]?.percentComplete||0) < 100);
+        const absNextIdx = nextIdx >= 0 ? completedIdx + 1 + nextIdx : -1;
+        if(absNextIdx >= 0) {
+          const nextItem = CURRICULUM.find(c => c.id === items[absNextIdx].id);
+          if(nextItem) {
+            const modeMax = maxRealPerSession(nextItem, settings);
+            const current = items[absNextIdx].realHours || 0;
+            const extended = parseFloat(Math.min(current + leftoverH, modeMax).toFixed(2));
+            if(extended > current + 0.1) {
+              items[absNextIdx] = { ...items[absNextIdx], realHours: extended };
+              return { ...day, items };
+            }
+          }
+        } else if(leftoverH >= 0.5) {
+          // No extendable next session — add free book from focus
+          const inTodayIds = new Set(items.map(it => it.id));
+          const freeBook = (focus.books || [])
+            .map(bid => CURRICULUM.find(c => c.id === bid))
+            .find(b => b && !inTodayIds.has(b.id) && (progress[b.id]?.percentComplete||0) < 100 && b.mode !== 'passage');
+          if(freeBook) {
+            const sessionH = parseFloat(Math.min(leftoverH, maxRealPerSession(freeBook, settings)).toFixed(2));
+            const ch = parseFloat(realToContent(freeBook, sessionH, settings).toFixed(3));
+            const tgt = targetPctAfterSession(freeBook, progress[freeBook.id]||{}, sessionH, settings);
+            items.push({ id: freeBook.id, realHours: sessionH, contentHours: ch, targetPct: tgt });
+            return { ...day, items };
+          }
+        }
+        return day;
+      });
+      return { ...prev, days };
+    });
   };
 
   const submitLog = (quickRealH=null,quickContentH=null) => {
@@ -1829,12 +2245,21 @@ Respond ONLY with valid JSON:
     const newContent=Math.min(prevContent+contentH,tot);
     const newPct=Math.round((newContent/tot)*100);
     const dateStr=isQuick?new Date().toLocaleDateString():logForm.date;
+    // Tag as bonus if logged from bonus suggestions
+    const isBonus=bonusItems?.items?.some(b=>b.id===id)||false;
     setProgress(p=>({...p,[id]:{
       hoursSpent:(p[id]?.hoursSpent||0)+realH,
       courseHoursComplete:newContent,percentComplete:newPct,
       sessions:[...(p[id]?.sessions||[]),
-        {date:dateStr,studyHours:realH,courseHours:parseFloat(contentH.toFixed(3)),note:isQuick?"Quick log":logForm.note}]
+        {date:dateStr,studyHours:realH,courseHours:parseFloat(contentH.toFixed(3)),
+         note:isQuick?"Quick log":logForm.note,...(isBonus?{isBonus:true}:{})}]
     }}));
+    // If item finished early, redistribute leftover time in today's plan
+    if(newPct>=100&&planIsFromThisWeek){
+      const allocRealH=weekPlan?.days?.find(d=>d.day===getDayName())?.items?.find(it=>it.id===id)?.realHours??0;
+      const leftover=parseFloat((allocRealH-realH).toFixed(2));
+      if(leftover>=0.25) redistributeLeftover(id,leftover);
+    }
     setLogging(null);
     setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
     setConfirmLog(false);
@@ -1972,6 +2397,9 @@ Respond ONLY with valid JSON:
   const coreEstDate = new Date(Date.now()+coreWksLeft*7*24*60*60*1000)
     .toLocaleDateString("en-CA",{year:"numeric",month:"short"});
   const planIsFromThisWeek = weekPlan&&weekPlan.weekStart===getMonday();
+  const allWeekSessionsDone = planIsFromThisWeek && !weekCompleteDismissed &&
+    (weekPlan?.days?.length||0)>0 &&
+    weekPlan.days.flatMap(d=>d.items||[]).every(it=>getP(it.id).percentComplete>=100);
   const today = todayItems();
 
   const todayName_ = getDayName();
@@ -2058,13 +2486,12 @@ Respond ONLY with valid JSON:
           onClearNotifs={clearNotifs} onNotifAction={handleNotifAction}
           onNotifClose={()=>setSideOpen(false)}
           onSaveSettings={s=>{
+            const { courseMaxSession: _cms, bookMaxSession: _bms, _courseMaxRaw: _cmr, _bookMaxRaw: _bmr, ...rest } = s;
             const clean={
-              ...s,
+              ...rest,
               weeklyTarget:Math.max(5,Math.min(45,parseInt(s.weeklyTarget)||20)),
               courseRatio:[1,1.5,2,2.5,3].includes(parseFloat(s.courseRatio))?parseFloat(s.courseRatio):2,
               bookRatio:[1,1.5,2,2.5,3].includes(parseFloat(s.bookRatio))?parseFloat(s.bookRatio):1,
-              courseMaxSession:Math.max(0.5,Math.min(5,Math.round((parseFloat(s.courseMaxSession)||1.5)*2)/2)),
-              bookMaxSession:Math.max(0.5,Math.min(5,Math.round((parseFloat(s.bookMaxSession)||2)*2)/2)),
             };
             setSettings(clean);
             toast_("Settings saved");
@@ -2278,6 +2705,33 @@ Respond ONLY with valid JSON:
             </Card>}
 
             {planIsFromThisWeek&&<>
+              {/* ── Week Complete Card ── */}
+              {allWeekSessionsDone&&<Card style={{padding:"22px 20px",marginBottom:16,borderLeft:`3px solid ${T.green}`,
+                animation:"fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both"}} accent={T.green} glow>
+                <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
+                  Week Complete
+                </div>
+                <div style={{fontSize:17,fontWeight:800,color:T.text,marginBottom:4}}>
+                  All sessions done
+                </div>
+                <div style={{fontSize:12,color:T.textMid,marginBottom:16,lineHeight:1.5}}>
+                  {weekH.toFixed(2)}h logged · {weekPlan.days.flatMap(d=>d.items||[]).filter(it=>getP(it.id).percentComplete>=100).length} items completed
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>setWeekCompleteDismissed(true)} className="btn-press"
+                    style={{flex:1,background:"rgba(255,255,255,0.06)",border:`1px solid rgba(255,255,255,0.12)`,
+                      color:T.textMid,borderRadius:14,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>
+                    Rest for the week
+                  </button>
+                  <button onClick={()=>{setWeekCompleteDismissed(true);setTimeout(()=>{const el=document.getElementById("bonus-card");if(el)el.scrollIntoView({behavior:"smooth"});},100);}} className="btn-press"
+                    style={{flex:1,background:"linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",border:"none",
+                      color:"#fff",borderRadius:14,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44,
+                      boxShadow:"0 4px 16px rgba(34,197,94,0.35)"}}>
+                    Bonus Mode →
+                  </button>
+                </div>
+              </Card>}
+
               {todayPlannedH>0&&<Card style={{padding:"12px 14px",marginBottom:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div style={{fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1}}>
@@ -2371,7 +2825,7 @@ Respond ONLY with valid JSON:
                 </Card>;
               })}
 
-              {weekH>=WEEKLY_TARGET&&<Card style={{padding:"13px 14px",marginBottom:10,borderLeft:`3px solid ${T.green}`,
+              {weekH>=WEEKLY_TARGET&&<div id="bonus-card"><Card style={{padding:"13px 14px",marginBottom:10,borderLeft:`3px solid ${T.green}`,
                 animation:"fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both"}}>
                 <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>Bonus Mode</div>
                 <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
@@ -2382,10 +2836,14 @@ Respond ONLY with valid JSON:
                   {bonusItems.items.map(it=>{
                     const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
                     const c=gc(item.genre);
+                    const catLabel=it.category==="untouched_domain"?"New Domain":it.category==="paired"?"Paired":it.category==="wildcard"?"Wildcard":null;
                     return <div key={it.id} style={{background:"rgba(255,255,255,0.04)",borderRadius:12,
                       padding:"10px 12px",marginBottom:8,borderLeft:`2px solid ${c}`}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                        <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,color:T.text}}>{item.name}</div>
+                        <div style={{flex:1,paddingRight:8}}>
+                          {catLabel&&<div style={{fontSize:9,color:T.green,fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>{catLabel}</div>}
+                          <div style={{fontSize:12,fontWeight:600,color:T.text}}>{item.name}</div>
+                        </div>
                         <div style={{fontSize:13,fontWeight:800,color:T.blue,flexShrink:0}}>{it.realHours}h</div>
                       </div>
                       <button onClick={()=>setLogging(item)} className="btn-press"
@@ -2404,7 +2862,7 @@ Respond ONLY with valid JSON:
                     fontSize:12,fontWeight:700,cursor:"pointer",transition:"color 0.2s",minHeight:44}}>
                   {bonusLoading?"Thinking…":"Suggest Bonus Sessions"}
                 </button>}
-              </Card>}
+              </Card></div>}
             </>}
           </div>}
 
@@ -2984,7 +3442,7 @@ Respond ONLY with valid JSON:
                           courseHours:f._contentManuallySet?f.courseHours
                             :rh?parseFloat(realToContent(logging,parseFloat(rh),settings).toFixed(3)).toString():""}));
                       }}
-                      style={inputSt} placeholder={logging.type==="course"?`e.g. ${settings.courseMaxSession}`:"e.g. 1.0"}/>
+                      style={inputSt} placeholder={logging.type==="course"?`e.g. ${getCourseMaxSession(WEEKLY_TARGET)}`:"e.g. 1.0"}/>
                     {realH>0&&<div style={{fontSize:11,color:T.blue,marginTop:5}}>
                       = {realToContent(logging,realH,settings).toFixed(3)}h content
                       {previewPct?` → ${p.percentComplete}% → ${previewPct}%`:""}
