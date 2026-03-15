@@ -416,18 +416,18 @@ const ALL_DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
 const gc = g => {
   const m = {
-    Biology:"#4ade80",Physics:"#60a5fa",Marketing:"#f472b6",Sales:"#fb923c",
-    Investing:"#facc15",Law:"#a78bfa",Literature:"#38bdf8","World History":"#f97316",
-    "American History":"#ef4444",Art:"#e879f9",Geology:"#86efac",Chemistry:"#fde68a",
-    Pilot:"#7dd3fc",Welder:"#fca5a5",Maker:"#6ee7b7",Philosophy:"#fcd34d",
-    Nature:"#86efac",Entrepreneur:"#fdba74",Accounting:"#94a3b8",
-    Tinker:"#67e8f9",Psychology:"#c4b5fd",Chef:"#fb923c",Music:"#e879f9",
-    Science:"#a5b4fc","Music Theory":"#f0abfc",Meteorology:"#7dd3fc",
-    Economics:"#fbbf24",Astronomy:"#a5b4fc",
+    Biology:"#16a34a",Physics:"#2563eb",Marketing:"#be185d",Sales:"#c2410c",
+    Investing:"#b45309",Law:"#7c3aed",Literature:"#0369a1","World History":"#c2410c",
+    "American History":"#b91c1c",Art:"#9333ea",Geology:"#15803d",Chemistry:"#ca8a04",
+    Pilot:"#0369a1",Welder:"#dc2626",Maker:"#059669",Philosophy:"#92400e",
+    Nature:"#16a34a",Entrepreneur:"#c2410c",Accounting:"#64748b",
+    Tinker:"#0891b2",Psychology:"#7c3aed",Chef:"#c2410c",Music:"#9333ea",
+    Science:"#4f46e5","Music Theory":"#be185d",Meteorology:"#0369a1",
+    Economics:"#d97706",Astronomy:"#6366f1",
   };
-  if (!g) return "#94a3b8";
+  if (!g) return "#64748b";
   for (const [k,v] of Object.entries(m)) if (g.toLowerCase()===k.toLowerCase()) return v;
-  return "#94a3b8";
+  return "#64748b";
 };
 
 const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k))??d; } catch { return d; } };
@@ -480,29 +480,31 @@ SEQUENCING RULES:
 4-YEAR ARC: Year 1 Foundations → Year 2 Applied → Year 3 Specialization → Year 4 Integration`;
 
 const T={
-  bg:"#141414",surface0:"#1a1a1a",surface1:"#202020",surface2:"#272727",surface3:"#2e2e2e",
-  border:"rgba(255,255,255,0.07)",borderLight:"rgba(255,255,255,0.13)",
-  text:"#f0f0f0",textMid:"#999",textDim:"#5a5a5a",textFaint:"#3a3a3a",
-  blue:"#60a5fa",green:"#4ade80",pink:"#f472b6",yellow:"#facc15",red:"#ef4444",orange:"#fb923c",
+  bg:"#f0f4ff",bgAlt:"#ffffff",
+  surface0:"rgba(255,255,255,0.82)",surface1:"rgba(255,255,255,0.65)",
+  surface2:"rgba(248,250,255,0.55)",surface3:"rgba(241,245,255,0.72)",
+  border:"rgba(255,255,255,0.8)",borderLight:"rgba(255,255,255,0.95)",borderSub:"rgba(203,213,225,0.4)",
+  text:"#0f172a",textMid:"#475569",textDim:"#94a3b8",textFaint:"#cbd5e1",
+  blue:"#1d4ed8",green:"#16a34a",pink:"#db2777",yellow:"#d97706",red:"#dc2626",orange:"#ea580c",
   fontUI:"'DM Sans', -apple-system, sans-serif",
 };
 const shadow={
-  card:"0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 16px rgba(0,0,0,0.5)",
-  raised:"0 1px 0 rgba(255,255,255,0.06) inset, 0 8px 32px rgba(0,0,0,0.6)",
+  card:"0 4px 24px rgba(0,0,0,0.08)",
+  raised:"0 8px 40px rgba(0,0,0,0.12)",
   glow:c=>`0 0 12px ${c}28, 0 0 32px ${c}10`,
-  inset:"inset 0 2px 8px rgba(0,0,0,0.6)",
+  inset:"inset 0 1px 4px rgba(0,0,0,0.05)",
 };
 
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin:0; padding:0; background:#141414; overscroll-behavior:none; }
+  html, body { margin:0; padding:0; background:#f0f4ff; overscroll-behavior:none; }
   body { -webkit-overflow-scrolling: touch; }
   @keyframes splashBloom {
     0%   { opacity:0; transform:scale(0.6); }
     60%  { opacity:1; transform:scale(1.05); }
     100% { opacity:1; transform:scale(1); }
   }
-  @keyframes splashPulse { 0% { opacity:0.55; } 100% { opacity:1; } }
+  @keyframes splashPulse { 0% { opacity:0.7; } 100% { opacity:1; } }
   @keyframes splashOut { to { opacity:0; } }
   @keyframes fadeUp {
     from { opacity:0; transform:translateY(14px); }
@@ -517,15 +519,23 @@ const GLOBAL_CSS = `
     from { transform:translateY(100%); opacity:0; }
     to   { transform:translateY(0);    opacity:1; }
   }
+  @keyframes bannerIn {
+    from { transform:translateY(-110%); opacity:0; }
+    to   { transform:translateY(0);     opacity:1; }
+  }
+  @keyframes bannerOut {
+    from { transform:translateY(0);     opacity:1; }
+    to   { transform:translateY(-115%); opacity:0; }
+  }
   @keyframes toastIn {
-    from { opacity:0; transform:translateX(-50%) translateY(-8px) scale(0.95); }
-    to   { opacity:1; transform:translateX(-50%) translateY(0)    scale(1); }
+    from { opacity:0; transform:translateX(-50%) translateY(8px) scale(0.95); }
+    to   { opacity:1; transform:translateX(-50%) translateY(0)   scale(1); }
   }
   .btn-press { transition: transform 0.15s ease, opacity 0.15s ease; }
   .btn-press:active { transform: scale(0.97); opacity:0.88; }
   .tab-content { animation: fadeUp 0.32s ease both; }
-  input, textarea { transition: border-color 0.2s ease, box-shadow 0.2s ease; }
-  input:focus, textarea:focus { border-color: #60a5fa60 !important; box-shadow: 0 0 0 3px #60a5fa12; outline:none; }
+  input, textarea, select { transition: border-color 0.2s ease, box-shadow 0.2s ease; font-size: 16px; }
+  input:focus, textarea:focus { border-color: #1d4ed860 !important; box-shadow: 0 0 0 3px #1d4ed815; outline:none; }
   body.menu-open { overflow: hidden; position: fixed; width: 100%; }
 `;
 
@@ -539,49 +549,60 @@ function SplashScreen({ onDone }) {
     return () => [t1,t2,t3].forEach(clearTimeout);
   }, []);
   return (
-    <div style={{position:"fixed",inset:0,zIndex:9999,background:"#141414",
+    <div style={{position:"fixed",inset:0,zIndex:9999,background:"#f0f4ff",
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
       paddingBottom:"env(safe-area-inset-bottom)",
       animation:phase==="out"?"splashOut 0.55s ease forwards":"none",pointerEvents:"none"}}>
       <div style={{position:"absolute",width:280,height:280,borderRadius:"50%",
-        background:"radial-gradient(circle, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 40%, transparent 70%)",
+        background:"radial-gradient(circle, rgba(29,78,216,0.08) 0%, rgba(29,78,216,0.03) 40%, transparent 70%)",
         animation:phase==="in"?"none":"splashBloom 0.7s ease forwards",
         opacity:phase==="in"?0:1,transition:"opacity 0.4s ease"}}/>
       <div style={{position:"absolute",width:420,height:420,borderRadius:"50%",
-        background:"radial-gradient(circle, rgba(96,165,250,0.04) 0%, transparent 65%)",
+        background:"radial-gradient(circle, rgba(29,78,216,0.05) 0%, transparent 65%)",
         animation:phase==="in"?"none":"splashBloom 1s ease 0.1s forwards",
         opacity:phase==="in"?0:1}}/>
       <div style={{position:"relative",textAlign:"center",
         animation:phase==="in"?"none":phase==="pulse"?"splashBloom 0.5s ease forwards":"none",
         opacity:phase==="in"?0:1,transition:"opacity 0.4s ease"}}>
         <div style={{fontSize:11,letterSpacing:7,textTransform:"uppercase",
-          color:"rgba(255,255,255,0.35)",fontFamily:T.fontUI,fontWeight:700,marginBottom:14,
+          color:"rgba(15,23,42,0.35)",fontFamily:T.fontUI,fontWeight:700,marginBottom:14,
           animation:phase==="pulse"?"splashPulse 1s ease-in-out infinite alternate":"none"}}>THE</div>
-        <div style={{fontSize:34,fontWeight:800,letterSpacing:-1,color:"#f0f0f0",
+        <div style={{fontSize:34,fontWeight:800,letterSpacing:-1,color:T.text,
           fontFamily:T.fontUI,lineHeight:1,marginBottom:10,
           animation:phase==="pulse"?"splashPulse 1s ease-in-out infinite alternate":"none"}}>PREPARATION</div>
         <div style={{fontSize:10,letterSpacing:5,textTransform:"uppercase",
-          color:"rgba(255,255,255,0.2)",fontFamily:T.fontUI,fontWeight:600}}>LEARNING TRACKER</div>
+          color:"rgba(15,23,42,0.3)",fontFamily:T.fontUI,fontWeight:600}}>LEARNING TRACKER</div>
         <div style={{width:40,height:1,margin:"18px auto 0",
-          background:"linear-gradient(90deg, transparent, rgba(96,165,250,0.5), transparent)"}}/>
+          background:"linear-gradient(90deg, transparent, rgba(29,78,216,0.4), transparent)"}}/>
       </div>
     </div>
   );
 }
 
-// ── Notification system (inbox only — no banner) ──────────────────────────────
+// ── Notification system ────────────────────────────────────────────────────────
 function useNotifications() {
   const [notifs, setNotifs] = useState(() => {
     const saved = load(SK_NOTIFS, []);
     const cutoff = Date.now() - NOTIF_TTL_MS;
     return saved.filter(n => n.ts > cutoff);
   });
+  const [bannerQueue, setBannerQueue] = useState([]);
+  const [currentBanner, setCurrentBanner] = useState(null);
 
   useEffect(() => { save(SK_NOTIFS, notifs); }, [notifs]);
+
+  // Drain banner queue one at a time
+  useEffect(() => {
+    if (!currentBanner && bannerQueue.length > 0) {
+      setCurrentBanner(bannerQueue[0]);
+      setBannerQueue(prev => prev.slice(1));
+    }
+  }, [currentBanner, bannerQueue]);
 
   const push = useCallback((title, body, action = null) => {
     const n = { id: Date.now(), ts: Date.now(), title, body, action, read: false };
     setNotifs(prev => [n, ...prev].slice(0, 40));
+    setBannerQueue(prev => [...prev, n]);
   }, []);
 
   const markRead = useCallback(id => {
@@ -590,32 +611,73 @@ function useNotifications() {
 
   const clearAll = useCallback(() => setNotifs([]), []);
   const dismiss = useCallback(id => setNotifs(prev => prev.filter(n => n.id !== id)), []);
+  const dismissBanner = useCallback(() => setCurrentBanner(null), []);
   const unreadCount = notifs.filter(n => !n.read).length;
-  return { notifs, push, markRead, clearAll, dismiss, unreadCount };
+  return { notifs, push, markRead, clearAll, dismiss, unreadCount, currentBanner, dismissBanner };
+}
+
+// ── Apple-style drop-down notification banner ──────────────────────────────────
+function NotifBanner({ notif, onDismiss }) {
+  const [hiding, setHiding] = useState(false);
+  useEffect(() => {
+    const t1 = setTimeout(() => setHiding(true), 3000);
+    const t2 = setTimeout(onDismiss, 3480);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  const doClose = () => { setHiding(true); setTimeout(onDismiss, 480); };
+  return (
+    <div style={{
+      position:"fixed",
+      top:`calc(env(safe-area-inset-top) + 8px)`,
+      left:12,right:12,
+      zIndex:800,
+      background:"rgba(255,255,255,0.88)",
+      backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+      borderRadius:16,
+      border:"1px solid rgba(255,255,255,0.9)",
+      boxShadow:"0 4px 32px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.8) inset",
+      padding:"12px 14px",
+      display:"flex",alignItems:"center",gap:12,
+      pointerEvents:"all",
+      animation:hiding?"bannerOut 0.48s cubic-bezier(0.4,0,1,1) forwards":"bannerIn 0.45s cubic-bezier(0.2,0,0,1) both",
+    }}>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13,fontWeight:700,color:T.text,letterSpacing:-0.2,lineHeight:1.3}}>{notif.title}</div>
+        {notif.body&&<div style={{fontSize:12,color:T.textMid,marginTop:2,lineHeight:1.4,
+          overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",
+          WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{notif.body}</div>}
+      </div>
+      <button onClick={doClose} className="btn-press"
+        style={{background:"none",border:"none",color:T.textDim,fontSize:16,cursor:"pointer",
+          padding:4,flexShrink:0,minWidth:32,minHeight:32,
+          display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+    </div>
+  );
 }
 
 function NotifInbox({ notifs, onMarkRead, onDismiss, onClearAll, onAction, onClose }) {
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:400,
-      backdropFilter:"blur(4px)",animation:"fadeIn 0.2s ease both"}}
+    <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.2)",zIndex:400,
+      backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",animation:"fadeIn 0.2s ease both"}}
       onClick={onClose}>
       <div onClick={e=>e.stopPropagation()}
         style={{position:"absolute",top:0,right:0,bottom:0,width:"min(88vw,340px)",
-          background:T.surface0,borderLeft:`1px solid ${T.border}`,
+          background:"rgba(255,255,255,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+          borderLeft:`1px solid rgba(255,255,255,0.8)`,
           display:"flex",flexDirection:"column",
-          boxShadow:"-8px 0 40px rgba(0,0,0,0.7)",
+          boxShadow:"-4px 0 40px rgba(0,0,0,0.1)",
           animation:"slideInLeft 0.3s cubic-bezier(0.4,0,0.2,1) both"}}>
         <div style={{padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
-          borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+          borderBottom:`1px solid rgba(203,213,225,0.4)`,flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-            <div style={{fontSize:16,fontWeight:800}}>Notifications</div>
+            <div style={{fontSize:16,fontWeight:800,color:T.text}}>Notifications</div>
             <div style={{display:"flex",gap:8}}>
               {notifs.length>0&&<button onClick={onClearAll} className="btn-press"
-                style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-                  borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>Clear all</button>}
+                style={{background:"none",border:`1px solid ${T.borderSub}`,color:T.textDim,
+                  borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer",minHeight:36,minWidth:44}}>Clear all</button>}
               <button onClick={onClose} className="btn-press"
-                style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.textMid,
-                  borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
+                style={{background:"rgba(241,245,255,0.8)",border:`1px solid ${T.borderSub}`,color:T.textMid,
+                  borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700,minHeight:36,minWidth:44}}>✕</button>
             </div>
           </div>
           <div style={{fontSize:10,color:T.textDim}}>{notifs.length} notification{notifs.length!==1?"s":""} · saved 3 days</div>
@@ -626,8 +688,8 @@ function NotifInbox({ notifs, onMarkRead, onDismiss, onClearAll, onAction, onClo
           </div>}
           {notifs.map((n,i)=>(
             <div key={n.id} style={{
-              background:n.read?T.surface1:`${T.blue}08`,
-              border:`1px solid ${n.read?T.border:T.blue+"25"}`,
+              background:n.read?"rgba(248,250,255,0.7)":`rgba(29,78,216,0.05)`,
+              border:`1px solid ${n.read?"rgba(203,213,225,0.4)":"rgba(29,78,216,0.2)"}`,
               borderRadius:12,padding:"12px 14px",marginBottom:8,
               animation:`fadeUp 0.15s ease ${i*0.04}s both`,
             }}>
@@ -643,11 +705,11 @@ function NotifInbox({ notifs, onMarkRead, onDismiss, onClearAll, onAction, onClo
                 </div>
                 <button onClick={()=>onDismiss(n.id)} className="btn-press"
                   style={{background:"none",border:"none",color:T.textFaint,fontSize:14,
-                    cursor:"pointer",padding:"0 2px",flexShrink:0}}>✕</button>
+                    cursor:"pointer",padding:"0 2px",flexShrink:0,minWidth:32,minHeight:32}}>✕</button>
               </div>
               {n.action&&<button onClick={()=>{onAction(n);onMarkRead(n.id);}} className="btn-press"
-                style={{width:"100%",marginTop:10,background:"#0a1220",border:`1px solid ${T.blue}30`,
-                  color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                style={{width:"100%",marginTop:10,background:T.blue,border:"none",
+                  color:"#fff",borderRadius:8,padding:"9px 0",fontSize:11,fontWeight:700,cursor:"pointer",minHeight:44}}>
                 {n.action.label}</button>}
               {!n.read&&<button onClick={()=>onMarkRead(n.id)} className="btn-press"
                 style={{background:"none",border:"none",color:T.textDim,fontSize:10,
@@ -662,19 +724,22 @@ function NotifInbox({ notifs, onMarkRead, onDismiss, onClearAll, onAction, onClo
 
 function Pill({color,label}){
   return <span style={{display:"inline-flex",alignItems:"center",fontSize:10,fontWeight:600,
-    color,background:`${color}15`,borderRadius:20,padding:"2px 8px",
-    border:`1px solid ${color}25`,letterSpacing:0.3,boxShadow:`0 0 8px ${color}15`}}>{label}</span>;
+    color,background:`${color}12`,borderRadius:20,padding:"2px 8px",
+    border:`1px solid ${color}30`,letterSpacing:0.3}}>{label}</span>;
 }
 function Bar({pct,color=T.blue,height=4,style={},glow=false}){
-  return <div style={{background:T.surface2,borderRadius:99,height,overflow:"hidden",boxShadow:shadow.inset,...style}}>
+  return <div style={{background:"rgba(203,213,225,0.35)",borderRadius:99,height,overflow:"hidden",
+    boxShadow:"inset 0 1px 3px rgba(0,0,0,0.06)",...style}}>
     <div style={{background:color,width:`${Math.min(100,Math.max(0,pct))}%`,height:"100%",
-      borderRadius:99,transition:"width 0.5s ease",boxShadow:glow?`0 0 8px ${color}80`:"none"}}/>
+      borderRadius:99,transition:"width 0.5s ease",boxShadow:glow?`0 0 6px ${color}60`:"none"}}/>
   </div>;
 }
 function Card({children,style={},accent,glow=false}){
-  return <div style={{background:T.surface1,borderRadius:16,border:`1px solid ${T.border}`,
-    borderTop:`1px solid ${T.borderLight}`,
-    boxShadow:glow&&accent?`${shadow.card}, 0 0 24px ${accent}12`:shadow.card,
+  return <div style={{
+    background:"rgba(255,255,255,0.6)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+    borderRadius:16,border:"1px solid rgba(255,255,255,0.8)",
+    borderTop:"1px solid rgba(255,255,255,0.95)",
+    boxShadow:glow&&accent?`${shadow.card}, 0 0 20px ${accent}10`:shadow.card,
     ...(accent?{borderLeft:`3px solid ${accent}`}:{}),
     ...style}}>{children}</div>;
 }
@@ -683,9 +748,8 @@ function StarRating({value,onChange}){
     {[1,2,3,4,5].map(s=>(
       <button key={s} onClick={()=>onChange(s)} className="btn-press"
         style={{background:"none",border:"none",fontSize:28,cursor:"pointer",
-          color:s<=value?T.yellow:T.surface3,
-          textShadow:s<=value?`0 0 10px ${T.yellow}80`:"none",
-          transition:"color 0.15s, text-shadow 0.15s",padding:"2px 4px"}}>★</button>
+          color:s<=value?T.yellow:"#cbd5e1",
+          transition:"color 0.15s",padding:"2px 4px",minWidth:44,minHeight:44}}>★</button>
     ))}
   </div>;
 }
@@ -694,18 +758,18 @@ function SessionHistory({item,sessions,onEdit}){
   return <div style={{marginTop:10}}>
     <button onClick={()=>setOpen(o=>!o)} className="btn-press"
       style={{background:"none",border:"none",color:open?T.blue:T.textDim,fontSize:10,
-        cursor:"pointer",display:"flex",alignItems:"center",gap:5,padding:"2px 0",
-        letterSpacing:0.5,fontWeight:600,textTransform:"uppercase",transition:"color 0.2s"}}>
+        cursor:"pointer",display:"flex",alignItems:"center",gap:5,padding:"4px 0",
+        letterSpacing:0.5,fontWeight:600,textTransform:"uppercase",transition:"color 0.2s",minHeight:36}}>
       <span style={{fontSize:8,transition:"transform 0.2s",display:"inline-block",
         transform:open?"rotate(0deg)":"rotate(-90deg)"}}>▼</span>
       Log History
       <span style={{color:T.textFaint,fontWeight:400,textTransform:"none",letterSpacing:0}}>({sessions.length})</span>
     </button>
     <div style={{overflow:"hidden",maxHeight:open?"600px":"0",transition:"max-height 0.3s ease"}}>
-      <div style={{marginTop:8,borderLeft:`1px solid ${T.surface3}`,paddingLeft:12}}>
+      <div style={{marginTop:8,borderLeft:`2px solid rgba(203,213,225,0.5)`,paddingLeft:12}}>
         {sessions.map((s,i)=>(
           <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-            padding:"7px 0",borderBottom:`1px solid ${T.surface2}`,
+            padding:"7px 0",borderBottom:`1px solid rgba(203,213,225,0.3)`,
             animation:`fadeUp 0.15s ease ${i*0.04}s both`}}>
             <div style={{flex:1}}>
               <div style={{fontSize:11,color:T.textMid,fontWeight:500}}>{s.date}</div>
@@ -714,8 +778,8 @@ function SessionHistory({item,sessions,onEdit}){
               </div>
             </div>
             <button onClick={()=>onEdit(i)} className="btn-press"
-              style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
-                borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:600,marginLeft:10}}>
+              style={{background:"rgba(241,245,255,0.8)",border:`1px solid rgba(203,213,225,0.5)`,color:T.blue,
+                borderRadius:7,padding:"5px 12px",fontSize:10,cursor:"pointer",fontWeight:600,marginLeft:10,minHeight:36,minWidth:44}}>
               Edit</button>
           </div>
         ))}
@@ -731,13 +795,14 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
   const totalContentH=sec.items.reduce((s,i)=>s+(i.hours||0),0);
   const doneContentH=sec.items.reduce((s,i)=>s+(getP(i.id).courseHoursComplete||0),0);
   const pct=totalContentH>0?Math.round((doneContentH/totalContentH)*100):0;
-  return <div style={{background:T.surface1,border:`1px solid ${T.border}`,
-    borderTop:`1px solid ${T.borderLight}`,borderRadius:14,marginBottom:8,
-    overflow:"hidden",boxShadow:shadow.card}}>
+  return <div style={{
+    background:"rgba(255,255,255,0.6)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+    border:"1px solid rgba(255,255,255,0.8)",borderTop:"1px solid rgba(255,255,255,0.95)",
+    borderRadius:16,marginBottom:8,overflow:"hidden",boxShadow:shadow.card}}>
     <div onClick={()=>setOpen(o=>!o)} className="btn-press"
-      style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",minHeight:56}}>
       <div>
-        <div style={{fontSize:13,fontWeight:700,letterSpacing:0.1}}>{sec.label}</div>
+        <div style={{fontSize:13,fontWeight:700,color:T.text,letterSpacing:0.1}}>{sec.label}</div>
         <div style={{fontSize:10,color:T.textDim,marginTop:3}}>{sec.items.length} items · {totalContentH}h content</div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:14}}>
@@ -745,10 +810,10 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
           <div style={{fontSize:16,fontWeight:900,color:pct>0?T.blue:T.textFaint}}>{pct}%</div>
           <div style={{fontSize:9,color:T.textDim,marginTop:1}}>{done} done · {active} active</div>
         </div>
-        <div style={{color:T.textFaint,fontSize:11,transition:"transform 0.2s",transform:open?"rotate(180deg)":"rotate(0deg)"}}>▼</div>
+        <div style={{color:T.textDim,fontSize:11,transition:"transform 0.2s",transform:open?"rotate(180deg)":"rotate(0deg)"}}>▼</div>
       </div>
     </div>
-    <Bar pct={pct} style={{margin:"0 16px 10px",height:3}} glow={pct>0}/>
+    <Bar pct={pct} color={T.blue} style={{margin:"0 16px 10px",height:3}} glow={pct>0}/>
     <div style={{overflow:"hidden",maxHeight:open?"9999px":"0",transition:"max-height 0.35s ease"}}>
       <div style={{padding:"0 12px 12px"}}>
         {sec.items.map(item=>{
@@ -759,10 +824,9 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
           const realLeft=contentToReal(item,contentLeft,settings);
           return <div key={item.id}
             style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
-              borderBottom:`1px solid ${T.surface2}`}}>
+              borderBottom:`1px solid rgba(203,213,225,0.3)`}}>
             <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
-              background:isDone?T.green:isTouched?c:inFocus?"#f472b6":T.surface3,
-              boxShadow:isDone||isTouched?`0 0 6px ${isDone?T.green:c}60`:"none"}}/>
+              background:isDone?T.green:isTouched?c:inFocus?T.pink:"#cbd5e1"}}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:11,fontWeight:isDone||isTouched?600:400,
                 color:isDone?T.green:isTouched?T.text:T.textDim,
@@ -780,14 +844,14 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
               {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c}}>{p.percentComplete}%</div>}
               {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
               {isDone&&<button onClick={()=>onReset(item)} className="btn-press"
-                style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
-                  borderRadius:8,padding:"7px 12px",fontSize:10,cursor:"pointer",fontWeight:600,minHeight:36}}>Reset</button>}
+                style={{background:"rgba(220,38,38,0.07)",border:`1px solid ${T.red}30`,color:T.red,
+                  borderRadius:8,padding:"7px 12px",fontSize:10,cursor:"pointer",fontWeight:600,minHeight:44}}>Reset</button>}
               {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
-                style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
-                  borderRadius:8,padding:"7px 14px",fontSize:11,cursor:"pointer",fontWeight:700,minHeight:36}}>Log</button>}
+                style={{background:"rgba(241,245,255,0.8)",border:`1px solid rgba(203,213,225,0.5)`,color:T.blue,
+                  borderRadius:8,padding:"7px 14px",fontSize:11,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>}
               <button onClick={()=>onDelete(item)} className="btn-press"
-                style={{background:"none",border:`1px solid ${T.red}15`,color:T.red,
-                  borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:0.6,minHeight:36}}>✕</button>
+                style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
+                  borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:0.7,minHeight:44}}>✕</button>
             </div>
           </div>;
         })}
@@ -855,46 +919,47 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
     });
   };
 
-  const inputSt = {width:"100%",background:T.surface0,border:`1px solid ${T.surface3}`,
-    borderRadius:10,padding:"10px 12px",color:T.text,fontSize:13,
+  const inputSt = {width:"100%",background:"rgba(255,255,255,0.7)",border:`1px solid rgba(203,213,225,0.5)`,
+    borderRadius:10,padding:"10px 12px",color:T.text,fontSize:16,
     boxSizing:"border-box",fontFamily:"inherit"};
   const numSt = {...inputSt, width:80, textAlign:"center", fontSize:16, fontWeight:700, padding:"8px 10px"};
 
   return (
     <>
       <div onClick={onClose} style={{
-        position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(3px)",
+        position:"fixed",inset:0,zIndex:200,background:"rgba(15,23,42,0.18)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",
         opacity:open?1:0,pointerEvents:open?"all":"none",
         transition:"opacity 0.28s ease",touchAction:open?"none":"auto",
       }}/>
       <div style={{
         position:"fixed",top:0,left:0,bottom:0,width:"min(88vw,360px)",
-        background:T.surface0,zIndex:201,borderRight:`1px solid ${T.border}`,
-        boxShadow:"8px 0 40px rgba(0,0,0,0.7)",display:"flex",flexDirection:"column",
+        background:"rgba(255,255,255,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+        zIndex:201,borderRight:`1px solid rgba(255,255,255,0.8)`,
+        boxShadow:"4px 0 40px rgba(0,0,0,0.08)",display:"flex",flexDirection:"column",
         transform:open?"translateX(0)":"translateX(-100%)",
         transition:"transform 0.35s cubic-bezier(0.4,0,0.2,1)",
         overflowY:"auto",WebkitOverflowScrolling:"touch",
       }}>
         <div style={{padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
-          borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+          borderBottom:`1px solid rgba(203,213,225,0.4)`,flexShrink:0}}>
           <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontSize:18,fontWeight:800,letterSpacing:-0.3}}>Learning Tracker</div>
+            <div style={{fontSize:18,fontWeight:800,letterSpacing:-0.3,color:T.text}}>Learning Tracker</div>
             <button onClick={onClose} className="btn-press"
-              style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.textMid,
-                borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700}}>✕</button>
+              style={{background:"rgba(241,245,255,0.8)",border:`1px solid rgba(203,213,225,0.5)`,color:T.textMid,
+                borderRadius:8,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700,minHeight:44,minWidth:44}}>✕</button>
           </div>
           <div style={{display:"flex",gap:0,marginTop:14}}>
             {[["settings","Settings"],["history","Reviews"],["notifs","Inbox"]].map(([k,l])=>(
               <button key={k} onClick={()=>setSection(k)} className="btn-press"
-                style={{flex:1,padding:"8px 0",background:"none",border:"none",
+                style={{flex:1,padding:"10px 0",background:"none",border:"none",
                   borderBottom:section===k?`2px solid ${T.blue}`:"2px solid transparent",
                   color:section===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
                   textTransform:"uppercase",letterSpacing:0.8,transition:"color 0.2s, border-color 0.2s",
-                  position:"relative"}}>
+                  position:"relative",minHeight:44}}>
                 {l}
                 {k==="notifs"&&unreadCount>0&&<span style={{
-                  position:"absolute",top:4,right:4,background:T.blue,color:"#000",
+                  position:"absolute",top:4,right:4,background:T.blue,color:"#fff",
                   borderRadius:"50%",width:14,height:14,fontSize:8,fontWeight:800,
                   display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
                   {unreadCount>9?"9+":unreadCount}
@@ -910,12 +975,12 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Learning Profile
             </div>
-            <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
+            <Card style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
               <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:10}}>
                 The AI reads this every time it plans, adapts, or makes any decision.
               </div>
               <textarea value={profile} onChange={e=>setProfile(e.target.value)}
-                style={{...inputSt,fontSize:12,height:200,resize:"none",lineHeight:1.6}}
+                style={{...inputSt,height:200,resize:"none",lineHeight:1.6}}
                 placeholder="I'm 18, self-directed learner..."/>
             </Card>
             <div style={{fontSize:10,color:T.textDim,marginBottom:20,lineHeight:1.5,paddingLeft:2}}>
@@ -925,7 +990,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Schedule
             </div>
-            <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
+            <Card style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
               <div style={{marginBottom:16}}>
                 <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:8,fontWeight:600}}>
                   Weekly Hour Target
@@ -956,10 +1021,10 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   {ALL_DAYS.map(day=>{
                     const on=localSettings.activeDays.includes(day);
                     return <button key={day} onClick={()=>toggleDay(day)} className="btn-press"
-                      style={{background:on?`${T.blue}20`:T.surface2,
-                        border:`1px solid ${on?T.blue+"50":T.surface3}`,
-                        color:on?T.blue:T.textDim,borderRadius:8,padding:"6px 10px",
-                        fontSize:11,cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>
+                      style={{background:on?T.blue:"rgba(241,245,255,0.8)",
+                        border:`1px solid ${on?"transparent":"rgba(203,213,225,0.5)"}`,
+                        color:on?"#fff":T.textDim,borderRadius:8,padding:"8px 10px",
+                        fontSize:11,cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:44}}>
                       {day}</button>;
                   })}
                 </div>
@@ -969,15 +1034,15 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
               </div>
             </Card>
             <button onClick={()=>onSaveSettings(localSettings)} className="btn-press"
-              style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20}}>
+              style={{width:"100%",background:T.blue,border:"none",color:"#fff",
+                borderRadius:10,padding:"13px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20,minHeight:44}}>
               Save Schedule
             </button>
 
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Study Ratios
             </div>
-            <Card style={{padding:"13px 14px",marginBottom:6,border:`1px solid ${T.blue}20`}}>
+            <Card style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
               <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:12}}>
                 How many real hours does 1h of content take? Courses default 2:1, books default 1:1. Allowed: 1.0, 1.5, 2.0, 2.5, 3.0.
               </div>
@@ -988,9 +1053,9 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                     {[1,1.5,2,2.5,3].map(v=>{
                       const on=(localSettings.courseRatio??2)===v;
                       return <button key={v} onClick={()=>setLocalSettings(s=>({...s,courseRatio:v}))} className="btn-press"
-                        style={{background:on?`${T.blue}20`:T.surface2,border:`1px solid ${on?T.blue+"50":T.surface3}`,
-                          color:on?T.blue:T.textDim,borderRadius:8,padding:"5px 8px",fontSize:11,
-                          cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>{v}</button>;
+                        style={{background:on?T.blue:"rgba(241,245,255,0.8)",border:`1px solid ${on?"transparent":"rgba(203,213,225,0.5)"}`,
+                          color:on?"#fff":T.textDim,borderRadius:8,padding:"7px 8px",fontSize:11,
+                          cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:44}}>{v}</button>;
                     })}
                   </div>
                   <div style={{fontSize:10,color:T.textFaint,marginTop:6}}>1h content = {localSettings.courseRatio??2}h real</div>
@@ -1001,9 +1066,9 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                     {[1,1.5,2,2.5,3].map(v=>{
                       const on=(localSettings.bookRatio??1)===v;
                       return <button key={v} onClick={()=>setLocalSettings(s=>({...s,bookRatio:v}))} className="btn-press"
-                        style={{background:on?`${T.blue}20`:T.surface2,border:`1px solid ${on?T.blue+"50":T.surface3}`,
-                          color:on?T.blue:T.textDim,borderRadius:8,padding:"5px 8px",fontSize:11,
-                          cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s"}}>{v}</button>;
+                        style={{background:on?T.blue:"rgba(241,245,255,0.8)",border:`1px solid ${on?"transparent":"rgba(203,213,225,0.5)"}`,
+                          color:on?"#fff":T.textDim,borderRadius:8,padding:"7px 8px",fontSize:11,
+                          cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:44}}>{v}</button>;
                     })}
                   </div>
                   <div style={{fontSize:10,color:T.textFaint,marginTop:6}}>1h content = {localSettings.bookRatio??1}h real</div>
@@ -1042,8 +1107,8 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
               </div>
             </Card>
             <button onClick={()=>onSaveSettings(localSettings)} className="btn-press"
-              style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20}}>
+              style={{width:"100%",background:T.blue,border:"none",color:"#fff",
+                borderRadius:10,padding:"13px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20,minHeight:44}}>
               Save Ratios
             </button>
 
@@ -1051,15 +1116,15 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
             <Card style={{padding:"13px 14px",marginBottom:20}}>
               <div style={{display:"flex",gap:8,marginBottom:8}}>
                 <button onClick={onExport} className="btn-press"
-                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                    color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Export JSON</button>
+                  style={{flex:1,background:"rgba(241,245,255,0.8)",border:`1px solid rgba(203,213,225,0.5)`,
+                    color:T.textMid,borderRadius:10,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>Export JSON</button>
                 <button onClick={onImport} className="btn-press"
-                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                    color:T.textMid,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Import JSON</button>
+                  style={{flex:1,background:"rgba(241,245,255,0.8)",border:`1px solid rgba(203,213,225,0.5)`,
+                    color:T.textMid,borderRadius:10,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>Import JSON</button>
               </div>
               <button onClick={onClearAll} className="btn-press"
-                style={{width:"100%",background:"#180a0a",border:`1px solid ${T.red}20`,
-                  color:T.red,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>Clear All Data</button>
+                style={{width:"100%",background:"rgba(220,38,38,0.07)",border:`1px solid ${T.red}30`,
+                  color:T.red,borderRadius:10,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>Clear All Data</button>
             </Card>
 
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Add Custom Item</div>
@@ -1088,11 +1153,11 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   <div style={{display:"flex",gap:6}}>
                     {["course","book"].map(t=>(
                       <button key={t} onClick={()=>setNewItem(n=>({...n,type:t}))} className="btn-press"
-                        style={{flex:1,background:newItem.type===t?`${T.blue}20`:T.surface2,
-                          border:`1px solid ${newItem.type===t?T.blue+"50":T.surface3}`,
-                          color:newItem.type===t?T.blue:T.textDim,
-                          borderRadius:8,padding:"7px 0",fontSize:11,cursor:"pointer",fontWeight:700,
-                          textTransform:"capitalize",transition:"all 0.18s"}}>{t}</button>
+                        style={{flex:1,background:newItem.type===t?T.blue:"rgba(241,245,255,0.8)",
+                          border:`1px solid ${newItem.type===t?"transparent":"rgba(203,213,225,0.5)"}`,
+                          color:newItem.type===t?"#fff":T.textDim,
+                          borderRadius:8,padding:"9px 0",fontSize:11,cursor:"pointer",fontWeight:700,
+                          textTransform:"capitalize",transition:"all 0.18s",minHeight:44}}>{t}</button>
                     ))}
                   </div>
                 </div>
@@ -1101,11 +1166,11 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   <div style={{display:"flex",gap:6}}>
                     {["Core","Optional"].map(sec=>(
                       <button key={sec} onClick={()=>setNewItem(n=>({...n,section:sec}))} className="btn-press"
-                        style={{flex:1,background:newItem.section===sec?`${T.green}20`:T.surface2,
-                          border:`1px solid ${newItem.section===sec?T.green+"50":T.surface3}`,
-                          color:newItem.section===sec?T.green:T.textDim,
-                          borderRadius:8,padding:"7px 0",fontSize:11,cursor:"pointer",fontWeight:700,
-                          transition:"all 0.18s"}}>{sec}</button>
+                        style={{flex:1,background:newItem.section===sec?T.green:"rgba(241,245,255,0.8)",
+                          border:`1px solid ${newItem.section===sec?"transparent":"rgba(203,213,225,0.5)"}`,
+                          color:newItem.section===sec?"#fff":T.textDim,
+                          borderRadius:8,padding:"9px 0",fontSize:11,cursor:"pointer",fontWeight:700,
+                          transition:"all 0.18s",minHeight:44}}>{sec}</button>
                     ))}
                   </div>
                 </div>
@@ -1114,8 +1179,8 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                 = {(parseFloat(newItem.hours||0)*(localSettings.courseRatio??2)).toFixed(1)}h real study time
               </div>}
               <button onClick={addCustomItem} className="btn-press"
-                style={{width:"100%",background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                  borderRadius:10,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                style={{width:"100%",background:T.blue,border:"none",color:"#fff",
+                  borderRadius:10,padding:"13px 0",fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44}}>
                 Add to Curriculum</button>
             </Card>
 
@@ -1150,16 +1215,16 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
               <div style={{fontSize:11,color:T.textDim}}>{notifs.length} notification{notifs.length!==1?"s":""} · 3-day history</div>
               {notifs.length>0&&<button onClick={onClearNotifs} className="btn-press"
-                style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-                  borderRadius:8,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>Clear all</button>}
+                style={{background:"none",border:`1px solid rgba(203,213,225,0.5)`,color:T.textDim,
+                  borderRadius:8,padding:"6px 12px",fontSize:10,cursor:"pointer",minHeight:36,minWidth:44}}>Clear all</button>}
             </div>
             {notifs.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.textDim,fontSize:13}}>
               No notifications yet
             </div>}
             {notifs.map((n,i)=>(
               <div key={n.id} style={{
-                background:n.read?T.surface1:`${T.blue}08`,
-                border:`1px solid ${n.read?T.border:T.blue+"25"}`,
+                background:n.read?"rgba(248,250,255,0.7)":"rgba(29,78,216,0.05)",
+                border:`1px solid ${n.read?"rgba(203,213,225,0.4)":"rgba(29,78,216,0.2)"}`,
                 borderRadius:12,padding:"12px 14px",marginBottom:8,
                 animation:`fadeUp 0.15s ease ${i*0.04}s both`,
               }}>
@@ -1175,11 +1240,11 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                   </div>
                   <button onClick={()=>onDismissNotif(n.id)} className="btn-press"
                     style={{background:"none",border:"none",color:T.textFaint,fontSize:14,
-                      cursor:"pointer",padding:"0 2px",flexShrink:0}}>✕</button>
+                      cursor:"pointer",padding:"0 2px",flexShrink:0,minWidth:32,minHeight:32}}>✕</button>
                 </div>
                 {n.action&&<button onClick={()=>{onNotifAction(n);onMarkRead(n.id);onNotifClose();}} className="btn-press"
-                  style={{width:"100%",marginTop:10,background:"#0a1220",border:`1px solid ${T.blue}30`,
-                    color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                  style={{width:"100%",marginTop:10,background:T.blue,border:"none",
+                    color:"#fff",borderRadius:8,padding:"9px 0",fontSize:11,fontWeight:700,cursor:"pointer",minHeight:44}}>
                   {n.action.label}</button>}
                 {!n.read&&<button onClick={()=>onMarkRead(n.id)} className="btn-press"
                   style={{background:"none",border:"none",color:T.textDim,fontSize:10,
@@ -1208,8 +1273,8 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                     </div>
                   </div>
                   {r.summary&&<div style={{fontSize:12,color:T.textMid,lineHeight:1.6,
-                    background:T.surface0,borderRadius:10,padding:"10px 12px",
-                    borderLeft:`2px solid ${T.blue}40`}}>{r.summary}</div>}
+                    background:"rgba(241,245,255,0.7)",borderRadius:10,padding:"10px 12px",
+                    borderLeft:`2px solid ${T.blue}50`}}>{r.summary}</div>}
                   {r.rawNote&&<div style={{fontSize:10,color:T.textDim,marginTop:8,fontStyle:"italic"}}>"{r.rawNote}"</div>}
                 </Card>
               ))}
@@ -1320,7 +1385,7 @@ export default function App(){
   const [sundaySubmitting, setSundaySubmitting] = useState(false);
   const prevProgressRef = useRef({});
 
-  const { notifs, push, markRead, clearAll: clearNotifs, dismiss: dismissNotif, unreadCount } = useNotifications();
+  const { notifs, push, markRead, clearAll: clearNotifs, dismiss: dismissNotif, unreadCount, currentBanner, dismissBanner } = useNotifications();
 
   // ── 5. Body scroll lock ──
   useEffect(() => {
@@ -1880,11 +1945,16 @@ Respond ONLY with valid JSON:
     if(!window.confirm("Are you sure? Cannot be undone.")) return;
     [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export",SK_SETTINGS,SK_NOTIFS,SK_HIDDEN]
       .forEach(k=>localStorage.removeItem(k));
+    const defaultFocus={courses:["A1"],books:["B99","B34"],manual:false};
     setProgress({});setWeek({weekStart:getMonday(),hoursLogged:0});
-    setFocus({courses:["A1"],books:["B99","B34"]});setReviews([]);
+    setFocus(defaultFocus);setReviews([]);
     setProfile(DEFAULT_PROFILE);setWeekPlan(null);setWeeklyHours([]);
     setBonusItems([]);setOfflineQueue([]);setCustomItems([]);
     setSettings(DEFAULT_SETTINGS);setHiddenIds([]);
+    setCompletionBanner([]);setAiResult(null);
+    clearNotifs();
+    // Immediately persist default focus so no stale state can be re-hydrated
+    save(SK_F,defaultFocus);
     toast_("All data cleared");
   };
 
@@ -1914,9 +1984,9 @@ Respond ONLY with valid JSON:
     s+(getP(i.id).sessions||[]).filter(sess=>sess.date===todayDateStr).reduce((ss,x)=>ss+(x.studyHours||0),0),0);
   const todayRemainingH = Math.max(0,parseFloat((todayPlannedH-todayLoggedH).toFixed(2)));
 
-  const inputSt={width:"100%",background:T.surface0,border:`1px solid ${T.surface3}`,
-    borderRadius:10,padding:"11px 13px",color:T.text,fontSize:15,
-    boxSizing:"border-box",fontFamily:"inherit",outline:"none",boxShadow:shadow.inset};
+  const inputSt={width:"100%",background:"rgba(255,255,255,0.7)",border:`1px solid rgba(203,213,225,0.5)`,
+    borderRadius:10,padding:"12px 13px",color:T.text,fontSize:16,
+    boxSizing:"border-box",fontFamily:"inherit",outline:"none"};
 
   const chartWeeks=(()=>{
     const weeks=[];
@@ -1958,19 +2028,24 @@ Respond ONLY with valid JSON:
         onClose={()=>setNotifOpen(false)}
       />}
 
+      {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner}/>}
+
       <div style={{
         background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,
         paddingBottom:`calc(env(safe-area-inset-bottom) + 88px)`,
         opacity:splash?0:1,transition:"opacity 0.4s ease 0.1s",
         WebkitFontSmoothing:"antialiased",MozOsxFontSmoothing:"grayscale",
       }}>
-        <div style={{height:"env(safe-area-inset-top)",background:T.surface0}}/>
+        <div style={{height:"env(safe-area-inset-top)"}}/>
 
         {toast&&<div style={{
-          position:"fixed",top:`calc(env(safe-area-inset-top) + 12px)`,left:"50%",
-          transform:"translateX(-50%)",background:T.green,color:"#000",padding:"10px 20px",
-          borderRadius:99,fontWeight:700,zIndex:500,fontSize:12,letterSpacing:0.3,
-          boxShadow:`0 4px 24px ${T.green}50`,whiteSpace:"nowrap",animation:"toastIn 0.25s ease both"}}>
+          position:"fixed",bottom:`calc(env(safe-area-inset-bottom) + 96px)`,left:"50%",
+          transform:"translateX(-50%)",
+          background:"rgba(255,255,255,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+          border:"1px solid rgba(255,255,255,0.9)",
+          color:T.text,padding:"10px 20px",
+          borderRadius:99,fontWeight:600,zIndex:500,fontSize:13,letterSpacing:0.2,
+          boxShadow:"0 4px 20px rgba(0,0,0,0.1)",whiteSpace:"nowrap",animation:"toastIn 0.25s ease both"}}>
           {toast}
         </div>}
 
@@ -2002,26 +2077,31 @@ Respond ONLY with valid JSON:
         {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&!showSundayReview&&
           <button onClick={()=>setShowSundayReview(true)} className="btn-press"
             style={{position:"fixed",bottom:`calc(env(safe-area-inset-bottom) + 100px)`,right:16,
-              width:44,height:44,borderRadius:"50%",background:`${T.yellow}20`,
-              border:`1px solid ${T.yellow}50`,color:T.yellow,fontSize:16,cursor:"pointer",
-              zIndex:60,boxShadow:`0 4px 16px ${T.yellow}30`,
+              width:48,height:48,borderRadius:"50%",
+              background:"rgba(255,255,255,0.88)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+              border:`1px solid ${T.yellow}40`,color:T.yellow,fontSize:18,cursor:"pointer",
+              zIndex:60,boxShadow:`0 4px 20px rgba(0,0,0,0.1)`,
               display:"flex",alignItems:"center",justifyContent:"center",animation:"fadeIn 0.3s ease both"}}>
             ✍
           </button>}
 
-        {(!isOnline||offlineQueue.length>0)&&<div style={{background:isOnline?"#1a1200":"#180808",
-          borderBottom:`1px solid ${isOnline?T.yellow:T.red}30`,padding:"8px 16px",
+        {(!isOnline||offlineQueue.length>0)&&<div style={{
+          background:"rgba(255,255,255,0.7)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+          borderBottom:`1px solid rgba(203,213,225,0.4)`,borderLeft:`3px solid ${isOnline?T.yellow:T.red}`,
+          padding:"10px 16px",
           display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{fontSize:10,color:isOnline?T.yellow:T.red,fontWeight:700,letterSpacing:0.5}}>
             {isOnline?`Back online — ${offlineQueue.length} queued`:"Offline — AI features queued"}
           </div>
           {isOnline&&offlineQueue.length>0&&<button onClick={processQueue} className="btn-press"
-            style={{background:"none",border:`1px solid ${T.yellow}30`,color:T.yellow,
-              borderRadius:7,padding:"3px 10px",fontSize:10,cursor:"pointer",fontWeight:700}}>
+            style={{background:T.yellow,border:"none",color:"#fff",
+              borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",fontWeight:700,minHeight:36}}>
             Sync now</button>}
         </div>}
 
-        {exportReminder&&<div style={{background:"#0f0f1a",borderBottom:`1px solid ${T.blue}25`,
+        {exportReminder&&<div style={{
+          background:"rgba(255,255,255,0.7)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+          borderBottom:`1px solid rgba(203,213,225,0.4)`,borderLeft:`3px solid ${T.blue}`,
           padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
           animation:"fadeUp 0.25s ease both"}}>
           <div>
@@ -2030,36 +2110,40 @@ Respond ONLY with valid JSON:
           </div>
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>setExportReminder(false)} className="btn-press"
-              style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-                borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer"}}>Later</button>
+              style={{background:"none",border:`1px solid rgba(203,213,225,0.5)`,color:T.textDim,
+                borderRadius:7,padding:"6px 12px",fontSize:10,cursor:"pointer",minHeight:36}}>Later</button>
             <button onClick={()=>{doExport();setExportReminder(false);}} className="btn-press"
-              style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
-                padding:"4px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Export Now</button>
+              style={{background:T.blue,border:"none",color:"#fff",borderRadius:7,
+                padding:"6px 12px",fontSize:10,fontWeight:800,cursor:"pointer",minHeight:36}}>Export Now</button>
           </div>
         </div>}
 
-        {completionBanner.length>0&&<div style={{background:"#0a150a",borderBottom:`1px solid #1a3a1a`,
+        {completionBanner.length>0&&<div style={{
+          background:"rgba(255,255,255,0.7)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+          borderBottom:`1px solid rgba(203,213,225,0.4)`,borderLeft:`3px solid ${T.green}`,
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
           animation:"fadeUp 0.25s ease both"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
               {completionBanner.length} item{completionBanner.length>1?"s":""} completed
             </div>
-            <div style={{fontSize:10,color:"#2a5a2a",marginTop:2}}>
+            <div style={{fontSize:10,color:T.textMid,marginTop:2}}>
               {completionBanner.map(id=>CURRICULUM.find(i=>i.id===id)?.name||id).join(", ")}
             </div>
           </div>
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>setCompletionBanner([])} className="btn-press"
-              style={{background:"none",border:`1px solid #1a3a1a`,color:"#2a5a2a",
-                borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>✕</button>
+              style={{background:"none",border:`1px solid rgba(203,213,225,0.5)`,color:T.textDim,
+                borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer",minHeight:36}}>✕</button>
             <button onClick={()=>{setView("ai");setCompletionBanner([]);}} className="btn-press"
-              style={{background:T.green,border:"none",color:"#000",borderRadius:8,padding:"6px 12px",
-                fontSize:11,fontWeight:800,cursor:"pointer"}}>Check-In →</button>
+              style={{background:T.green,border:"none",color:"#fff",borderRadius:8,padding:"7px 14px",
+                fontSize:11,fontWeight:800,cursor:"pointer",minHeight:36}}>Check-In →</button>
           </div>
         </div>}
 
-        {graduationProposal&&<div style={{background:"#0a1220",borderBottom:`1px solid ${T.blue}30`,
+        {graduationProposal&&<div style={{
+          background:"rgba(255,255,255,0.7)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+          borderBottom:`1px solid rgba(203,213,225,0.4)`,borderLeft:`3px solid ${T.blue}`,
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
           animation:"fadeUp 0.25s ease both"}}>
           <div>
@@ -2072,33 +2156,35 @@ Respond ONLY with valid JSON:
           </div>
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>setGraduationProposal(null)} className="btn-press"
-              style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-                borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Skip</button>
+              style={{background:"none",border:`1px solid rgba(203,213,225,0.5)`,color:T.textDim,
+                borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer",minHeight:44}}>Skip</button>
             <button onClick={()=>{
               const key=graduationProposal.next.type==="course"?"courses":"books";
               setFocus(f=>({...f,[key]:[...(f[key]||[]).filter(id=>id!==graduationProposal.completed.id),graduationProposal.next.id],manual:false}));
               setGraduationProposal(null);toast_(`${graduationProposal.next.id} added to focus`);
             }} className="btn-press"
-              style={{background:T.blue,border:"none",color:"#000",borderRadius:7,
-                padding:"5px 10px",fontSize:10,fontWeight:800,cursor:"pointer"}}>Add to Focus</button>
+              style={{background:T.blue,border:"none",color:"#fff",borderRadius:7,
+                padding:"5px 12px",fontSize:10,fontWeight:800,cursor:"pointer",minHeight:44}}>Add to Focus</button>
           </div>
         </div>}
 
-        {missedDayBanner&&<div style={{background:"#1a1200",borderBottom:`1px solid #3a2a00`,
+        {missedDayBanner&&<div style={{
+          background:"rgba(255,255,255,0.7)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+          borderBottom:`1px solid rgba(203,213,225,0.4)`,borderLeft:`3px solid ${T.yellow}`,
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
           animation:"fadeUp 0.25s ease both"}}>
           <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>Missed session yesterday</div>
           <button onClick={()=>setMissedDayBanner(false)} className="btn-press"
-            style={{background:"none",border:`1px solid ${T.surface3}`,color:T.textDim,
-              borderRadius:7,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>Dismiss</button>
+            style={{background:"none",border:`1px solid rgba(203,213,225,0.5)`,color:T.textDim,
+              borderRadius:7,padding:"5px 12px",fontSize:10,cursor:"pointer",minHeight:44}}>Dismiss</button>
         </div>}
 
         {/* ── Header ── */}
         <div style={{
-          background:T.surface0,
+          background:"rgba(255,255,255,0.82)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
           padding:`calc(env(safe-area-inset-top) + 16px) 16px 12px`,
-          borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50,
-          boxShadow:"0 4px 24px rgba(0,0,0,0.6)",
+          borderBottom:"1px solid rgba(255,255,255,0.8)",position:"sticky",top:0,zIndex:50,
+          boxShadow:"0 4px 24px rgba(0,0,0,0.06)",
         }}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
@@ -2111,35 +2197,32 @@ Respond ONLY with valid JSON:
                   <div key={i} style={{width:22,height:2,background:T.textMid,borderRadius:99}}/>
                 ))}
                 {unreadCount>0&&<div style={{position:"absolute",top:2,right:2,
-                  background:T.blue,color:"#000",borderRadius:"50%",
+                  background:T.blue,color:"#fff",borderRadius:"50%",
                   width:14,height:14,fontSize:8,fontWeight:800,
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  border:`2px solid ${T.surface0}`}}>{unreadCount>9?"9+":unreadCount}</div>}
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount>9?"9+":unreadCount}</div>}
               </button>
               <div>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
-                <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.5}}>Learning Tracker</div>
+                <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.5,color:T.text}}>Learning Tracker</div>
               </div>
             </div>
             <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-              {/* Bell icon for notifications */}
               <button onClick={()=>setNotifOpen(true)} className="btn-press"
-                style={{background:"none",border:`1px solid ${unreadCount>0?T.blue+"40":T.surface3}`,
+                style={{background:unreadCount>0?"rgba(29,78,216,0.08)":"rgba(241,245,255,0.8)",
+                  border:`1px solid ${unreadCount>0?"rgba(29,78,216,0.2)":"rgba(203,213,225,0.5)"}`,
                   color:unreadCount>0?T.blue:T.textDim,borderRadius:10,padding:"8px 10px",
                   fontSize:14,cursor:"pointer",position:"relative",marginTop:4,
                   transition:"all 0.2s",minWidth:44,minHeight:44,
                   display:"flex",alignItems:"center",justifyContent:"center"}}>
                 🔔
                 {unreadCount>0&&<div style={{position:"absolute",top:-2,right:-2,
-                  background:T.blue,color:"#000",borderRadius:"50%",
+                  background:T.blue,color:"#fff",borderRadius:"50%",
                   width:14,height:14,fontSize:8,fontWeight:800,
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  border:`2px solid ${T.surface0}`}}>{unreadCount>9?"9+":unreadCount}</div>}
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount>9?"9+":unreadCount}</div>}
               </button>
               <div style={{textAlign:"right"}}>
                 <div style={{fontSize:20,fontWeight:900,letterSpacing:-0.5,
                   color:weekH>=WEEKLY_TARGET?T.green:T.text,
-                  textShadow:weekH>=WEEKLY_TARGET?shadow.glow(T.green):"none",
                   transition:"color 0.4s ease"}}>
                   {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
                 </div>
@@ -2158,15 +2241,18 @@ Respond ONLY with valid JSON:
               ))}
             </div>
             <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
-              style={{background:"none",border:`1px solid ${editFocus?T.blue+"40":T.surface3}`,
-                color:editFocus?T.blue:T.textDim,borderRadius:8,padding:"5px 12px",fontSize:11,
-                cursor:"pointer",letterSpacing:0.3,flexShrink:0,transition:"all 0.2s"}}>
+              style={{background:editFocus?T.blue:"rgba(241,245,255,0.8)",
+                border:`1px solid ${editFocus?"transparent":"rgba(203,213,225,0.5)"}`,
+                color:editFocus?"#fff":T.textDim,borderRadius:8,padding:"7px 14px",fontSize:11,
+                cursor:"pointer",letterSpacing:0.3,flexShrink:0,transition:"all 0.2s",minHeight:44}}>
               {editFocus?"Done":"Edit Focus"}
             </button>
           </div>
         </div>
 
-        {editFocus&&<div style={{background:T.surface0,padding:"14px 16px",borderBottom:`1px solid ${T.border}`,
+        {editFocus&&<div style={{
+          background:"rgba(255,255,255,0.82)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+          padding:"14px 16px",borderBottom:"1px solid rgba(203,213,225,0.4)",
           animation:"fadeUp 0.2s ease both"}}>
           <div style={{fontSize:10,fontWeight:700,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:12}}>
             Manual Focus Override
@@ -2179,9 +2265,9 @@ Respond ONLY with valid JSON:
                   const on=(focus[key]||[]).includes(i.id),c=gc(i.genre);
                   return <button key={i.id} className="btn-press"
                     onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
-                    style={{background:on?`${c}15`:T.surface2,border:`1px solid ${on?c+"40":T.surface3}`,
-                      color:on?c:T.textDim,borderRadius:20,padding:"8px 14px",fontSize:11,
-                      cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:36}}>
+                    style={{background:on?c:"rgba(241,245,255,0.8)",border:`1px solid ${on?"transparent":"rgba(203,213,225,0.5)"}`,
+                      color:on?"#fff":T.textDim,borderRadius:20,padding:"8px 14px",fontSize:11,
+                      cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:44}}>
                     {i.id}{i.custom?" *":""}
                   </button>;
                 })}
@@ -2198,13 +2284,13 @@ Respond ONLY with valid JSON:
             {/* No plan state */}
             {!planIsFromThisWeek&&<Card style={{padding:"24px 20px",textAlign:"center",marginBottom:16}}>
               <div style={{fontSize:28,marginBottom:12}}>📋</div>
-              <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>No plan for this week yet</div>
+              <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:8}}>No plan for this week yet</div>
               <div style={{fontSize:12,color:T.textDim,marginBottom:20,lineHeight:1.6}}>
                 Head to Check-In to generate your week plan. The Today tab will show your sessions once a plan exists.
               </div>
               <button onClick={()=>setView("ai")} className="btn-press"
-                style={{background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                  borderRadius:10,padding:"12px 24px",fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                style={{background:T.blue,border:"none",color:"#fff",
+                  borderRadius:10,padding:"13px 24px",fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44}}>
                 Plan My Week →
               </button>
             </Card>}
@@ -2276,7 +2362,7 @@ Respond ONLY with valid JSON:
                         </div>}
                     </div>
                   </div>
-                  <div style={{background:T.surface0,borderRadius:10,padding:"10px 12px",marginBottom:12,border:`1px solid ${T.surface3}`}}>
+                  <div style={{background:"rgba(241,245,255,0.6)",borderRadius:10,padding:"10px 12px",marginBottom:12,border:"1px solid rgba(203,213,225,0.4)"}}>
                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:6}}>
                       <span style={{color:T.textDim}}>{(p.courseHoursComplete||0).toFixed(2)}h / {item.contentTotal}h</span>
                       <span style={{color:T.textDim}}>{item.contentLeft.toFixed(2)}h left</span>
@@ -2289,20 +2375,20 @@ Respond ONLY with valid JSON:
                   </div>
                   {!isComplete&&<div style={{marginBottom:8}}>
                     <button onClick={()=>setLogging(item)} className="btn-press"
-                      style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
-                        color:T.blue,borderRadius:10,padding:"10px 0",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                      style={{width:"100%",background:T.blue,border:"none",
+                        color:"#fff",borderRadius:10,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>
                       {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
                     </button>
                   </div>}
                   {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)} className="btn-press"
-                    style={{width:"100%",background:"none",border:`1px solid ${T.green}20`,
-                      color:T.green,borderRadius:10,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                    style={{width:"100%",background:"rgba(22,163,74,0.08)",border:`1px solid ${T.green}30`,
+                      color:T.green,borderRadius:10,padding:"9px 0",fontSize:11,fontWeight:700,cursor:"pointer",minHeight:44}}>
                     Mark Complete
                   </button>}
                 </Card>;
               })}
 
-              {weekH>=WEEKLY_TARGET&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.green}15`,
+              {weekH>=WEEKLY_TARGET&&<Card style={{padding:"13px 14px",marginBottom:10,borderLeft:`3px solid ${T.green}`,
                 animation:"fadeUp 0.2s ease both"}}>
                 <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:6}}>Bonus Mode</div>
                 <div style={{fontSize:11,color:T.textDim,marginBottom:12,lineHeight:1.5}}>
@@ -2313,15 +2399,15 @@ Respond ONLY with valid JSON:
                   {bonusItems.items.map(it=>{
                     const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
                     const c=gc(item.genre);
-                    return <div key={it.id} style={{background:T.surface0,borderRadius:10,
+                    return <div key={it.id} style={{background:"rgba(241,245,255,0.6)",borderRadius:10,
                       padding:"10px 12px",marginBottom:8,borderLeft:`2px solid ${c}`}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:4}}>
-                        <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8}}>{item.name}</div>
+                        <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,color:T.text}}>{item.name}</div>
                         <div style={{fontSize:13,fontWeight:800,color:T.blue,flexShrink:0}}>{it.realHours}h</div>
                       </div>
                       <button onClick={()=>setLogging(item)} className="btn-press"
-                        style={{width:"100%",background:T.surface2,border:`1px solid ${T.surface3}`,
-                          color:T.blue,borderRadius:8,padding:"7px 0",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                        style={{width:"100%",background:T.blue,border:"none",
+                          color:"#fff",borderRadius:8,padding:"9px 0",fontSize:11,fontWeight:700,cursor:"pointer",minHeight:44}}>
                         + Log Bonus Session</button>
                     </div>;
                   })}
@@ -2330,9 +2416,9 @@ Respond ONLY with valid JSON:
                     Clear suggestions</button>
                 </div>}
                 {(!bonusItems?.items?.length)&&<button onClick={runBonusSuggestions} disabled={bonusLoading} className="btn-press"
-                  style={{width:"100%",background:T.surface2,border:`1px solid ${T.green}20`,
-                    color:bonusLoading?T.textDim:T.green,borderRadius:10,padding:"10px 0",
-                    fontSize:12,fontWeight:700,cursor:"pointer",transition:"color 0.2s"}}>
+                  style={{width:"100%",background:"rgba(22,163,74,0.08)",border:`1px solid ${T.green}30`,
+                    color:bonusLoading?T.textDim:T.green,borderRadius:10,padding:"12px 0",
+                    fontSize:12,fontWeight:700,cursor:"pointer",transition:"color 0.2s",minHeight:44}}>
                   {bonusLoading?"Thinking…":"Suggest Bonus Sessions"}
                 </button>}
               </Card>}
@@ -2372,16 +2458,16 @@ Respond ONLY with valid JSON:
             </Card>}
 
             {weekH>=WEEKLY_TARGET&&bonusItems?.items?.length>0&&<Card style={{
-              padding:"13px 14px",marginBottom:12,border:`1px solid ${T.green}20`}}>
+              padding:"13px 14px",marginBottom:12,borderLeft:`3px solid ${T.green}`}}>
               <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:8}}>Bonus Day</div>
               {bonusItems.note&&<div style={{fontSize:11,color:T.textMid,marginBottom:10,fontStyle:"italic"}}>{bonusItems.note}</div>}
               {bonusItems.items.map(it=>{
                 const item=CURRICULUM.find(i=>i.id===it.id);if(!item) return null;
                 const c=gc(item.genre);
-                return <div key={it.id} style={{background:T.surface0,borderRadius:10,
+                return <div key={it.id} style={{background:"rgba(248,250,255,0.6)",borderRadius:10,
                   padding:"8px 12px",marginBottom:6,borderLeft:`2px solid ${c}`}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8}}>{item.name}</div>
+                    <div style={{fontSize:12,fontWeight:600,flex:1,paddingRight:8,color:T.text}}>{item.name}</div>
                     <div style={{fontSize:13,fontWeight:800,color:T.blue}}>{it.realHours}h</div>
                   </div>
                   <div style={{fontSize:9,color:T.textDim,marginTop:3}}>{item.genre} · {item.type}</div>
@@ -2434,7 +2520,7 @@ Respond ONLY with valid JSON:
                     const remainingH=Math.max(0,parseFloat((it.realHours-loggedOnDay).toFixed(2)));
                     const isComplete=isDone||(isPast&&wasLogged)||(isToday&&wasLogged&&remainingH===0);
                     const liveTargetPct=f?targetPctAfterSession(f,p,it.realHours,settings):it.targetPct;
-                    return <div key={it.id} style={{background:T.surface0,borderRadius:10,
+                    return <div key={it.id} style={{background:"rgba(248,250,255,0.6)",borderRadius:10,
                       padding:"8px 12px",marginBottom:5,
                       borderLeft:`2px solid ${isComplete?T.green:wasLogged&&!isComplete?T.yellow:c}`,
                       opacity:isComplete?0.5:1,transition:"opacity 0.3s, border-color 0.3s"}}>
@@ -2483,7 +2569,7 @@ Respond ONLY with valid JSON:
                       <div style={{fontSize:15,fontWeight:800,color:c}}>{p.percentComplete}%</div>
                     </div>
                     <button onClick={()=>setLogging(item)} className="btn-press"
-                      style={{background:T.surface2,border:`1px solid ${T.surface3}`,color:T.blue,
+                      style={{background:T.blue,border:"none",color:"#fff",
                         borderRadius:8,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>
                   </div>
                 </div>
@@ -2501,14 +2587,16 @@ Respond ONLY with valid JSON:
 
             {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&
             <button onClick={()=>setShowSundayReview(true)} className="btn-press"
-              style={{width:"100%",background:`${T.yellow}10`,border:`1px solid ${T.yellow}30`,
+              style={{width:"100%",background:"rgba(217,119,6,0.08)",border:`1px solid ${T.yellow}30`,
                 color:T.yellow,borderRadius:10,padding:13,fontSize:13,fontWeight:800,
-                cursor:"pointer",marginBottom:12,letterSpacing:0.3}}>
+                cursor:"pointer",marginBottom:12,letterSpacing:0.3,minHeight:44}}>
               Write This Week's Review
             </button>}
 
-            {planIsFromThisWeek&&<div style={{background:T.surface1,borderRadius:12,padding:"10px 14px",
-              marginBottom:12,border:`1px solid ${T.green}20`,animation:"fadeUp 0.2s ease both",
+            {planIsFromThisWeek&&<div style={{
+              background:"rgba(22,163,74,0.07)",backdropFilter:"blur(8px)",
+              borderRadius:12,padding:"10px 14px",
+              marginBottom:12,border:`1px solid ${T.green}25`,animation:"fadeUp 0.2s ease both",
               display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
                 <div style={{fontSize:10,fontWeight:700,color:T.green,letterSpacing:0.5}}>Week plan active</div>
@@ -2523,18 +2611,19 @@ Respond ONLY with valid JSON:
                 fontWeight:700,display:"block",marginBottom:7}}>Guidance for AI (optional)</label>
               <textarea value={planGuidance} onChange={e=>setPlanGuidance(e.target.value)}
                 placeholder="e.g. focus more on books this week, I want roman history books, push harder on A1..."
-                style={{...inputSt,fontSize:12,resize:"none",height:56,lineHeight:1.5,padding:"10px 12px"}}/>
+                style={{...inputSt,resize:"none",height:56,lineHeight:1.5,padding:"10px 12px"}}/>
               <div style={{fontSize:10,color:T.textDim,marginTop:5,lineHeight:1.5}}>
                 Tip: For books, try "philosophy books", "investing books", "roman history books" etc. The AI searches by genre and title.
               </div>
             </div>
 
             <button onClick={()=>runPlanWeek(false)} disabled={aiLoading} className="btn-press"
-              style={{width:"100%",background:aiLoading?T.surface1:T.surface2,
-                border:`1px solid ${aiLoading?T.surface3:T.blue+"40"}`,
-                color:aiLoading?T.textDim:T.blue,borderRadius:10,padding:13,fontSize:14,
+              style={{width:"100%",
+                background:aiLoading?"rgba(241,245,255,0.8)":T.blue,
+                border:aiLoading?`1px solid rgba(203,213,225,0.5)`:"none",
+                color:aiLoading?T.textDim:"#fff",borderRadius:10,padding:13,fontSize:14,
                 fontWeight:800,cursor:aiLoading?"default":"pointer",marginBottom:12,
-                letterSpacing:0.3,transition:"all 0.2s"}}>
+                letterSpacing:0.3,transition:"all 0.2s",minHeight:44}}>
               {aiLoading?"Thinking…":planIsFromThisWeek?"Replan Week":"Plan Week"}
             </button>
 
@@ -2544,9 +2633,9 @@ Respond ONLY with valid JSON:
               {[["assessment",T.blue,"Assessment"],["insight",T.pink,"Insight"],["nextMilestone",T.green,"Next Milestone"]]
                 .map(([k,c,label])=>aiResult[k]&&<Card key={k} accent={c} style={{padding:"13px 14px",marginBottom:10}}>
                   <div style={{fontSize:9,color:c,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7,fontWeight:700}}>{label}</div>
-                  <div style={{fontSize:13,color:"#bbb",lineHeight:1.65}}>{aiResult[k]}</div>
+                  <div style={{fontSize:13,color:T.textMid,lineHeight:1.65}}>{aiResult[k]}</div>
                 </Card>)}
-              {aiResult.focusProposal&&<Card style={{padding:"13px 14px",marginBottom:10,border:`1px solid ${T.pink}20`}}>
+              {aiResult.focusProposal&&<Card style={{padding:"13px 14px",marginBottom:10,borderLeft:`3px solid ${T.pink}`}}>
                 <div style={{fontSize:9,color:T.pink,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12,fontWeight:700}}>
                   Proposed Focus Update
                 </div>
@@ -2558,7 +2647,7 @@ Respond ONLY with valid JSON:
                       const p=getP(id);const current=(focus[key]||[]).includes(id);
                       return item?<div key={id} style={{display:"flex",alignItems:"center",gap:10,
                         padding:"7px 0",borderBottom:`1px solid ${T.surface2}`}}>
-                        <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,background:current?T.surface3:T.green}}/>
+                        <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,background:current?"rgba(148,163,184,0.5)":T.green}}/>
                         <div style={{flex:1}}>
                           <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name}</div>
                           <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
@@ -2574,11 +2663,11 @@ Respond ONLY with valid JSON:
                   lineHeight:1.6,fontStyle:"italic"}}>{aiResult.focusProposal.reasoning}</div>}
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={()=>setAiResult(r=>({...r,focusProposal:null}))} className="btn-press"
-                    style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                      color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Keep Current</button>
+                    style={{flex:1,background:"rgba(241,245,255,0.8)",border:`1px solid rgba(203,213,225,0.5)`,
+                      color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer",minHeight:44}}>Keep Current</button>
                   <button onClick={()=>applyFocusProposal(aiResult.focusProposal)} className="btn-press"
-                    style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
-                      borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                    style={{flex:2,background:T.green,border:"none",color:"#fff",
+                      borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44}}>
                     Apply New Focus</button>
                 </div>
               </Card>}
@@ -2596,14 +2685,16 @@ Respond ONLY with valid JSON:
                   [CURRICULUM.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length,"In Progress",T.blue],
                   [CURRICULUM.filter(i=>getP(i.id).percentComplete===0).length,"Untouched",T.textDim],
                   [totalItems,"Total Items",T.textMid]].map(([v,l,c],i)=>(
-                  <div key={l} style={{background:T.surface0,borderRadius:12,padding:"12px 14px",
-                    border:`1px solid ${T.border}`,animation:`fadeUp 0.18s ease ${i*0.05}s both`}}>
+                  <div key={l} style={{background:"rgba(255,255,255,0.7)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
+                    borderRadius:12,padding:"12px 14px",
+                    border:"1px solid rgba(255,255,255,0.85)",boxShadow:"0 2px 12px rgba(0,0,0,0.06)",
+                    animation:`fadeUp 0.18s ease ${i*0.05}s both`}}>
                     <div style={{fontSize:24,fontWeight:900,color:c,letterSpacing:-1}}>{v}</div>
                     <div style={{fontSize:10,color:T.textDim,marginTop:2,letterSpacing:0.3}}>{l}</div>
                   </div>
                 ))}
               </div>
-              <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+              <div style={{background:"rgba(255,255,255,0.7)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.85)",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Personal Bests</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
                   {[[bestWeek.toFixed(1)+"h","Best Week",T.blue],
@@ -2616,13 +2707,13 @@ Respond ONLY with valid JSON:
                   ))}
                 </div>
               </div>
-              <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+              <div style={{background:"rgba(255,255,255,0.7)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.85)",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>12-Week Hours</div>
                 <div style={{display:"flex",alignItems:"flex-end",gap:3,height:56}}>
                   {chartWeeks.map((w,i)=>{
                     const pct=w.h/chartMax,isTarget=w.h>=WEEKLY_TARGET,isCurrent=i===11;
                     return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                      <div style={{width:"100%",background:isTarget?T.green:isCurrent?T.blue:T.surface3,
+                      <div style={{width:"100%",background:isTarget?T.green:isCurrent?T.blue:"rgba(148,163,184,0.35)",
                         height:`${Math.max(pct*44,w.h>0?4:1)}px`,borderRadius:"3px 3px 0 0",
                         transition:"height 0.5s ease, background 0.3s"}}/>
                       <div style={{fontSize:7,color:isCurrent?T.blue:T.textFaint}}>{w.label.slice(3)}</div>
@@ -2630,7 +2721,7 @@ Respond ONLY with valid JSON:
                   })}
                 </div>
               </div>
-              {genreBalance.length>0&&<div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+              {genreBalance.length>0&&<div style={{background:"rgba(255,255,255,0.7)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.85)",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Genre Balance</div>
                 {genreBalance.map(([genre,h])=>{
                   const c=gc(genre),pct=h/genreBalance[0][1]*100;
@@ -2642,7 +2733,7 @@ Respond ONLY with valid JSON:
                   </div>;
                 })}
               </div>}
-              <div style={{background:T.surface0,borderRadius:12,padding:"12px 14px",marginBottom:12,border:`1px solid ${T.border}`}}>
+              <div style={{background:"rgba(255,255,255,0.7)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.85)",boxShadow:"0 2px 12px rgba(0,0,0,0.06)"}}>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Real Study Hours</div>
                 <div style={{fontSize:28,fontWeight:900,color:T.blue,letterSpacing:-1}}>
                   {totalSpentRealH.toFixed(1)}<span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
@@ -2654,7 +2745,7 @@ Respond ONLY with valid JSON:
                   <span style={{color:T.textMid,fontWeight:600}}>{coreDoneItems} of {coreItems.length}</span>
                 </div>
                 <Bar pct={(coreDoneItems/Math.max(coreItems.length,1))*100} color={T.blue} height={5} glow/>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5,paddingBottom:10,borderBottom:`1px solid ${T.surface3}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5,paddingBottom:10,borderBottom:"1px solid rgba(203,213,225,0.3)"}}>
                   <span style={{color:T.textDim}}>Est. Core at {WEEKLY_TARGET}h/week</span>
                   <span style={{color:T.blue,fontWeight:700}}>{coreEstDate}</span>
                 </div>
@@ -2665,7 +2756,7 @@ Respond ONLY with valid JSON:
                   <span style={{color:T.textMid,fontWeight:600}}>{doneItems} of {totalItems}</span>
                 </div>
                 <Bar pct={(doneItems/totalItems)*100} color={T.green} height={5} glow/>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:6,paddingTop:10,borderTop:`1px solid ${T.surface2}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:6,paddingTop:10,borderTop:"1px solid rgba(203,213,225,0.25)"}}>
                   <span style={{color:T.textDim}}>Est. completion at {WEEKLY_TARGET}h/week</span>
                   <span style={{color:T.yellow,fontWeight:700}}>{estDate}</span>
                 </div>
@@ -2686,17 +2777,18 @@ Respond ONLY with valid JSON:
         </div>
 
         {/* ══ SUNDAY REVIEW ══ */}
-        {showSundayReview&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",
-          display:"flex",alignItems:"flex-end",zIndex:150,backdropFilter:"blur(4px)",
+        {showSundayReview&&<div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.45)",
+          display:"flex",alignItems:"flex-end",zIndex:150,backdropFilter:"blur(8px)",
           animation:"fadeIn 0.2s ease both"}}>
           <div style={{
-            background:T.surface1,borderRadius:"18px 18px 0 0",
+            background:"rgba(255,255,255,0.92)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+            borderRadius:"18px 18px 0 0",
             padding:`24px 24px calc(env(safe-area-inset-bottom) + 24px)`,
             width:"100%",boxSizing:"border-box",
             borderTop:`3px solid ${T.yellow}`,boxShadow:shadow.raised,
             animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
           }}>
-            <div style={{fontSize:17,fontWeight:800,letterSpacing:-0.3,marginBottom:4}}>Week Review</div>
+            <div style={{fontSize:17,fontWeight:800,letterSpacing:-0.3,marginBottom:4,color:T.text}}>Week Review</div>
             <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>
               {weekH.toFixed(2)}h logged · AI will summarize and store for future plans
             </div>
@@ -2714,40 +2806,42 @@ Respond ONLY with valid JSON:
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setShowSundayReview(false)} className="btn-press"
-                style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                  color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Later</button>
+                style={{flex:1,background:"rgba(241,245,255,0.8)",border:"1px solid rgba(203,213,225,0.5)",
+                  color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer",minHeight:44}}>Later</button>
               <button onClick={saveSundayReview} disabled={sundaySubmitting} className="btn-press"
-                style={{flex:2,background:"#1a1200",border:`1px solid ${T.yellow}30`,
-                  color:sundaySubmitting?T.textDim:T.yellow,
-                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                style={{flex:2,background:sundaySubmitting?"rgba(241,245,255,0.8)":T.yellow,
+                  border:sundaySubmitting?"1px solid rgba(203,213,225,0.5)":"none",
+                  color:sundaySubmitting?T.textDim:"#fff",
+                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:sundaySubmitting?"default":"pointer",minHeight:44}}>
                 {sundaySubmitting?"Summarizing…":"Save & Summarize"}</button>
             </div>
           </div>
         </div>}
 
         {/* ══ MARK COMPLETE ══ */}
-        {markCompleteConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
-          display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)",
+        {markCompleteConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.45)",
+          display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",
           animation:"fadeIn 0.2s ease both"}}>
           <div style={{
-            background:T.surface1,borderRadius:"18px 18px 0 0",
+            background:"rgba(255,255,255,0.92)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+            borderRadius:"18px 18px 0 0",
             padding:`24px 24px calc(env(safe-area-inset-bottom) + 24px)`,
             width:"100%",boxSizing:"border-box",
             borderTop:`3px solid ${T.green}`,boxShadow:shadow.raised,
             animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
           }}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>Mark Complete?</div>
+            <div style={{fontSize:16,fontWeight:800,marginBottom:6,color:T.text}}>Mark Complete?</div>
             <div style={{fontSize:12,color:T.textMid,marginBottom:6}}>{markCompleteConfirm.name}</div>
             <div style={{fontSize:11,color:T.textDim,marginBottom:20,lineHeight:1.5}}>
               Logs remaining hours, marks 100%, and removes from focus.
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setMarkCompleteConfirm(null)} className="btn-press"
-                style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                  color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                style={{flex:1,background:"rgba(241,245,255,0.8)",border:"1px solid rgba(203,213,225,0.5)",
+                  color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer",minHeight:44}}>Cancel</button>
               <button onClick={()=>markItemComplete(markCompleteConfirm)} className="btn-press"
-                style={{flex:2,background:"#0a180a",border:`1px solid ${T.green}30`,color:T.green,
-                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>
+                style={{flex:2,background:T.green,border:"none",color:"#fff",
+                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44}}>
                 Mark Complete</button>
             </div>
           </div>
@@ -2757,17 +2851,18 @@ Respond ONLY with valid JSON:
         {editSession&&(()=>{
           const{itemId,sessionIdx}=editSession;
           const item=CURRICULUM.find(i=>i.id===itemId);
-          return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
-            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)",
+          return <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.45)",
+            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",
             animation:"fadeIn 0.2s ease both"}}>
             <div style={{
-              background:T.surface1,borderRadius:"18px 18px 0 0",
+              background:"rgba(255,255,255,0.92)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+              borderRadius:"18px 18px 0 0",
               padding:`24px 24px calc(env(safe-area-inset-bottom) + 24px)`,
               width:"100%",boxSizing:"border-box",
               borderTop:`3px solid ${T.blue}`,boxShadow:shadow.raised,
               animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
             }}>
-              <div style={{fontSize:16,fontWeight:800,marginBottom:3}}>Edit Session</div>
+              <div style={{fontSize:16,fontWeight:800,marginBottom:3,color:T.text}}>Edit Session</div>
               <div style={{fontSize:11,color:T.textDim,marginBottom:20}}>{item?.name} · session {sessionIdx+1}</div>
               <div style={{marginBottom:14}}>
                 <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Real study hours</label>
@@ -2788,14 +2883,14 @@ Respond ONLY with valid JSON:
               </div>
               <div style={{display:"flex",gap:8}}>
                 <button onClick={deleteSession} className="btn-press"
-                  style={{flex:1,background:"#180a0a",border:`1px solid ${T.red}30`,color:T.red,
-                    borderRadius:10,padding:12,fontSize:13,fontWeight:700,cursor:"pointer"}}>Delete</button>
+                  style={{flex:1,background:"rgba(254,242,242,0.8)",border:`1px solid ${T.red}40`,color:T.red,
+                    borderRadius:10,padding:12,fontSize:13,fontWeight:700,cursor:"pointer",minHeight:44}}>Delete</button>
                 <button onClick={()=>setEditSession(null)} className="btn-press"
-                  style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                    color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                  style={{flex:1,background:"rgba(241,245,255,0.8)",border:"1px solid rgba(203,213,225,0.5)",
+                    color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer",minHeight:44}}>Cancel</button>
                 <button onClick={saveEditSession} className="btn-press"
-                  style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                    borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer"}}>Save</button>
+                  style={{flex:2,background:T.blue,border:"none",color:"#fff",
+                    borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44}}>Save</button>
               </div>
             </div>
           </div>;
@@ -2808,18 +2903,19 @@ Respond ONLY with valid JSON:
           const contentLeft=Math.max(0,(logging.hours||0)-contentDone);
           const realH=parseFloat(logForm.hours||0);
           const previewPct=realH>0?targetPctAfterSession(logging,p,realH,settings):null;
-          return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.88)",
-            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(4px)",
+          return <div style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.45)",
+            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",
             animation:"fadeIn 0.2s ease both"}}>
             <div style={{
-              background:T.surface1,borderRadius:"18px 18px 0 0",
+              background:"rgba(255,255,255,0.92)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+              borderRadius:"18px 18px 0 0",
               padding:`24px 24px calc(env(safe-area-inset-bottom) + 24px)`,
               width:"100%",boxSizing:"border-box",
               borderTop:`3px solid ${gc(logging.genre)}`,boxShadow:shadow.raised,
               animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
               maxHeight:"92dvh",overflowY:"auto",WebkitOverflowScrolling:"touch",
             }}>
-              <div style={{fontSize:16,fontWeight:800,marginBottom:3}}>{logging.name}</div>
+              <div style={{fontSize:16,fontWeight:800,marginBottom:3,color:T.text}}>{logging.name}</div>
               <div style={{fontSize:11,color:T.textDim,marginBottom:4}}>
                 {logging.id} · {logging.type==="course"?`Course (1h content = ${settings.courseRatio}h real)`:"Book (1:1 ratio)"}
               </div>
@@ -2831,16 +2927,16 @@ Respond ONLY with valid JSON:
                 <div style={{display:"flex",gap:6}}>
                   {[0.5,1,1.5,2].filter(h=>h<=maxRealPerSession(logging,settings)).map(h=>(
                     <button key={h} onClick={()=>submitLog(h,realToContent(logging,h,settings))} className="btn-press"
-                      style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
+                      style={{flex:1,background:"rgba(241,245,255,0.8)",border:"1px solid rgba(203,213,225,0.5)",
                         color:T.blue,borderRadius:10,padding:"12px 0",
-                        fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                        fontSize:13,fontWeight:700,cursor:"pointer",minHeight:44}}>
                       {h}h</button>
                   ))}
                 </div>
               </div>}
               {confirmLog?(
                 <div style={{animation:"fadeUp 0.18s ease both"}}>
-                  <div style={{background:T.surface0,borderRadius:12,padding:14,marginBottom:16,border:`1px solid ${T.surface3}`}}>
+                  <div style={{background:"rgba(248,250,255,0.8)",borderRadius:12,padding:14,marginBottom:16,border:"1px solid rgba(203,213,225,0.35)"}}>
                     <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Confirm session</div>
                     <div style={{fontSize:15,fontWeight:700}}>
                       {logForm.hours}h real
@@ -2853,11 +2949,11 @@ Respond ONLY with valid JSON:
                   </div>
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>setConfirmLog(false)} className="btn-press"
-                      style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                        color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Edit</button>
+                      style={{flex:1,background:"rgba(241,245,255,0.8)",border:"1px solid rgba(203,213,225,0.5)",
+                        color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer",minHeight:44}}>Edit</button>
                     <button onClick={()=>submitLog()} className="btn-press"
-                      style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Confirm</button>
+                      style={{flex:2,background:T.blue,border:"none",color:"#fff",
+                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer",minHeight:44}}>Confirm</button>
                   </div>
                 </div>
               ):(
@@ -2868,7 +2964,7 @@ Respond ONLY with valid JSON:
                       value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
                       max={new Date().toLocaleDateString('en-CA')}
                       onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
-                      style={{...inputSt,fontSize:14,colorScheme:"dark"}}/>
+                      style={{...inputSt,fontSize:14}}/>
                     {(()=>{
                       const sd=new Date(logForm.date),mon=new Date(getMonday());
                       const sun=new Date(mon);sun.setDate(mon.getDate()+6);
@@ -2906,7 +3002,7 @@ Respond ONLY with valid JSON:
                         if(!logForm.courseHours&&logForm.hours)
                           setLogForm(f=>({...f,courseHours:parseFloat(realToContent(logging,parseFloat(logForm.hours),settings).toFixed(3)).toString(),_contentManuallySet:false}));
                       }}
-                      style={{...inputSt,border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":T.surface3}`}}
+                      style={{...inputSt,border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":"rgba(203,213,225,0.5)"}`}}
                       placeholder={realH>0?`Standard: ${realToContent(logging,realH,settings).toFixed(3)}h`:"Enter real hours first"}/>
                     {logForm._contentManuallySet&&logForm.courseHours&&logForm.hours&&<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
                       Custom ratio — {logForm.hours}h real → {logForm.courseHours}h content
@@ -2921,11 +3017,11 @@ Respond ONLY with valid JSON:
                   </div>
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});setConfirmLog(false);}} className="btn-press"
-                      style={{flex:1,background:T.surface2,border:`1px solid ${T.surface3}`,
-                        color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer"}}>Cancel</button>
+                      style={{flex:1,background:"rgba(241,245,255,0.8)",border:"1px solid rgba(203,213,225,0.5)",
+                        color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer",minHeight:44}}>Cancel</button>
                     <button onClick={()=>submitLog()} className="btn-press"
-                      style={{flex:2,background:"#0a1220",border:`1px solid ${T.blue}30`,color:T.blue,
-                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer"}}>Review</button>
+                      style={{flex:2,background:T.blue,border:"none",color:"#fff",
+                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer",minHeight:44}}>Review</button>
                   </div>
                 </div>
               )}
@@ -2937,8 +3033,9 @@ Respond ONLY with valid JSON:
       {/* ── Bottom Navigation ── */}
       <div style={{
         position:"fixed",bottom:0,left:0,right:0,zIndex:50,
-        background:T.surface0,borderTop:`1px solid ${T.border}`,
-        boxShadow:"0 -4px 24px rgba(0,0,0,0.5)",
+        background:"rgba(255,255,255,0.88)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+        borderTop:"1px solid rgba(255,255,255,0.85)",
+        boxShadow:"0 -4px 24px rgba(0,0,0,0.07)",
         display:"flex",paddingBottom:"env(safe-area-inset-bottom)",
       }}>
         {[

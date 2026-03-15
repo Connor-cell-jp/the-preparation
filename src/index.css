@@ -6,9 +6,9 @@
 }
 
 body {
-  background: #0a0a0a;
-  color: #f0f0f0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f0f4ff;
+  color: #0f172a;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   overscroll-behavior: none;
 }
 
