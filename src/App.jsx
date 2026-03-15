@@ -622,8 +622,14 @@ const GLOBAL_CSS = `
   @keyframes splashPulse { 0% { opacity:0.6; } 100% { opacity:1; } }
   @keyframes splashOut { to { opacity:0; } }
   @keyframes compassSpin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
+    0%   { transform: rotate(0deg);   animation-timing-function: cubic-bezier(0.4,0,0.8,0.4); }
+    25%  { transform: rotate(90deg);  animation-timing-function: linear; }
+    75%  { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.2,0.6,0.6,1); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes compassShrink {
+    from { transform: scale(1.786); }
+    to   { transform: scale(1); }
   }
   @keyframes fadeUp {
     from { opacity:0; transform:translateY(8px); }
@@ -684,7 +690,7 @@ function SplashScreen({ onDone }) {
     return () => [t1,t2,t3,t4,t5].forEach(clearTimeout);
   }, []);
 
-  // Canvas spark + arc trail — starts with the compass spin
+  // Canvas spark + arc trail + fairy lights — starts with the compass spin
   useEffect(() => {
     if (!compassSpin) return;
     const canvas = canvasRef.current;
@@ -702,18 +708,82 @@ function SplashScreen({ onDone }) {
     const RING_R   = 130;
     const DURATION = 2500;
 
+    // Speed ramp: ease-in first 25%, linear middle 50%, ease-out last 25%
+    // Derived so total progress goes 0→1 and is C1-continuous at joins.
+    const speedRamp = (t) => {
+      if (t <= 0) return 0;
+      if (t >= 1) return 1;
+      if (t < 0.25) return (8/3) * t * t;
+      if (t < 0.75) return 1/6 + (4/3) * (t - 0.25);
+      return 1 - (8/3) * (1 - t) * (1 - t);
+    };
+    // Instantaneous speed (derivative of speedRamp), peak = 4/3 in linear zone
+    const speedNow = (t) => {
+      if (t < 0.25) return (16/3) * t;
+      if (t < 0.75) return 4/3;
+      return (16/3) * (1 - t);
+    };
+
+    // Fairy light particle configs — generated once, vary per-particle
+    const count = 8 + Math.floor(Math.random() * 5); // 8–12
+    const particles = Array.from({ length: count }, (_, i) => ({
+      phase:        (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.7,
+      radiusOffset: (Math.random() - 0.5) * 22,        // ±11px from ring
+      orbitSpeed:   0.72 + Math.random() * 0.56,        // 0.72–1.28× ramp
+      size:         3 + Math.random() * 1.2,            // 3–4.2px core
+      baseOpacity:  0.55 + Math.random() * 0.45,        // 0.55–1.0
+      driftPhase:   Math.random() * Math.PI * 2,
+      driftSpeed:   700 + Math.random() * 500,          // ms per drift cycle
+    }));
+
     const draw = (ts) => {
       if (!rotStartRef.current) rotStartRef.current = ts;
-      const elapsed = Math.min(ts - rotStartRef.current, DURATION);
+      const elapsed  = Math.min(ts - rotStartRef.current, DURATION);
       ctx.clearRect(0, 0, SIZE, SIZE);
 
       const progress = elapsed / DURATION;
-      // Start from top (north = -PI/2), travel clockwise
-      const angle = progress * 2 * Math.PI - Math.PI / 2;
+      const eased    = speedRamp(progress);
+      // North = -PI/2, spark travels clockwise
+      const angle    = eased * 2 * Math.PI - Math.PI / 2;
+      // Normalised speed: 0 at start/end, 1 through the linear middle
+      const normSpd  = Math.min(speedNow(progress) / (4/3), 1);
 
-      // ── Arc trail: 90° behind spark, fades from transparent → bright ──
-      const TRAIL = Math.PI / 2;
-      const SEG   = 64;
+      // Particle alpha envelope: fade in over first 450ms, fade out over last 18%
+      const pFadeIn  = Math.min(elapsed / 450, 1);
+      const pFadeOut = progress > 0.82 ? Math.max(0, 1 - (progress - 0.82) / 0.18) : 1;
+      const pEnv     = pFadeIn * pFadeOut;
+
+      // ── Fairy lights ──
+      for (const p of particles) {
+        const pp     = Math.min(progress * p.orbitSpeed, 1);
+        const pAngle = p.phase + speedRamp(pp) * 2 * Math.PI;
+        const pR     = RING_R + p.radiusOffset
+                       + Math.sin(elapsed / p.driftSpeed + p.driftPhase) * 5;
+        const px = cx + pR * Math.cos(pAngle);
+        const py = cy + pR * Math.sin(pAngle);
+        const alpha = p.baseOpacity * pEnv;
+        if (alpha < 0.01) continue;
+
+        const glowR = p.size * 3.5;
+        const pg = ctx.createRadialGradient(px, py, 0, px, py, glowR);
+        pg.addColorStop(0,    `rgba(255,255,255,${alpha.toFixed(3)})`);
+        pg.addColorStop(0.38, `rgba(255,255,255,${(alpha * 0.28).toFixed(3)})`);
+        pg.addColorStop(1,    "rgba(255,255,255,0)");
+        ctx.beginPath();
+        ctx.arc(px, py, glowR, 0, Math.PI * 2);
+        ctx.fillStyle = pg;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(px, py, p.size * 0.55, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
+        ctx.fill();
+      }
+
+      // ── Arc trail: 90° behind spark, intensity scales with speed ──
+      const TRAIL   = Math.PI / 2;
+      const SEG     = 64;
+      const arcPeak = 0.38 + 0.27 * normSpd; // 0.38 slow → 0.65 fast
       for (let i = 0; i < SEG; i++) {
         const t0 = i / SEG;
         const t1 = (i + 1) / SEG;
@@ -721,7 +791,7 @@ function SplashScreen({ onDone }) {
         ctx.arc(cx, cy, RING_R,
           angle - TRAIL + t0 * TRAIL,
           angle - TRAIL + t1 * TRAIL);
-        ctx.strokeStyle = `rgba(59,130,246,${t0 * 0.45})`;
+        ctx.strokeStyle = `rgba(59,130,246,${(t0 * arcPeak).toFixed(3)})`;
         ctx.lineWidth = 2.5;
         ctx.lineCap   = "butt";
         ctx.stroke();
@@ -731,7 +801,6 @@ function SplashScreen({ onDone }) {
       const sx = cx + RING_R * Math.cos(angle);
       const sy = cy + RING_R * Math.sin(angle);
 
-      // Soft outer glow
       const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, 22);
       grd.addColorStop(0,    "rgba(255,255,255,0.90)");
       grd.addColorStop(0.22, "rgba(255,255,255,0.55)");
@@ -742,13 +811,11 @@ function SplashScreen({ onDone }) {
       ctx.fillStyle = grd;
       ctx.fill();
 
-      // Bright solid core (4px)
       ctx.beginPath();
       ctx.arc(sx, sy, 4, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(255,255,255,1)";
       ctx.fill();
 
-      // Tiny specular highlight
       ctx.beginPath();
       ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(210,235,255,1)";
@@ -776,15 +843,22 @@ function SplashScreen({ onDone }) {
         position:"absolute", top:"50%", left:"50%",
         transform:"translate(-50%,-50%)",
         width:280, height:280,
-        opacity:    compassVisible ? 1 : 0,
-        transition: "opacity 0.45s cubic-bezier(0.4,0,0.2,1)",
       }}>
+        {/* Scale shrink + opacity wrapper — starts at ~500px, shrinks to 280px */}
+        <div style={{
+          width:280, height:280, position:"relative",
+          opacity:         compassVisible ? 1 : 0,
+          transition:      "opacity 0.45s cubic-bezier(0.4,0,0.2,1)",
+          transformOrigin: "center center",
+          transform:       "scale(1.786)",
+          animation:       compassSpin ? "compassShrink 2500ms cubic-bezier(0.25,0,0.1,1) forwards" : "none",
+        }}>
         {/* Rotating compass SVG */}
         <svg viewBox="-140 -140 280 280" width="280" height="280"
           style={{
             position:"absolute", top:0, left:0,
             transformOrigin:"center center",
-            animation: compassSpin ? "compassSpin 2500ms linear forwards" : "none",
+            animation: compassSpin ? "compassSpin 2500ms forwards" : "none",
           }}
         >
           {/* Outer ring (spark orbit track) */}
@@ -846,9 +920,10 @@ function SplashScreen({ onDone }) {
           <circle r="2.5" fill="rgba(255,255,255,0.9)"/>
         </svg>
 
-        {/* Canvas — spark + trail (does not rotate) */}
+        {/* Canvas — spark + trail + fairy lights (does not rotate, scales with wrapper) */}
         <canvas ref={canvasRef}
           style={{position:"absolute",top:0,left:0,width:280,height:280,pointerEvents:"none"}}/>
+        </div>
       </div>
 
       {/* ── Text (centered, layered over compass interior) ── */}

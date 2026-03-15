@@ -13,9 +13,13 @@ export default async function handler(req, res) {
       body: JSON.stringify(req.body),
     });
     const data = await response.json();
+    if (!response.ok) {
+      console.error('[chat] Anthropic API error', response.status, JSON.stringify(data));
+    }
     // Always return 200 so we can see the error details
     res.status(200).json(data);
   } catch (err) {
-    res.status(200).json({ error: err.message });
+    console.error('[chat] fetch failed:', err);
+    res.status(200).json({ error: { type: 'fetch_error', message: err.message } });
   }
 }
