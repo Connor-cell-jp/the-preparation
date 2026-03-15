@@ -631,7 +631,7 @@ const shadow={
 
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin:0; padding:0; background:linear-gradient(135deg, #0d1b2a 0%, #0f2240 50%, #0d1b2a 100%) fixed; background-attachment:fixed; overscroll-behavior:none; min-height:100dvh; }
+  html, body { margin:0; padding:0; background:linear-gradient(135deg, #0d1b2a 0%, #0f2240 50%, #0d1b2a 100%) fixed; background-attachment:fixed; overscroll-behavior-y:auto; min-height:100dvh; }
   body { -webkit-overflow-scrolling: touch; }
   @keyframes splashBloom {
     0%   { opacity:0; transform:scale(0.6); }
@@ -1301,7 +1301,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
         boxShadow:"4px 0 40px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",
         transform:open?"translateX(0)":"translateX(-100%)",
         transition:"transform 0.35s cubic-bezier(0.4,0,0.2,1)",
-        overflowY:"auto",WebkitOverflowScrolling:"touch",
+        overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",
       }}>
         <div style={{padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
           borderBottom:`1px solid rgba(255,255,255,0.08)`,flexShrink:0}}>
@@ -1332,7 +1332,7 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
           </div>
         </div>
 
-        <div style={{flex:1,overflowY:"auto",padding:"16px 18px 60px",WebkitOverflowScrolling:"touch"}}>
+        <div style={{flex:1,overflowY:"auto",padding:"16px 18px 60px",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
           {section==="settings"&&<div style={{animation:"fadeUp 0.28s ease both"}}>
 
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
@@ -1717,8 +1717,7 @@ export default function App(){
   const [sideOpen, setSideOpen]                 = useState(false);
   const [notifOpen, setNotifOpen]               = useState(false);
   const [logging, setLogging]                   = useState(null);
-  const [logForm, setLogForm]                   = useState({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
-  const [confirmLog, setConfirmLog]             = useState(false);
+  const [logForm, setLogForm]                   = useState({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});
   const [toast, setToast]                       = useState(null);
   const [aiLoading, setAiLoading]               = useState(false);
   const [planGuidance, setPlanGuidance]         = useState("");
@@ -1731,7 +1730,6 @@ export default function App(){
   const [missedDayBanner, setMissedDayBanner]   = useState(false);
   const [offlineQueue, setOfflineQueue]         = useState(()=>loadQueue());
   const [isOnline, setIsOnline]                 = useState(navigator.onLine);
-  const [markCompleteConfirm, setMarkCompleteConfirm] = useState(null);
   const [bonusItems, setBonusItems]             = useState(()=>load("tp_bonus1",[]));
   const [bonusLoading, setBonusLoading]         = useState(false);
   const [weekCompleteDismissed, setWeekCompleteDismissed] = useState(false);
@@ -2261,30 +2259,6 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
     toast_("Week reviewed and summarized");
   };
 
-  const markItemComplete = async(item) => {
-    const p=getP(item.id);
-    const tot=item.hours||1;
-    const contentRemaining=Math.max(0,tot-(p.courseHoursComplete||0));
-    const today=new Date().toLocaleDateString();
-    if(contentRemaining>0){
-      const realH=contentToReal(item,contentRemaining,settings);
-      setProgress(prev=>({...prev,[item.id]:{
-        hoursSpent:(prev[item.id]?.hoursSpent||0)+realH,
-        courseHoursComplete:tot,percentComplete:100,
-        sessions:[...(prev[item.id]?.sessions||[]),
-          {date:today,studyHours:parseFloat(realH.toFixed(2)),courseHours:parseFloat(contentRemaining.toFixed(2)),note:"Marked complete"}]
-      }}));
-    } else {
-      setProgress(prev=>({...prev,[item.id]:{...prev[item.id],percentComplete:100}}));
-    }
-    // Remove from focus if it was there
-    setFocus(f=>({
-      ...f,
-      courses:(f.courses||[]).filter(id=>id!==item.id),
-      books:(f.books||[]).filter(id=>id!==item.id),
-    }));
-    setMarkCompleteConfirm(null);toast_(`${item.name} complete`);
-  };
 
   const runBonusSuggestions = async() => {
     if(!navigator.onLine){toast_("Offline");return;}
@@ -2373,38 +2347,42 @@ Respond ONLY with valid JSON:
     });
   };
 
-  const submitLog = (quickRealH=null,quickContentH=null) => {
-    const isQuick=quickRealH!==null;
-    if(!isQuick&&!logForm.hours) return;
-    if(!isQuick&&!confirmLog){setConfirmLog(true);return;}
-    const realH=isQuick?quickRealH:parseFloat(logForm.hours);
-    const contentH=isQuick?quickContentH:(logForm.courseHours?parseFloat(logForm.courseHours):realToContent(logging,realH,settings));
+  const submitLog = () => {
+    const isCourse=logging.type==="course";
+    const studyH=parseFloat(logForm.studyHours||0);
+    if(!studyH||studyH<=0) return;
+    if(isCourse&&!parseFloat(logForm.contentHours||0)) return;
+    const contentH=isCourse?parseFloat(logForm.contentHours):studyH;
     const id=logging.id,tot=logging.hours||1;
     const prevContent=progress[id]?.courseHoursComplete||0;
     const newContent=Math.min(prevContent+contentH,tot);
     const newPct=Math.round((newContent/tot)*100);
-    const dateStr=isQuick?new Date().toLocaleDateString():logForm.date;
-    // Tag as bonus if logged from bonus suggestions
+    const dateStr=logForm.date;
     const isBonus=bonusItems?.items?.some(b=>b.id===id)||false;
+    const pace=studyH>0?parseFloat((contentH/studyH).toFixed(4)):null;
     setProgress(p=>({...p,[id]:{
-      hoursSpent:(p[id]?.hoursSpent||0)+realH,
+      hoursSpent:(p[id]?.hoursSpent||0)+studyH,
       courseHoursComplete:newContent,percentComplete:newPct,
+      ...(pace!==null?{lastPace:pace}:{}),
       sessions:[...(p[id]?.sessions||[]),
-        {date:dateStr,studyHours:realH,courseHours:parseFloat(contentH.toFixed(3)),
-         note:isQuick?"Quick log":logForm.note,...(isBonus?{isBonus:true}:{})}]
+        {date:dateStr,studyHours:studyH,courseHours:parseFloat(contentH.toFixed(3)),...(isBonus?{isBonus:true}:{})}]
     }}));
-    // If item finished early, redistribute leftover time in today's plan
+    if(newPct>=100){
+      setFocus(f=>({...f,
+        courses:(f.courses||[]).filter(cid=>cid!==id),
+        books:(f.books||[]).filter(bid=>bid!==id),
+      }));
+    }
     if(newPct>=100&&planIsFromThisWeek){
       const allocRealH=weekPlan?.days?.find(d=>d.day===getDayName())?.items?.find(it=>it.id===id)?.realHours??0;
-      const leftover=parseFloat((allocRealH-realH).toFixed(2));
+      const leftover=parseFloat((allocRealH-studyH).toFixed(2));
       if(leftover>=0.25) redistributeLeftover(id,leftover);
     }
     setLogging(null);
-    setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
-    setConfirmLog(false);
+    setLogForm({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});
     const mon=getMondayDate(),sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
     const sd=new Date(dateStr);
-    toast_(`${realH}h logged · ${logging.name}${sd<mon||sd>sun?" (prev week)":""}`);
+    toast_(`${studyH}h logged · ${logging.name}${sd<mon||sd>sun?" (prev week)":""}`);
   };
 
   const openEditSession=(itemId,idx)=>{
@@ -2938,11 +2916,6 @@ Respond ONLY with valid JSON:
                       {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
                     </button>
                   </div>}
-                  {!isComplete&&<button onClick={()=>setMarkCompleteConfirm(item)} className="btn-press"
-                    style={{width:"100%",background:"rgba(34,197,94,0.08)",border:`1px solid rgba(34,197,94,0.25)`,
-                      color:T.green,borderRadius:14,padding:"9px 0",fontSize:11,fontWeight:700,cursor:"pointer",minHeight:44}}>
-                    Mark Complete
-                  </button>}
                 </Card>;
               })}
 
@@ -3388,36 +3361,6 @@ Respond ONLY with valid JSON:
         </div>}
 
         {/* ══ MARK COMPLETE ══ */}
-        {markCompleteConfirm&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
-          display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",
-          animation:"fadeIn 0.2s ease both"}}>
-          <div style={{
-            background:"linear-gradient(145deg, rgba(13,27,42,0.98) 0%, rgba(15,34,64,0.98) 100%)",
-            backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
-            borderRadius:"18px 18px 0 0",
-            padding:`24px 24px calc(env(safe-area-inset-bottom) + 24px)`,
-            width:"100%",boxSizing:"border-box",
-            borderTop:`3px solid ${T.green}`,border:"1px solid rgba(255,255,255,0.1)",
-            borderTop:`3px solid ${T.green}`,boxShadow:shadow.raised,
-            animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
-          }}>
-            <div style={{fontSize:16,fontWeight:800,marginBottom:6,color:T.text}}>Mark Complete?</div>
-            <div style={{fontSize:12,color:T.textMid,marginBottom:6}}>{markCompleteConfirm.name}</div>
-            <div style={{fontSize:11,color:T.textDim,marginBottom:20,lineHeight:1.5}}>
-              Logs remaining hours, marks 100%, and removes from focus.
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setMarkCompleteConfirm(null)} className="btn-press"
-                style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
-                  color:T.textMid,borderRadius:10,padding:12,fontSize:13,cursor:"pointer",minHeight:44}}>Cancel</button>
-              <button onClick={()=>markItemComplete(markCompleteConfirm)} className="btn-press"
-                style={{flex:2,background:`linear-gradient(135deg, ${T.green} 0%, #16a34a 100%)`,border:"none",color:"#fff",
-                  borderRadius:10,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44,
-                  boxShadow:"0 4px 16px rgba(34,197,94,0.35)"}}>
-                Mark Complete</button>
-            </div>
-          </div>
-        </div>}
 
         {/* ══ EDIT SESSION ══ */}
         {editSession&&(()=>{
@@ -3474,10 +3417,14 @@ Respond ONLY with valid JSON:
         {/* ══ LOG MODAL ══ */}
         {logging&&(()=>{
           const p=getP(logging.id);
+          const isCourse=logging.type==="course";
           const contentDone=p.courseHoursComplete||0;
           const contentLeft=Math.max(0,(logging.hours||0)-contentDone);
-          const realH=parseFloat(logForm.hours||0);
-          const previewPct=realH>0?targetPctAfterSession(logging,p,realH,settings):null;
+          const previewContentH=isCourse?parseFloat(logForm.contentHours||0):parseFloat(logForm.studyHours||0);
+          const previewPct=previewContentH>0
+            ?Math.floor((Math.min(contentDone+previewContentH,logging.hours||1)/(logging.hours||1))*100)
+            :null;
+          const canSubmit=parseFloat(logForm.studyHours||0)>0&&(isCourse?parseFloat(logForm.contentHours||0)>0:true);
           return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
             display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",
             animation:"fadeIn 0.2s ease both"}}>
@@ -3485,125 +3432,71 @@ Respond ONLY with valid JSON:
               background:"linear-gradient(145deg, rgba(13,27,42,0.98) 0%, rgba(15,34,64,0.98) 100%)",
               backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
               borderRadius:"18px 18px 0 0",
-              padding:`24px 24px calc(env(safe-area-inset-bottom) + 24px)`,
+              padding:`20px 20px calc(env(safe-area-inset-bottom) + 16px)`,
               width:"100%",boxSizing:"border-box",
               border:"1px solid rgba(255,255,255,0.1)",borderTop:`3px solid ${gc(logging.genre)}`,
               boxShadow:shadow.raised,
               animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
-              maxHeight:"92dvh",overflowY:"auto",WebkitOverflowScrolling:"touch",
             }}>
-              <div style={{fontSize:16,fontWeight:800,marginBottom:3,color:T.text}}>{logging.name}</div>
-              <div style={{fontSize:11,color:T.textDim,marginBottom:4}}>
-                {logging.id} · {logging.type==="course"?`Course (1h content = ${settings.courseRatio}h real)`:"Book (1:1 ratio)"}
-              </div>
-              <div style={{fontSize:11,color:T.textDim,marginBottom:12}}>
-                {contentDone.toFixed(2)}h / {logging.hours}h · {p.percentComplete}% · {contentLeft.toFixed(2)}h content left
-              </div>
-              {!confirmLog&&<div style={{marginBottom:16}}>
-                <div style={{fontSize:10,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",fontWeight:700,marginBottom:8}}>Quick Log</div>
-                <div style={{display:"flex",gap:6}}>
-                  {[0.5,1,1.5,2].filter(h=>h<=maxRealPerSession(logging,settings)).map(h=>(
-                    <button key={h} onClick={()=>submitLog(h,realToContent(logging,h,settings))} className="btn-press"
-                      style={{flex:1,background:"rgba(59,130,246,0.12)",border:"1px solid rgba(59,130,246,0.25)",
-                        color:T.blue,borderRadius:10,padding:"12px 0",
-                        fontSize:13,fontWeight:700,cursor:"pointer",minHeight:44}}>
-                      {h}h</button>
-                  ))}
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:15,fontWeight:800,color:T.text}}>{logging.name}</div>
+                <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+                  {p.percentComplete}% complete · {contentLeft.toFixed(1)}h content left
                 </div>
+              </div>
+              {isCourse&&<div style={{marginBottom:12}}>
+                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Content Covered (hrs)</label>
+                <input type="number" min="0.05" step="0.05"
+                  value={logForm.contentHours}
+                  onChange={e=>setLogForm(f=>({...f,contentHours:e.target.value}))}
+                  style={inputSt} placeholder="0.0" autoFocus/>
               </div>}
-              {confirmLog?(
-                <div style={{animation:"fadeUp 0.18s ease both"}}>
-                  <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:14,marginBottom:16,border:"1px solid rgba(255,255,255,0.1)"}}>
-                    <div style={{fontSize:11,color:T.textDim,marginBottom:6}}>Confirm session</div>
-                    <div style={{fontSize:15,fontWeight:700,color:T.text}}>
-                      {logForm.hours}h real
-                      <span style={{color:T.blue}}> · {parseFloat(realToContent(logging,parseFloat(logForm.hours||0),settings).toFixed(3))}h content</span>
-                    </div>
-                    {previewPct&&<div style={{fontSize:12,color:gc(logging.genre),marginTop:5,fontWeight:600}}>
-                      {p.percentComplete}% → {previewPct}%
-                    </div>}
-                    {logForm.note&&<div style={{fontSize:11,color:T.textMid,marginTop:5}}>{logForm.note}</div>}
-                  </div>
-                  <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setConfirmLog(false)} className="btn-press"
-                      style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
-                        color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer",minHeight:44}}>Edit</button>
-                    <button onClick={()=>submitLog()} className="btn-press"
-                      style={{flex:2,background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",
-                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer",minHeight:44,
-                        boxShadow:"0 4px 16px rgba(59,130,246,0.35)"}}>Confirm</button>
-                  </div>
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Time Studied (hrs)</label>
+                <input type="number" min="0.05" step="0.05"
+                  value={logForm.studyHours}
+                  onChange={e=>setLogForm(f=>({...f,studyHours:e.target.value}))}
+                  style={inputSt} placeholder="0.0" autoFocus={!isCourse}/>
+                {previewPct!==null&&<div style={{fontSize:11,color:gc(logging.genre),marginTop:4,fontWeight:600}}>
+                  {p.percentComplete}% → {previewPct}%
+                </div>}
+              </div>
+              <button onClick={submitLog} disabled={!canSubmit} className="btn-press"
+                style={{width:"100%",background:canSubmit?"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)":"rgba(59,130,246,0.15)",
+                  border:"none",color:"#fff",borderRadius:12,padding:"13px 0",fontSize:15,fontWeight:800,
+                  cursor:canSubmit?"pointer":"default",minHeight:44,opacity:canSubmit?1:0.4,
+                  boxShadow:canSubmit?"0 4px 16px rgba(59,130,246,0.35)":"none",marginBottom:14}}>
+                Log Session
+              </button>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <button onClick={()=>{setLogging(null);setLogForm({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});}} className="btn-press"
+                  style={{background:"none",border:"none",color:T.textDim,fontSize:12,cursor:"pointer",padding:"2px 0"}}>
+                  Cancel
+                </button>
+                <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
+                  style={{background:"none",border:"none",color:T.textDim,fontSize:11,cursor:"pointer",padding:"2px 0",
+                    textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
+                  {logForm.showDate?"Hide":"Log for different day"}
+                </button>
+              </div>
+              {logForm.showDate&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.07)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:11,color:T.textDim,flexShrink:0}}>Date</span>
+                  <input type="date"
+                    value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
+                    max={new Date().toLocaleDateString('en-CA')}
+                    onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
+                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+                      color:T.textMid,borderRadius:8,padding:"5px 8px",fontSize:12,outline:"none",cursor:"pointer"}}/>
                 </div>
-              ):(
-                <div>
-                  <div style={{marginBottom:14}}>
-                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Session date</label>
-                    <input type="date"
-                      value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
-                      max={new Date().toLocaleDateString('en-CA')}
-                      onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
-                      style={{...inputSt,fontSize:14}}/>
-                    {(()=>{
-                      const sd=new Date(logForm.date),mon=getMondayDate();
-                      const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
-                      return sd<mon||sd>sun?<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
-                        Previous week — won't count toward this week's {WEEKLY_TARGET}h
-                      </div>:null;
-                    })()}
-                  </div>
-                  <div style={{marginBottom:14}}>
-                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
-                      Real study hours (max {maxRealPerSession(logging,settings)}h/session)
-                    </label>
-                    <input type="number" min="0.25" max={maxRealPerSession(logging,settings)} step="0.25"
-                      value={logForm.hours}
-                      onChange={e=>{
-                        const rh=e.target.value;
-                        setLogForm(f=>({...f,hours:rh,
-                          courseHours:f._contentManuallySet?f.courseHours
-                            :rh?parseFloat(realToContent(logging,parseFloat(rh),settings).toFixed(3)).toString():""}));
-                      }}
-                      style={inputSt} placeholder={logging.type==="course"?`e.g. ${getCourseMaxSession(WEEKLY_TARGET)}`:"e.g. 1.0"}/>
-                    {realH>0&&<div style={{fontSize:11,color:T.blue,marginTop:5}}>
-                      = {realToContent(logging,realH,settings).toFixed(3)}h content
-                      {previewPct?` → ${p.percentComplete}% → ${previewPct}%`:""}
-                    </div>}
-                  </div>
-                  {logging.type==="course"&&<div style={{marginBottom:14}}>
-                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
-                      Content hours <span style={{color:T.textDim,fontWeight:400}}>— adjust if ratio wasn't 1:{settings.courseRatio}</span>
-                    </label>
-                    <input type="number" min="0.1" max={logging.hours} step="0.05"
-                      value={logForm.courseHours}
-                      onChange={e=>setLogForm(f=>({...f,courseHours:e.target.value,_contentManuallySet:true}))}
-                      onFocus={()=>{
-                        if(!logForm.courseHours&&logForm.hours)
-                          setLogForm(f=>({...f,courseHours:parseFloat(realToContent(logging,parseFloat(logForm.hours),settings).toFixed(3)).toString(),_contentManuallySet:false}));
-                      }}
-                      style={{...inputSt,border:`1px solid ${logForm._contentManuallySet?T.yellow+"60":"rgba(255,255,255,0.12)"}`}}
-                      placeholder={realH>0?`Standard: ${realToContent(logging,realH,settings).toFixed(3)}h`:"Enter real hours first"}/>
-                    {logForm._contentManuallySet&&logForm.courseHours&&logForm.hours&&<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
-                      Custom ratio — {logForm.hours}h real → {logForm.courseHours}h content
-                      {(()=>{const ch=parseFloat(logForm.courseHours),tot=logging.hours||1;
-                        return ` → ${p.percentComplete}% → ${Math.round((Math.min((p.courseHoursComplete||0)+ch,tot)/tot)*100)}%`;})()}
-                    </div>}
-                  </div>}
-                  <div style={{marginBottom:20}}>
-                    <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>Note (optional)</label>
-                    <input value={logForm.note} onChange={e=>setLogForm(f=>({...f,note:e.target.value}))}
-                      style={inputSt} placeholder="What did you cover?"/>
-                  </div>
-                  <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>{setLogging(null);setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});setConfirmLog(false);}} className="btn-press"
-                      style={{flex:1,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
-                        color:T.textMid,borderRadius:10,padding:12,fontSize:14,cursor:"pointer",minHeight:44}}>Cancel</button>
-                    <button onClick={()=>submitLog()} className="btn-press"
-                      style={{flex:2,background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",
-                        borderRadius:10,padding:12,fontSize:14,fontWeight:800,cursor:"pointer",minHeight:44,
-                        boxShadow:"0 4px 16px rgba(59,130,246,0.35)"}}>Review</button>
-                  </div>
-                </div>
-              )}
+                {(()=>{
+                  const sd=new Date(logForm.date),mon=getMondayDate();
+                  const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
+                  return sd<mon||sd>sun?<div style={{fontSize:10,color:T.yellow,marginTop:6}}>
+                    Previous week — won't count toward this week's {WEEKLY_TARGET}h
+                  </div>:null;
+                })()}
+              </div>}
             </div>
           </div>;
         })()}

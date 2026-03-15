@@ -10,7 +10,7 @@ body {
   background-attachment: fixed;
   color: #0f172a;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  overscroll-behavior: none;
+  overscroll-behavior-y: auto;
 }
 
 input, textarea, select, button {
