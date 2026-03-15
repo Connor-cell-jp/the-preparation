@@ -1295,31 +1295,46 @@ function reconcileWeekHours(progress){
   return parseFloat(total.toFixed(2));
 }
 
-// ── Mountain Range ──
+// ── Mountain Range (Canadian Rockies, 3200px, 10 peaks, horizontal trail) ──
 const MOUNTAIN_STARS=(()=>{
   let seed=42;
   const r=()=>{seed=(seed*1664525+1013904223)&0xffffffff;return(seed>>>0)/4294967295;};
   const a=[];
-  for(let i=0;i<50;i++) a.push({x:r()*2800,y:8+r()*100,r:1.2+r()*1.8,o:0.55+r()*0.45});
-  a.push({x:255,y:28,r:4.0,o:1},{x:618,y:52,r:3.5,o:1},{x:1108,y:22,r:4.5,o:1},{x:1682,y:40,r:3.8,o:0.98},{x:2248,y:18,r:4.2,o:1},{x:2582,y:46,r:3.2,o:0.98});
+  for(let i=0;i<80;i++) a.push({x:r()*3200,y:5+r()*115,r:1.0+r()*2.2,o:0.4+r()*0.6});
+  a.push(
+    {x:148,y:28,r:4.0,o:1},{x:480,y:18,r:3.5,o:1},
+    {x:820,y:38,r:4.2,o:1},{x:1180,y:22,r:3.8,o:0.98},
+    {x:1550,y:48,r:4.0,o:1},{x:1880,y:20,r:3.5,o:0.98},
+    {x:2240,y:55,r:4.5,o:1},{x:2580,y:28,r:3.8,o:1},
+    {x:2920,y:44,r:4.0,o:0.98},
+  );
   return a;
 })();
-const MR_L1="M0,380 L0,205 C80,200 160,196 240,194 C340,191 420,195 500,200 C600,206 700,210 800,206 C900,202 1000,190 1100,178 C1180,168 1260,160 1340,164 C1420,168 1500,172 1580,167 C1660,162 1750,150 1840,142 C1920,134 2000,130 2080,126 C2160,122 2240,114 2340,108 C2440,102 2520,108 2600,112 C2680,116 2750,112 2800,114 L2800,380 Z";
-const MR_L2="M0,380 L0,295 C50,278 95,256 140,232 C176,213 208,190 238,166 C256,150 270,126 288,98 C303,74 320,48 334,28 C339,19 344,13 350,10 C356,13 361,19 366,28 C380,48 397,74 412,98 C430,126 444,150 462,166 C492,190 524,213 560,232 C605,256 655,268 700,274 C760,279 820,268 878,250 C925,234 968,212 1015,192 C1045,176 1060,160 1072,148 C1082,138 1095,140 1115,148 C1148,161 1182,172 1230,174 C1282,176 1338,166 1388,154 C1412,148 1432,138 1456,126 C1480,114 1512,103 1548,94 C1570,88 1587,82 1602,76 C1613,70 1624,66 1635,62 C1642,58 1652,60 1665,68 C1690,82 1720,98 1760,113 C1798,127 1838,136 1875,131 C1898,127 1912,116 1924,104 C1935,92 1942,83 1955,77 C1966,71 1980,75 1998,84 C2025,98 2060,110 2100,111 C2148,112 2185,102 2228,91 C2270,80 2312,70 2358,61 C2375,57 2385,52 2393,47 C2397,44 2400,40 2402,38 C2404,40 2407,44 2412,50 C2427,66 2458,83 2498,96 C2538,109 2582,114 2625,111 C2668,108 2712,102 2755,98 C2778,96 2792,98 2800,100 L2800,380 Z";
-const MR_L3="M0,380 L0,332 C25,318 50,302 78,287 C100,274 116,262 140,250 C158,242 174,246 192,238 C210,230 222,220 245,212 C262,206 278,210 298,204 C315,198 326,190 350,182 C362,176 378,182 398,190 C420,198 445,208 475,212 C502,216 530,220 562,217 C592,214 625,216 660,212 C692,208 722,210 758,206 C790,202 822,198 862,194 C898,190 932,194 968,190 C1002,186 1032,180 1068,176 C1100,172 1132,176 1168,172 C1200,168 1228,160 1264,156 C1298,152 1330,158 1365,154 C1398,150 1426,142 1460,138 C1490,134 1522,138 1558,134 C1588,130 1618,126 1655,130 C1688,134 1718,134 1752,128 C1782,122 1815,116 1848,120 C1878,124 1910,124 1945,118 C1975,112 2005,106 2040,110 C2072,114 2102,116 2140,108 C2175,100 2212,94 2255,98 C2292,102 2328,104 2365,98 C2402,92 2438,86 2478,90 C2515,94 2550,96 2590,90 C2628,84 2665,78 2710,82 C2748,86 2778,84 2800,82 L2800,380 Z";
-const MR_TRAIL="M350,308 C335,292 348,272 342,254 C336,236 364,217 359,199 C354,181 328,163 334,145 C340,127 367,111 362,93 C357,75 344,57 349,39 C350,30 350,22 350,10";
-const MR_TRAIL_MARKERS=[{x:342,y:254},{x:359,y:199},{x:334,y:145},{x:362,y:93},{x:349,y:39}];
-const MR_SNOW=[
-  "M321,70 C329,52 337,34 343,22 C346,16 348,12 350,10 C352,12 354,16 357,22 C363,34 371,52 379,70 C373,74 365,77 357,79 C351,81 344,79 337,76 Z",
-  "M2384,57 C2390,48 2396,42 2400,38 C2401,35 2402,33 2402,33 C2403,36 2407,42 2414,53 C2411,57 2407,59 2403,60 C2399,61 2395,60 2384,57 Z",
-  "M1621,73 C1627,65 1633,59 1636,55 C1638,53 1639,51 1640,51 C1641,54 1644,59 1648,66 C1645,69 1641,71 1638,72 C1634,73 1628,73 1621,73 Z",
-  "M1061,160 C1066,151 1070,144 1073,140 C1074,138 1075,137 1076,137 C1077,139 1079,143 1083,151 C1080,155 1077,157 1074,158 C1070,159 1066,159 1061,160 Z",
+// Layer 1 — distant background ridge (0.6x parallax)
+const MR_L1="M0,380 L0,198 C100,193 200,188 310,184 C420,180 535,184 650,188 C770,192 890,192 1010,184 C1130,176 1240,168 1360,172 C1480,176 1590,170 1715,160 C1838,150 1948,140 2072,132 C2196,124 2308,118 2440,112 C2572,106 2682,112 2814,116 C2946,120 3070,114 3200,110 L3200,380 Z";
+// Layer 2 — main Rockies peaks (0.8x parallax) — 10 distinct jagged summits
+// P1(300,31) P2(590,74) P3(865,42) P4(1115,82) P5(1395,36) P6(1675,74) P7(1948,109) P8(2230,46) P9(2545,80) P10(2825,126)
+const MR_L2="M0,380 L0,322 C50,305 95,278 135,250 C165,225 195,198 220,172 C242,150 258,118 270,88 C278,66 286,48 293,37 C296,33 298,31 300,31 C302,31 304,33 307,37 C313,47 320,60 328,76 C340,98 352,122 366,145 C382,170 398,190 418,206 C435,218 450,222 465,222 C480,218 512,196 538,164 C554,140 566,108 577,86 C581,78 584,76 587,75 C588,74 589,74 590,74 C591,74 593,76 596,80 C601,90 610,108 622,130 C637,155 655,178 674,196 C689,208 705,210 722,208 C730,207 736,206 740,206 C748,204 757,200 765,192 C772,184 778,172 782,158 C786,142 789,126 792,110 C794,96 796,80 797,66 C798,56 800,48 803,45 C806,41 810,40 815,41 C819,42 823,44 827,48 C831,53 835,56 839,55 C842,52 845,47 848,45 C851,43 858,42 865,42 C866,42 867,43 868,44 C871,48 876,58 882,72 C892,94 904,118 918,140 C932,162 947,181 962,196 C972,204 983,210 1000,211 C1012,210 1024,204 1036,192 C1046,181 1054,166 1059,149 C1063,133 1066,116 1068,100 C1070,88 1072,81 1075,79 C1078,77 1081,78 1085,81 C1089,84 1094,86 1100,85 C1104,84 1109,82 1115,82 C1118,83 1122,88 1128,98 C1136,114 1145,134 1155,153 C1166,172 1178,188 1192,200 C1205,208 1220,210 1235,210 C1240,210 1246,209 1250,208 C1260,207 1272,202 1284,192 C1294,182 1302,168 1308,152 C1314,136 1318,118 1321,100 C1323,84 1324,68 1324,56 C1324,46 1324,39 1327,37 C1330,35 1335,35 1342,36 C1350,37 1360,37 1370,37 C1376,37 1384,37 1392,37 C1394,37 1395,36 1395,36 C1396,37 1398,38 1401,40 C1405,45 1411,54 1420,70 C1430,92 1441,116 1452,142 C1464,163 1477,184 1492,200 C1510,207 1520,210 1528,208 C1535,206 1547,204 1560,196 C1573,182 1583,170 1592,152 C1599,132 1605,114 1610,96 C1614,84 1616,78 1619,75 C1622,74 1625,73 1630,73 C1638,74 1648,75 1658,74 C1668,74 1670,74 1673,74 C1675,74 1677,76 1682,82 C1690,94 1700,110 1712,130 C1724,150 1736,169 1748,185 C1763,196 1774,204 1786,207 C1800,205 1805,203 1808,201 C1810,200 1820,198 1836,192 C1850,178 1861,166 1870,148 C1878,130 1885,113 1892,103 C1900,100 1910,98 1922,106 C1934,111 1941,111 1945,110 C1948,109 1951,110 1956,116 C1962,126 1970,142 1979,160 C1990,177 2001,193 2016,204 C2035,208 2052,210 2068,208 C2085,206 2096,204 2110,196 C2124,180 2136,165 2146,142 C2155,118 2162,96 2168,72 C2172,56 2174,46 2176,42 C2180,41 2184,40 2190,42 C2197,46 2203,50 2208,51 C2213,50 2216,49 2218,48 C2222,48 2225,47 2228,47 C2230,46 2232,47 2236,52 C2242,62 2250,78 2261,100 C2274,124 2287,148 2302,170 C2318,188 2333,204 2353,208 C2375,206 2378,205 2381,204 C2385,204 2396,202 2410,196 C2424,182 2435,170 2445,152 C2453,132 2460,113 2466,94 C2469,82 2471,76 2474,74 C2478,75 2482,76 2487,78 C2492,80 2498,80 2510,82 C2522,81 2528,80 2534,80 C2540,80 2542,80 2544,80 C2545,80 2547,81 2551,84 C2557,92 2565,106 2576,126 C2588,146 2601,166 2616,183 C2633,194 2648,203 2664,206 C2680,204 2690,202 2702,196 C2714,186 2724,177 2732,164 C2739,151 2745,138 2749,128 C2753,125 2756,122 2760,121 C2765,122 2770,124 2776,126 C2782,126 2794,126 2808,127 C2820,126 2822,126 2824,126 C2825,126 2828,128 2832,133 C2838,142 2847,156 2858,172 C2872,186 2887,200 2906,212 C2930,222 2958,232 2990,240 C3030,244 3060,247 3100,248 C3130,248 3160,248 3200,245 L3200,380 Z";
+// Layer 3 — foreground close ridge (1x parallax)
+const MR_L3="M0,380 L0,336 C60,318 120,298 185,278 C245,260 305,254 368,250 C430,246 490,254 555,250 C618,246 678,238 742,234 C804,230 866,238 930,234 C992,230 1052,222 1115,218 C1176,214 1238,222 1302,218 C1364,214 1424,206 1488,210 C1550,214 1612,212 1678,206 C1742,200 1806,194 1872,198 C1936,202 2000,200 2066,194 C2130,188 2195,182 2262,186 C2328,190 2394,188 2463,182 C2530,176 2596,170 2666,174 C2734,178 2804,174 2876,168 C2948,162 3022,156 3200,142 L3200,380 Z";
+// Horizontal winding trail (left→right, progress marker moves with weekly hours)
+const MR_TRAIL="M240,298 C440,293 640,288 840,284 C1040,280 1240,276 1440,272 C1640,268 1840,264 2040,261 C2240,258 2440,256 2640,256 C2760,256 2870,260 2960,282";
+// Organic snow caps on the 4 tallest peaks
+const MR_SNOW_CAPS=[
+  // P1 (x=300, y=31)
+  "M270,76 C272,62 277,50 282,40 C285,35 288,32 292,31 C294,31 296,31 300,31 C302,31 304,33 307,37 C312,47 318,60 325,76 C315,80 305,82 296,82 C287,82 278,80 270,76 Z",
+  // P3 (x=865, y=42)
+  "M843,86 C845,70 849,56 854,48 C857,44 860,42 863,42 C866,42 868,44 872,50 C878,62 884,76 888,88 C879,92 870,94 862,94 C853,94 847,91 843,86 Z",
+  // P5 (x=1395, y=36) — ridge summit
+  "M1318,76 C1320,60 1324,48 1330,40 C1335,36 1340,35 1347,36 C1360,37 1374,37 1385,37 C1389,36 1391,36 1395,36 C1396,37 1398,38 1401,42 C1408,54 1416,68 1419,78 C1407,82 1394,84 1382,84 C1366,84 1346,82 1318,76 Z",
+  // P8 (x=2230, y=46) — with shoulder jag
+  "M2202,88 C2205,72 2210,60 2216,52 C2219,46 2222,44 2226,45 C2229,46 2231,46 2234,49 C2240,58 2248,72 2254,88 C2244,92 2234,94 2225,94 C2215,94 2207,92 2202,88 Z",
 ];
 
-function MountainRange({view,weekH,weeklyTarget}){
+function MountainRange({view,weekH,weeklyTarget,curriculumPct}){
   const trailRef=useRef(null);
-  const [markerPos,setMarkerPos]=useState({x:350,y:308});
-  const tabOffsets={today:0,week:-700,ai:-1400,arc:-2100};
+  const [markerPos,setMarkerPos]=useState({x:240,y:298});
+  const tabOffsets={today:0,week:-800,ai:-1600,arc:-2400};
   const base=tabOffsets[view]??0;
   const progress=weeklyTarget>0?Math.min(1,Math.max(0,weekH/weeklyTarget)):0;
   const atSummit=progress>=1;
@@ -1335,10 +1350,18 @@ function MountainRange({view,weekH,weeklyTarget}){
   },[progress]);
 
   const ls=(mult)=>({
-    position:'absolute',top:0,left:0,width:2800,height:380,
+    position:'absolute',top:0,left:0,width:3200,height:380,
     transform:`translateX(${base*mult}px)`,
     transition:'transform 500ms cubic-bezier(0.4,0,0.2,1)',
   });
+
+  // Waxing moon — phase driven by total curriculum completion %
+  // Moon in L3 at x=2680 (appears on screen ~x=280 when arc tab active, since L3 moves at 1x and arc offset=-2400)
+  const moonX=2680,moonY=62,moonR=22;
+  const moonPhase=Math.min(1,Math.max(0,(curriculumPct||0)/100));
+  const moonAdj=Math.max(0.05,moonPhase); // 0.05 = thin crescent at 0%, 1.0 = full at 100%
+  const shadowCx=moonX-moonR*moonAdj;
+  const shadowRx=Math.max(0.1,moonR*(1-moonAdj));
 
   return(
     <div style={{
@@ -1347,8 +1370,9 @@ function MountainRange({view,weekH,weeklyTarget}){
       maskImage:'linear-gradient(to bottom,rgba(0,0,0,1) 0%,rgba(0,0,0,1) 62%,rgba(0,0,0,0) 90%,rgba(0,0,0,0) 100%)',
       WebkitMaskImage:'linear-gradient(to bottom,rgba(0,0,0,1) 0%,rgba(0,0,0,1) 62%,rgba(0,0,0,0) 90%,rgba(0,0,0,0) 100%)',
     }}>
+      {/* Layer 1: Sky + Stars (0.6x parallax) */}
       <div style={ls(0.6)}>
-        <svg width="2800" height="380" viewBox="0 0 2800 380" style={{display:'block'}}>
+        <svg width="3200" height="380" viewBox="0 0 3200 380" style={{display:'block'}}>
           <defs>
             <linearGradient id="mr-sky" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#1a2e52"/>
@@ -1360,13 +1384,14 @@ function MountainRange({view,weekH,weeklyTarget}){
               <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
             </filter>
           </defs>
-          <rect width="2800" height="380" fill="url(#mr-sky)"/>
+          <rect width="3200" height="380" fill="url(#mr-sky)"/>
           {MOUNTAIN_STARS.map((s,i)=><circle key={i} cx={s.x} cy={s.y} r={s.r} fill="white" opacity={s.o} filter={s.r>3?"url(#mr-star-glow)":undefined}/>)}
           <path d={MR_L1} fill="#1e4d7a"/>
         </svg>
       </div>
+      {/* Layer 2: Main peaks + horizontal trail + snow caps (0.8x parallax) */}
       <div style={ls(0.8)}>
-        <svg width="2800" height="380" viewBox="0 0 2800 380" style={{display:'block'}}>
+        <svg width="3200" height="380" viewBox="0 0 3200 380" style={{display:'block'}}>
           <defs>
             <filter id="mr-snow-glow" x="-100%" y="-100%" width="300%" height="300%">
               <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
@@ -1374,8 +1399,9 @@ function MountainRange({view,weekH,weeklyTarget}){
             </filter>
           </defs>
           <path d={MR_L2} fill="#17305a"/>
-          {MR_SNOW.map((d,i)=><path key={`sg${i}`} d={d} fill="rgba(180,220,255,0.45)" filter="url(#mr-snow-glow)"/>)}
-          {MR_SNOW.map((d,i)=><path key={i} d={d} fill="white"/>)}
+          {MR_SNOW_CAPS.map((d,i)=><path key={`sg${i}`} d={d} fill="rgba(180,220,255,0.45)" filter="url(#mr-snow-glow)"/>)}
+          {MR_SNOW_CAPS.map((d,i)=><path key={i} d={d} fill="white"/>)}
+          {/* Horizontal winding trail */}
           <path
             ref={trailRef}
             d={MR_TRAIL}
@@ -1385,18 +1411,46 @@ function MountainRange({view,weekH,weeklyTarget}){
             strokeDasharray="6,4"
             strokeLinecap="round"
           />
-          {MR_TRAIL_MARKERS.map((pt,i)=>(
-            <circle key={i} cx={pt.x} cy={pt.y} r={2.5} fill="rgba(255,255,255,0.78)"/>
-          ))}
+          {/* Human silhouette — side profile facing right, ~16px tall, dark navy + white outline */}
           <g style={{transform:`translate(${markerPos.x}px,${markerPos.y}px)`,transition:'transform 600ms ease'}}>
-            <circle r="10" fill="rgba(59,130,246,0.2)"/>
-            <circle r="6" fill="white"/>
-            <circle r="3" fill="#3b82f6"/>
+            {/* White outline layer */}
+            <circle cx="0.5" cy="-14.5" r="3.5" fill="rgba(255,255,255,0.88)"/>
+            <path d="M-0.5,-11 C0,-12.5 1.5,-12.5 2,-11 L2.5,-7 C3,-5 1,-4.5 1,-4.5 L3.5,0.5 L2,0.5 L0,-4 L-2,0.5 L-3.5,0 L-1,-4.5 C-1,-4.5 -2.5,-5 -2,-7 Z" fill="rgba(255,255,255,0.88)"/>
+            <path d="M1.5,-10.5 L5,-7.5" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+            {/* Dark navy figure */}
+            <circle cx="0.5" cy="-14.5" r="3" fill="#0d1b2a"/>
+            <path d="M-0.5,-11 C0,-12.5 1.5,-12.5 2,-11 L2.5,-7 C3,-5 1,-4.5 1,-4.5 L3,0.5 L2,0.5 L0,-4 L-2,0.5 L-3,0 L-1,-4.5 C-1,-4.5 -2,-5 -1.5,-7 Z" fill="#0d1b2a"/>
+            <path d="M1.5,-10.5 L5,-7.5" stroke="#0d1b2a" strokeWidth="2" strokeLinecap="round"/>
           </g>
         </svg>
       </div>
+      {/* Layer 3: Foreground terrain + Moon (1x parallax) */}
+      {/* Moon at x=2680 appears at screen x≈280 when arc tab active (base=-2400, mult=1) */}
       <div style={ls(1)}>
-        <svg width="2800" height="380" viewBox="0 0 2800 380" style={{display:'block'}}>
+        <svg width="3200" height="380" viewBox="0 0 3200 380" style={{display:'block'}}>
+          <defs>
+            <filter id="mr-moon-halo" x="-80%" y="-80%" width="360%" height="360%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="8"/>
+            </filter>
+            <clipPath id="mr-moon-clip">
+              <circle cx={moonX} cy={moonY} r={moonR}/>
+            </clipPath>
+          </defs>
+          {/* Moon soft outer glow — grows as moon fills */}
+          <circle cx={moonX} cy={moonY} r={moonR+8+moonPhase*14}
+            fill={`rgba(200,228,255,${0.05+moonPhase*0.16})`}
+            filter="url(#mr-moon-halo)"/>
+          {/* Moon disc */}
+          <circle cx={moonX} cy={moonY} r={moonR} fill="rgba(228,244,255,0.94)"/>
+          {/* Shadow ellipse clipped to moon disc (waxing: light grows on right side) */}
+          {moonPhase<0.99&&(
+            <ellipse cx={shadowCx} cy={moonY} rx={shadowRx} ry={moonR}
+              fill="rgba(6,12,30,0.94)" clipPath="url(#mr-moon-clip)"/>
+          )}
+          {/* Subtle rim */}
+          <circle cx={moonX} cy={moonY} r={moonR} fill="none"
+            stroke="rgba(200,228,255,0.28)" strokeWidth="0.75"/>
+          {/* Foreground terrain on top */}
           <path d={MR_L3} fill="#0e2040"/>
         </svg>
       </div>
@@ -1903,6 +1957,9 @@ export default function App(){
   const wkRem    = Math.max(0,WEEKLY_TARGET-weekH);
   const focusIds = [...(focus.courses||[]),...(focus.books||[])];
   const focusItems = focusIds.map(id=>CURRICULUM.find(i=>i.id===id)).filter(Boolean);
+  const curriculumPct = CURRICULUM.length>0
+    ? Math.round(CURRICULUM.reduce((sum,item)=>sum+(getP(item.id).percentComplete||0),0)/CURRICULUM.length)
+    : 0;
   const getRemainingActiveDays = (fromIdx=getDayIdx()) =>
     ALL_DAYS.slice(fromIdx).filter(d=>ACTIVE_DAYS.includes(d));
   const dLeft = getRemainingActiveDays().length;
@@ -2935,7 +2992,7 @@ Respond ONLY with valid JSON:
           {toast}
         </div>}
 
-        <MountainRange view={view} weekH={weekH} weeklyTarget={WEEKLY_TARGET}/>
+        <MountainRange view={view} weekH={weekH} weeklyTarget={WEEKLY_TARGET} curriculumPct={curriculumPct}/>
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
@@ -3259,19 +3316,20 @@ Respond ONLY with valid JSON:
 
         {/* ── Focus pills: below mountain fade ── */}
         <div style={{padding:"0 16px 12px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5,flex:1,paddingRight:8}}>
-              {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
-                <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
-              ))}
-            </div>
-            <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
-              style={{background:editFocus?"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)":"rgba(255,255,255,0.08)",
-                border:`1px solid ${editFocus?"transparent":"rgba(255,255,255,0.12)"}`,
-                color:editFocus?"#fff":T.textDim,borderRadius:10,padding:"7px 14px",fontSize:11,
-                cursor:"pointer",letterSpacing:0.3,flexShrink:0,transition:"all 0.2s",minHeight:44}}>
-              {editFocus?"Done":"Edit Focus"}
-            </button>
+          <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
+            style={{background:"rgba(255,255,255,0.07)",
+              backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
+              border:`1px solid ${editFocus?"rgba(255,255,255,0.22)":"rgba(255,255,255,0.10)"}`,
+              color:editFocus?"rgba(255,255,255,0.85)":"rgba(255,255,255,0.35)",
+              borderRadius:99,padding:"4px 12px",fontSize:10,letterSpacing:0.5,fontWeight:500,
+              cursor:"pointer",display:"inline-flex",alignItems:"center",
+              transition:"all 0.2s",marginBottom:8}}>
+            {editFocus?"Done":"Edit Focus"}
+          </button>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+            {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
+              <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
+            ))}
           </div>
         </div>
 
