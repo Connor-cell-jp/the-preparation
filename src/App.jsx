@@ -1310,7 +1310,9 @@ const MOUNTAIN_STARS=(()=>{
   );
   return a;
 })();
-function MountainRange(){
+const PAN_POSITIONS = { today: 0, week: 25, ai: 50, arc: 75 };
+function MountainRange({ view }){
+  const pan = PAN_POSITIONS[view] ?? 0;
   return(
     <div style={{
       position:'fixed',top:0,left:0,
@@ -1334,17 +1336,24 @@ function MountainRange(){
         ))}
       </svg>
 
-      {/* PNG mountain — scaled to ~85% so full peak and sky above are visible */}
-      <img src="/mountain.png" alt=""
-        style={{
-          position:'absolute',top:0,left:0,
-          width:'100%',height:'auto',
-          transform:'scale(0.85)',transformOrigin:'center top',
-          zIndex:2,
-          mixBlendMode:'screen',
-          filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
-        }}
-      />
+      {/* Panoramic mountain — wide container pans horizontally per tab */}
+      <div style={{
+        position:'absolute',top:0,left:0,
+        width:'175%',height:'auto',
+        transform:`translateX(-${pan}%)`,
+        transition:'transform 700ms cubic-bezier(0.4,0,0.2,1)',
+        zIndex:2,
+      }}>
+        <img src="/mountain.jpg" alt=""
+          style={{
+            display:'block',
+            width:'100%',height:'auto',
+            transform:'scale(0.85)',transformOrigin:'center top',
+            mixBlendMode:'screen',
+            filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -2883,7 +2892,7 @@ Respond ONLY with valid JSON:
           {toast}
         </div>}
 
-        <MountainRange/>
+        <MountainRange view={view}/>
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
