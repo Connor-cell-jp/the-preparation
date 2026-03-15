@@ -1313,14 +1313,14 @@ const MOUNTAIN_STARS=(()=>{
 function MountainRange(){
   return(
     <div style={{
-      position:'fixed',top:'env(safe-area-inset-top)',left:0,
-      width:'100%',height:380,zIndex:0,overflow:'hidden',pointerEvents:'none',
+      position:'fixed',top:0,left:0,
+      width:'100%',height:'100dvh',zIndex:0,overflow:'hidden',pointerEvents:'none',
       background:'linear-gradient(180deg,#1a2e52 0%,#0f1e38 55%,#0d1b2a 100%)',
-      maskImage:'linear-gradient(to bottom, black 0%, black 60%, transparent 85%)',
-      WebkitMaskImage:'linear-gradient(to bottom, black 0%, black 60%, transparent 85%)',
+      maskImage:'linear-gradient(to bottom, black 0%, black 40%, transparent 100%)',
+      WebkitMaskImage:'linear-gradient(to bottom, black 0%, black 40%, transparent 100%)',
     }}>
-      {/* Stars — fixed SVG layer behind mountain image */}
-      <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',zIndex:1,display:'block'}}
+      {/* Stars — fixed SVG layer behind mountain image, confined to upper sky */}
+      <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'35%',zIndex:1,display:'block'}}
         viewBox="0 0 3200 380" preserveAspectRatio="xMidYMid slice">
         <defs>
           <filter id="mr-star-glow" x="-150%" y="-150%" width="400%" height="400%">
@@ -1334,12 +1334,13 @@ function MountainRange(){
         ))}
       </svg>
 
-      {/* PNG mountain — mix-blend-mode:screen so black vanishes against dark sky background */}
+      {/* PNG mountain — scaled to ~85% so full peak and sky above are visible */}
       <img src="/mountain.png" alt=""
         style={{
           position:'absolute',top:0,left:0,
-          width:'100%',height:'100%',
-          objectFit:'cover',zIndex:2,
+          width:'100%',height:'auto',
+          transform:'scale(0.85)',transformOrigin:'center top',
+          zIndex:2,
           mixBlendMode:'screen',
           filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
         }}
@@ -2864,7 +2865,7 @@ Respond ONLY with valid JSON:
       {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner}/>}
 
       <div style={{
-        background:"linear-gradient(135deg, #0d1b2a 0%, #0f2240 50%, #0d1b2a 100%)",backgroundAttachment:"fixed",
+        background:"transparent",
         minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,
         paddingBottom:`calc(env(safe-area-inset-bottom) + 88px)`,
         opacity:splash?0:1,transition:"opacity 0.4s ease 0.1s",
