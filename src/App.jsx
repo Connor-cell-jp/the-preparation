@@ -674,10 +674,8 @@ const GLOBAL_CSS = `
   @keyframes splashPulse { 0% { opacity:0.6; } 100% { opacity:1; } }
   @keyframes splashOut { to { opacity:0; } }
   @keyframes compassSpin {
-    0%   { transform: rotate(0deg);   animation-timing-function: cubic-bezier(0.4,0,0.8,0.4); }
-    25%  { transform: rotate(90deg);  animation-timing-function: linear; }
-    75%  { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.2,0.6,0.6,1); }
-    100% { transform: rotate(360deg); }
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
   }
   @keyframes compassShrink {
     from { transform: scale(1.786); }
@@ -715,7 +713,7 @@ const GLOBAL_CSS = `
   }
   .btn-press { transition: transform 0.08s cubic-bezier(0.4,0,0.2,1), opacity 0.15s ease; }
   .btn-press:active { transform: scale(0.97); transition: transform 0.08s cubic-bezier(0.4,0,0.2,1); }
-  .tab-content { animation: fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both; padding-top: 220px; position: relative; z-index: 1; }
+  .tab-content { animation: fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both; padding-top: 220px; position: relative; z-index: 1; will-change: transform; }
   input, textarea, select { transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1); font-size: 16px; color: #ffffff; }
   input:focus, textarea:focus { border-color: rgba(59,130,246,0.5) !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); outline:none; }
   body.menu-open { overflow: hidden; position: fixed; width: 100%; }
@@ -738,19 +736,19 @@ function SplashScreen({ onDone }) {
     const t1 = setTimeout(() => setTextVisible(true),    50);
     const t2 = setTimeout(() => setCompassVisible(true), 300);
     const t3 = setTimeout(() => setCompassSpin(true),    650);
-    const t4 = setTimeout(() => setExiting(true),        3150); // 650 + 2500
+    const t4 = setTimeout(() => setExiting(true),        3150);
     const t5 = setTimeout(() => onDone(),                3620);
     return () => [t1,t2,t3,t4,t5].forEach(clearTimeout);
   }, []);
 
-  // Canvas spark + arc trail + fairy lights — starts with the compass spin
+  // Canvas spark + arc trail + fairy lights
   useEffect(() => {
     if (!compassSpin) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx   = canvas.getContext("2d");
-    const dpr   = window.devicePixelRatio || 1;
-    const SIZE  = 280;
+    const ctx  = canvas.getContext("2d");
+    const dpr  = window.devicePixelRatio || 1;
+    const SIZE = 280;
     canvas.width  = SIZE * dpr;
     canvas.height = SIZE * dpr;
     canvas.style.width  = SIZE + "px";
@@ -761,32 +759,20 @@ function SplashScreen({ onDone }) {
     const RING_R   = 130;
     const DURATION = 2500;
 
-    // Speed ramp: ease-in first 25%, linear middle 50%, ease-out last 25%
-    // Derived so total progress goes 0→1 and is C1-continuous at joins.
-    const speedRamp = (t) => {
-      if (t <= 0) return 0;
-      if (t >= 1) return 1;
-      if (t < 0.25) return (8/3) * t * t;
-      if (t < 0.75) return 1/6 + (4/3) * (t - 0.25);
-      return 1 - (8/3) * (1 - t) * (1 - t);
-    };
-    // Instantaneous speed (derivative of speedRamp), peak = 4/3 in linear zone
-    const speedNow = (t) => {
-      if (t < 0.25) return (16/3) * t;
-      if (t < 0.75) return 4/3;
-      return (16/3) * (1 - t);
-    };
+    // Sine ease-in-out: smooth start, peak at midpoint, smooth stop
+    const speedRamp = (t) => (1 - Math.cos(Math.PI * Math.max(0, Math.min(1, t)))) / 2;
+    const speedNow  = (t) => (Math.PI / 2) * Math.sin(Math.PI * Math.max(0, Math.min(1, t)));
+    const SPEED_PEAK = Math.PI / 2;
 
-    // Fairy light particle configs — generated once, vary per-particle
-    const count = 8 + Math.floor(Math.random() * 5); // 8–12
+    const count = 8 + Math.floor(Math.random() * 5);
     const particles = Array.from({ length: count }, (_, i) => ({
       phase:        (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.7,
-      radiusOffset: (Math.random() - 0.5) * 22,        // ±11px from ring
-      orbitSpeed:   0.72 + Math.random() * 0.56,        // 0.72–1.28× ramp
-      size:         3 + Math.random() * 1.2,            // 3–4.2px core
-      baseOpacity:  0.55 + Math.random() * 0.45,        // 0.55–1.0
+      radiusOffset: (Math.random() - 0.5) * 22,
+      orbitSpeed:   0.72 + Math.random() * 0.56,
+      size:         3 + Math.random() * 1.2,
+      baseOpacity:  0.55 + Math.random() * 0.45,
       driftPhase:   Math.random() * Math.PI * 2,
-      driftSpeed:   700 + Math.random() * 500,          // ms per drift cycle
+      driftSpeed:   700 + Math.random() * 500,
     }));
 
     const draw = (ts) => {
@@ -796,12 +782,9 @@ function SplashScreen({ onDone }) {
 
       const progress = elapsed / DURATION;
       const eased    = speedRamp(progress);
-      // North = -PI/2, spark travels clockwise
       const angle    = eased * 2 * Math.PI - Math.PI / 2;
-      // Normalised speed: 0 at start/end, 1 through the linear middle
-      const normSpd  = Math.min(speedNow(progress) / (4/3), 1);
+      const normSpd  = Math.min(speedNow(progress) / SPEED_PEAK, 1);
 
-      // Particle alpha envelope: fade in over first 450ms, fade out over last 18%
       const pFadeIn  = Math.min(elapsed / 450, 1);
       const pFadeOut = progress > 0.82 ? Math.max(0, 1 - (progress - 0.82) / 0.18) : 1;
       const pEnv     = pFadeIn * pFadeOut;
@@ -816,7 +799,6 @@ function SplashScreen({ onDone }) {
         const py = cy + pR * Math.sin(pAngle);
         const alpha = p.baseOpacity * pEnv;
         if (alpha < 0.01) continue;
-
         const glowR = p.size * 3.5;
         const pg = ctx.createRadialGradient(px, py, 0, px, py, glowR);
         pg.addColorStop(0,    `rgba(255,255,255,${alpha.toFixed(3)})`);
@@ -826,17 +808,16 @@ function SplashScreen({ onDone }) {
         ctx.arc(px, py, glowR, 0, Math.PI * 2);
         ctx.fillStyle = pg;
         ctx.fill();
-
         ctx.beginPath();
         ctx.arc(px, py, p.size * 0.55, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
         ctx.fill();
       }
 
-      // ── Arc trail: 90° behind spark, intensity scales with speed ──
+      // ── Arc trail ──
       const TRAIL   = Math.PI / 2;
       const SEG     = 64;
-      const arcPeak = 0.38 + 0.27 * normSpd; // 0.38 slow → 0.65 fast
+      const arcPeak = 0.38 + 0.27 * normSpd;
       for (let i = 0; i < SEG; i++) {
         const t0 = i / SEG;
         const t1 = (i + 1) / SEG;
@@ -853,7 +834,6 @@ function SplashScreen({ onDone }) {
       // ── Spark ──
       const sx = cx + RING_R * Math.cos(angle);
       const sy = cy + RING_R * Math.sin(angle);
-
       const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, 22);
       grd.addColorStop(0,    "rgba(255,255,255,0.90)");
       grd.addColorStop(0.22, "rgba(255,255,255,0.55)");
@@ -863,12 +843,10 @@ function SplashScreen({ onDone }) {
       ctx.arc(sx, sy, 22, 0, Math.PI * 2);
       ctx.fillStyle = grd;
       ctx.fill();
-
       ctx.beginPath();
       ctx.arc(sx, sy, 4, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(255,255,255,1)";
       ctx.fill();
-
       ctx.beginPath();
       ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
       ctx.fillStyle = "rgba(210,235,255,1)";
@@ -893,15 +871,13 @@ function SplashScreen({ onDone }) {
       transition: exiting ? "opacity 0.47s cubic-bezier(0.4,0,0.2,1)" : "none",
     }}>
 
-      {/* ── Title block — appears first ── */}
+      {/* ── Title block ── */}
       <div style={{
         textAlign:"center",
         opacity:    textVisible ? 1 : 0,
         transform:  `translateY(${textVisible ? 0 : 14}px)`,
         transition: "opacity 0.65s cubic-bezier(0.4,0,0.2,1), transform 0.65s cubic-bezier(0.4,0,0.2,1)",
-        marginBottom: 34,
-        flexShrink: 0,
-        zIndex: 2,
+        marginBottom: 34, flexShrink: 0, zIndex: 2,
       }}>
         <div style={{
           fontSize: 26, fontWeight: 900, color: "#ffffff",
@@ -911,17 +887,16 @@ function SplashScreen({ onDone }) {
           The Preparation
         </div>
         <div style={{
-          fontSize: 11.5, color: "rgba(255,255,255,0.60)",
-          fontFamily: T.fontUI, marginTop: 11, fontWeight: 400, letterSpacing: 0.4,
-          lineHeight: 1.6,
+          fontSize: 11.5, color: "rgba(255,255,255,0.52)",
+          fontFamily: T.fontUI, marginTop: 11, fontWeight: 400, letterSpacing: 3,
+          textTransform: "uppercase",
         }}>
-          How to Become Competent,<br/>Confident and Dangerous
+          Learning Tracker
         </div>
       </div>
 
       {/* ── Compass rose + canvas ── */}
       <div style={{width:280, height:280, position:"relative", flexShrink:0}}>
-        {/* Scale shrink + opacity wrapper — starts large, shrinks to 280px */}
         <div style={{
           width:280, height:280, position:"relative",
           opacity:         compassVisible ? 1 : 0,
@@ -930,93 +905,118 @@ function SplashScreen({ onDone }) {
           transform:       "scale(1.786)",
           animation:       compassSpin ? "compassShrink 2500ms cubic-bezier(0.25,0,0.1,1) forwards" : "none",
         }}>
-          {/* Rotating compass rose SVG */}
+          {/* Rotating vintage compass rose SVG */}
           <svg viewBox="-140 -140 280 280" width="280" height="280"
             style={{
               position:"absolute", top:0, left:0,
               transformOrigin:"center center",
-              animation: compassSpin ? "compassSpin 2500ms forwards" : "none",
+              animation: compassSpin ? "compassSpin 2500ms cubic-bezier(0.37,0,0.63,1) forwards" : "none",
               overflow:"visible",
             }}
           >
-            {/* Outer spark orbit ring */}
-            <circle r="130" fill="none" stroke="rgba(245,240,232,0.28)" strokeWidth="1"/>
+            {/* ── Outer bezel — double brass ring ── */}
+            <circle r="130" fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.8"/>
+            <circle r="127" fill="none" stroke="rgba(196,164,78,0.35)" strokeWidth="1.4"/>
+            <circle r="122" fill="none" stroke="rgba(196,164,78,0.16)" strokeWidth="0.5"/>
 
-            {/* Concentric decorative rings */}
-            <circle r="114" fill="none" stroke="rgba(245,240,232,0.13)" strokeWidth="0.5"/>
-            <circle r="92"  fill="none" stroke="rgba(245,240,232,0.20)" strokeWidth="0.75"/>
-            <circle r="70"  fill="none" stroke="rgba(245,240,232,0.12)" strokeWidth="0.5"/>
-            <circle r="50"  fill="none" stroke="rgba(245,240,232,0.18)" strokeWidth="0.75"/>
-            <circle r="30"  fill="none" stroke="rgba(245,240,232,0.10)" strokeWidth="0.5"/>
+            {/* ── Graduated inner rings ── */}
+            <circle r="110" fill="none" stroke="rgba(196,164,78,0.20)" strokeWidth="0.8"/>
+            <circle r="88"  fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.6"/>
+            <circle r="66"  fill="none" stroke="rgba(196,164,78,0.14)" strokeWidth="0.5"/>
+            <circle r="46"  fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.6"/>
+            <circle r="28"  fill="none" stroke="rgba(196,164,78,0.12)" strokeWidth="0.4"/>
+            <circle r="15"  fill="none" stroke="rgba(196,164,78,0.16)" strokeWidth="0.5"/>
 
-            {/* Intercardinal points (NE/SE/SW/NW) — steel blue, drawn first so cardinals sit on top */}
-            {[45,135,225,315].map(deg=>(
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-64  11,-32  0,-8  -11,-32" fill="#4a7fa5"/>
-                {/* subtle right-half lightening */}
-                <polygon points="0,-64  11,-32  0,-8" fill="rgba(255,255,255,0.07)"/>
-              </g>
-            ))}
-
-            {/* Cardinal points (N/S/E/W) — cream/ivory elongated diamonds */}
-            {[0,90,180,270].map(deg=>(
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-108  16,-50  0,-8  -16,-50" fill="#f5f0e8"/>
-                {/* left-half shadow for depth */}
-                <polygon points="0,-108  0,-8  -16,-50" fill="rgba(0,0,0,0.09)"/>
-              </g>
-            ))}
-
-            {/* Tick marks at 5° increments on the outer ring, skipping the 8 point directions */}
-            {Array.from({length:72}, (_,i)=>{
-              const deg=i*5;
-              if(deg%45===0) return null; // points cover these
-              const rad=(deg*Math.PI)/180;
-              const isM15=deg%15===0;
-              const r1=isM15?119:125;
-              const op=isM15?0.38:0.16;
-              const sw=isM15?0.8:0.45;
-              const s=Math.sin(rad),c=Math.cos(rad);
-              return(
+            {/* ── Degree tick marks — brass, varied weight ── */}
+            {Array.from({length:72}, (_,i) => {
+              const deg = i * 5;
+              if (deg % 45 === 0) return null;
+              const rad = (deg * Math.PI) / 180;
+              const is15 = deg % 15 === 0;
+              const r1 = is15 ? 116 : 121;
+              const op = is15 ? 0.52 : 0.22;
+              const sw = is15 ? 1.0  : 0.5;
+              const s = Math.sin(rad), c = Math.cos(rad);
+              return (
                 <line key={i}
-                  x1={r1*s} y1={-r1*c} x2={130*s} y2={-130*c}
-                  stroke={`rgba(245,240,232,${op})`}
+                  x1={r1*s} y1={-r1*c} x2={127*s} y2={-127*c}
+                  stroke={`rgba(196,164,78,${op})`}
                   strokeWidth={sw} strokeLinecap="round"/>
               );
             })}
 
-            {/* N/S/E/W labels outside the rings */}
-            {[["N",0,"#f5f0e8",800],["E",90,"rgba(245,240,232,0.82)",700],
-              ["S",180,"rgba(245,240,232,0.82)",700],["W",270,"rgba(245,240,232,0.82)",700]
-            ].map(([lbl,deg,col,fw])=>{
-              const rad=(deg*Math.PI)/180, r=143;
-              return(
+            {/* ── 8 tertiary points (22.5°) — thin brass needles, 16-point wind rose ── */}
+            {[22.5,67.5,112.5,157.5,202.5,247.5,292.5,337.5].map(deg => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-52  4,-22  0,-7  -4,-22" fill="rgba(188,152,68,0.50)"/>
+              </g>
+            ))}
+
+            {/* ── 4 intercardinal points (NE/SE/SW/NW) — aged warm gray ── */}
+            {[45,135,225,315].map(deg => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-72  11,-34  0,-8  -11,-34" fill="#7a7660"/>
+                <polygon points="0,-72  11,-34  0,-8" fill="rgba(255,245,210,0.06)"/>
+              </g>
+            ))}
+
+            {/* ── Cardinal points S/E/W — aged parchment ── */}
+            {[90,180,270].map(deg => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#ddd0a0"/>
+                <polygon points="0,-104  0,-8  -15,-48" fill="rgba(60,40,10,0.20)"/>
+              </g>
+            ))}
+
+            {/* ── N cardinal point — amber gold with fleur-de-lis crown ── */}
+            {/* Needle body */}
+            <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#c8a050"/>
+            <polygon points="0,-104  0,-8  -15,-48" fill="rgba(60,30,0,0.28)"/>
+            {/* Fleur-de-lis: horizontal base bar */}
+            <line x1="-10" y1="-106" x2="10" y2="-106"
+              stroke="#c8a050" strokeWidth="1.2" opacity="0.75" strokeLinecap="round"/>
+            {/* Central lobe — tall narrow diamond */}
+            <polygon points="0,-104  2.8,-112  0,-124  -2.8,-112" fill="#c8a050"/>
+            {/* Left petal */}
+            <polygon points="-1,-107  -8,-106  -7,-113  -1,-112" fill="#c8a050" opacity="0.80"/>
+            {/* Right petal */}
+            <polygon points="1,-107  8,-106  7,-113  1,-112" fill="#c8a050" opacity="0.80"/>
+            {/* Crown tip jewel */}
+            <circle cx="0" cy="-121" r="2.2" fill="#c8a050"/>
+
+            {/* ── Directional labels — warm ivory ── */}
+            {[["N",0,"#d4b060",800],["E",90,"rgba(218,200,150,0.85)",700],
+              ["S",180,"rgba(218,200,150,0.85)",700],["W",270,"rgba(218,200,150,0.85)",700]
+            ].map(([lbl,deg,col,fw]) => {
+              const rad = (deg * Math.PI) / 180, r = 143;
+              return (
                 <text key={lbl}
-                  x={r*Math.sin(rad)} y={-r*Math.cos(rad)+4}
+                  x={r * Math.sin(rad)} y={-r * Math.cos(rad) + 4}
                   fill={col} fontSize="11" fontFamily="'DM Sans',sans-serif"
                   fontWeight={fw} textAnchor="middle" letterSpacing="2">{lbl}</text>
               );
             })}
 
-            {/* Inner miniature 8-point star — decorative repeat at small scale */}
-            {[0,90,180,270].map(deg=>(
+            {/* ── Inner 8-point star — warm tones ── */}
+            {[0,90,180,270].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-23  3,-10  0,-4  -3,-10" fill="#f5f0e8" opacity="0.62"/>
+                <polygon points="0,-25  3,-11  0,-4  -3,-11" fill="#d8c070" opacity="0.55"/>
               </g>
             ))}
-            {[45,135,225,315].map(deg=>(
+            {[45,135,225,315].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-14  2,-7  0,-4  -2,-7" fill="#4a7fa5" opacity="0.62"/>
+                <polygon points="0,-16  2,-7  0,-4  -2,-7" fill="#7a7660" opacity="0.55"/>
               </g>
             ))}
 
-            {/* Center hub */}
-            <circle r="9"   fill="#0d1b2a" stroke="rgba(245,240,232,0.55)" strokeWidth="1.5"/>
-            <circle r="4.5" fill="#f5f0e8"/>
+            {/* ── Center hub — ornate brass rings ── */}
+            <circle r="13"  fill="rgba(13,27,42,0.96)" stroke="rgba(196,164,78,0.65)" strokeWidth="1.6"/>
+            <circle r="8"   fill="rgba(13,27,42,0.96)" stroke="rgba(196,164,78,0.35)" strokeWidth="0.8"/>
+            <circle r="4.5" fill="#c8a050"/>
             <circle r="1.8" fill="#0d1b2a"/>
           </svg>
 
-          {/* Canvas — spark + arc trail + fairy lights (does not rotate, scales with wrapper) */}
+          {/* Canvas — spark + arc trail + fairy lights */}
           <canvas ref={canvasRef}
             style={{position:"absolute",top:0,left:0,width:280,height:280,pointerEvents:"none"}}/>
         </div>
@@ -1310,9 +1310,9 @@ const MOUNTAIN_STARS=(()=>{
   );
   return a;
 })();
-const PAN_POSITIONS = { today: 0, week: 25, ai: 50, arc: 75 };
+const VERT_POSITIONS = { today:"center 80%", week:"center 55%", ai:"center 35%", arc:"center 10%" };
 function MountainRange({ view }){
-  const pan = PAN_POSITIONS[view] ?? 0;
+  const vertPos = VERT_POSITIONS[view] ?? "center 80%";
   return(
     <div style={{
       position:'fixed',top:0,left:0,
@@ -1321,7 +1321,7 @@ function MountainRange({ view }){
       maskImage:'linear-gradient(to bottom, black 0%, black 40%, transparent 100%)',
       WebkitMaskImage:'linear-gradient(to bottom, black 0%, black 40%, transparent 100%)',
     }}>
-      {/* Stars — fixed SVG layer behind mountain image, confined to upper sky */}
+      {/* Stars — fixed SVG layer behind mountain image */}
       <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'35%',zIndex:1,display:'block'}}
         viewBox="0 0 3200 380" preserveAspectRatio="xMidYMid slice">
         <defs>
@@ -1336,23 +1336,58 @@ function MountainRange({ view }){
         ))}
       </svg>
 
-      {/* Panoramic mountain — wide container pans horizontally per tab */}
-      <div style={{
-        position:'absolute',top:0,left:0,
-        width:'175%',height:'auto',
-        transform:`translateX(-${pan}%)`,
-        transition:'transform 700ms cubic-bezier(0.4,0,0.2,1)',
-        zIndex:2,
-      }}>
-        <img src="/mountain.jpg" alt=""
-          style={{
-            display:'block',
-            width:'100%',height:'auto',
-            transform:'scale(0.85)',transformOrigin:'center top',
-            mixBlendMode:'screen',
-            filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
-          }}
-        />
+      {/* Mountain image — vertical pan via object-position per tab */}
+      <img src="/mountain.png" alt=""
+        style={{
+          position:'absolute',top:0,left:0,
+          width:'100%',height:'65%',
+          objectFit:'cover',
+          objectPosition:vertPos,
+          transition:'object-position 700ms cubic-bezier(0.4,0,0.2,1)',
+          mixBlendMode:'screen',
+          filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
+          willChange:'object-position',
+          zIndex:2,
+          display:'block',
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Weekly Progress Arc ────────────────────────────────────────────────────────
+function WeeklyArcDisplay({ hoursLogged, weeklyTarget }){
+  const R=50, W=140, cy=8, cx=70;
+  const lx=cx-R, rx=cx+R; // 20, 120
+  const arcLen=Math.PI*R;
+  const progress=weeklyTarget>0?Math.min(1,hoursLogged/weeklyTarget):0;
+  const filled=progress*arcLen;
+  const path=`M ${lx},${cy} A ${R},${R} 0 0,1 ${rx},${cy}`;
+  const H=cy+R+2;
+  return(
+    <div style={{
+      position:'fixed',
+      top:'calc(env(safe-area-inset-top) + 46px)',
+      left:'50%',
+      transform:'translate3d(-50%,0,0)',
+      zIndex:25,pointerEvents:'none',textAlign:'center',
+      willChange:'transform',
+    }}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}
+        style={{overflow:'visible',display:'block',margin:'0 auto'}}>
+        <defs>
+          <filter id="arc-glow-w" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <path d={path} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={3} strokeLinecap="round"/>
+        {filled>1&&<path d={path} fill="none"
+          stroke="rgba(59,130,246,0.9)" strokeWidth={3} strokeLinecap="round"
+          strokeDasharray={`${filled} ${arcLen}`} filter="url(#arc-glow-w)"/>}
+      </svg>
+      <div style={{fontSize:13,color:'white',fontFamily:T.fontUI,fontWeight:400,marginTop:4,letterSpacing:0.2}}>
+        {hoursLogged.toFixed(1)}h / {weeklyTarget}h
       </div>
     </div>
   );
@@ -1396,8 +1431,9 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
         backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
         zIndex:201,borderRight:`1px solid rgba(255,255,255,0.08)`,
         boxShadow:"4px 0 40px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",
-        transform:open?"translateX(0)":"translateX(-100%)",
+        transform:open?"translate3d(0,0,0)":"translate3d(-100%,0,0)",
         transition:"transform 0.35s cubic-bezier(0.4,0,0.2,1)",
+        willChange:"transform",
         overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",
       }}>
         <div style={{padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
@@ -2893,6 +2929,24 @@ Respond ONLY with valid JSON:
         </div>}
 
         <MountainRange view={view}/>
+
+        {/* ── App Title ── */}
+        <div style={{
+          position:'fixed',top:0,left:0,right:0,
+          paddingTop:'calc(env(safe-area-inset-top) + 10px)',
+          textAlign:'center',zIndex:25,pointerEvents:'none',
+        }}>
+          <div style={{fontSize:11,fontWeight:600,color:'rgba(255,255,255,0.7)',
+            fontFamily:T.fontUI,letterSpacing:2,textTransform:'uppercase'}}>
+            The Preparation
+          </div>
+          <div style={{fontSize:9,color:'rgba(255,255,255,0.38)',marginTop:3,fontFamily:T.fontUI,fontWeight:400}}>
+            {getDayName()} · Week {weekNum}
+          </div>
+        </div>
+
+        {/* ── Weekly Progress Arc ── */}
+        <WeeklyArcDisplay hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET}/>
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
@@ -3600,9 +3654,12 @@ Respond ONLY with valid JSON:
 
             {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&
             <button onClick={()=>setShowSundayReview(true)} className="btn-press"
-              style={{width:"100%",background:"rgba(245,158,11,0.08)",border:`1px solid rgba(245,158,11,0.25)`,
-                color:T.yellow,borderRadius:14,padding:13,fontSize:13,fontWeight:800,
-                cursor:"pointer",marginBottom:12,letterSpacing:0.3,minHeight:44}}>
+              style={{width:"100%",
+                background:"rgba(255,255,255,0.04)",
+                backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+                border:"1px solid rgba(255,255,255,0.08)",
+                borderRadius:20,padding:13,fontSize:13,fontWeight:800,
+                color:T.yellow,cursor:"pointer",marginBottom:12,letterSpacing:0.3,minHeight:44}}>
               Write This Week's Review
             </button>}
 
