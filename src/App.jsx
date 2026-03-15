@@ -1300,8 +1300,8 @@ const MOUNTAIN_STARS=(()=>{
   let seed=42;
   const r=()=>{seed=(seed*1664525+1013904223)&0xffffffff;return(seed>>>0)/4294967295;};
   const a=[];
-  for(let i=0;i<50;i++) a.push({x:r()*2800,y:8+r()*102,r:0.8+r()*1.2,o:0.3+r()*0.6});
-  a.push({x:255,y:28,r:2.5,o:1},{x:618,y:52,r:2.2,o:0.95},{x:1108,y:22,r:2.8,o:1},{x:1682,y:40,r:2.4,o:0.9},{x:2248,y:18,r:2.6,o:1},{x:2582,y:46,r:2.0,o:0.85});
+  for(let i=0;i<50;i++) a.push({x:r()*2800,y:8+r()*100,r:1.2+r()*1.8,o:0.55+r()*0.45});
+  a.push({x:255,y:28,r:4.0,o:1},{x:618,y:52,r:3.5,o:1},{x:1108,y:22,r:4.5,o:1},{x:1682,y:40,r:3.8,o:0.98},{x:2248,y:18,r:4.2,o:1},{x:2582,y:46,r:3.2,o:0.98});
   return a;
 })();
 const MR_L1="M0,380 L0,205 C80,200 160,196 240,194 C340,191 420,195 500,200 C600,206 700,210 800,206 C900,202 1000,190 1100,178 C1180,168 1260,160 1340,164 C1420,168 1500,172 1580,167 C1660,162 1750,150 1840,142 C1920,134 2000,130 2080,126 C2160,122 2240,114 2340,108 C2440,102 2520,108 2600,112 C2680,116 2750,112 2800,114 L2800,380 Z";
@@ -1344,31 +1344,49 @@ function MountainRange({view,weekH,weeklyTarget}){
     <div style={{
       position:'fixed',top:'env(safe-area-inset-top)',left:0,
       width:'100%',height:380,zIndex:0,overflow:'hidden',pointerEvents:'none',
-      maskImage:'linear-gradient(to bottom,rgba(0,0,0,1) 0%,rgba(0,0,0,1) 50%,rgba(0,0,0,0) 85%,rgba(0,0,0,0) 100%)',
-      WebkitMaskImage:'linear-gradient(to bottom,rgba(0,0,0,1) 0%,rgba(0,0,0,1) 50%,rgba(0,0,0,0) 85%,rgba(0,0,0,0) 100%)',
+      maskImage:'linear-gradient(to bottom,rgba(0,0,0,1) 0%,rgba(0,0,0,1) 62%,rgba(0,0,0,0) 90%,rgba(0,0,0,0) 100%)',
+      WebkitMaskImage:'linear-gradient(to bottom,rgba(0,0,0,1) 0%,rgba(0,0,0,1) 62%,rgba(0,0,0,0) 90%,rgba(0,0,0,0) 100%)',
     }}>
       <div style={ls(0.6)}>
         <svg width="2800" height="380" viewBox="0 0 2800 380" style={{display:'block'}}>
-          <rect width="2800" height="380" fill="#0d1b2a"/>
-          {MOUNTAIN_STARS.map((s,i)=><circle key={i} cx={s.x} cy={s.y} r={s.r} fill="white" opacity={s.o}/>)}
-          <path d={MR_L1} fill="#0f2d4a"/>
+          <defs>
+            <linearGradient id="mr-sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1a2e52"/>
+              <stop offset="55%" stopColor="#0f1e38"/>
+              <stop offset="100%" stopColor="#0d1b2a"/>
+            </linearGradient>
+            <filter id="mr-star-glow" x="-150%" y="-150%" width="400%" height="400%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <rect width="2800" height="380" fill="url(#mr-sky)"/>
+          {MOUNTAIN_STARS.map((s,i)=><circle key={i} cx={s.x} cy={s.y} r={s.r} fill="white" opacity={s.o} filter={s.r>3?"url(#mr-star-glow)":undefined}/>)}
+          <path d={MR_L1} fill="#1e4d7a"/>
         </svg>
       </div>
       <div style={ls(0.8)}>
         <svg width="2800" height="380" viewBox="0 0 2800 380" style={{display:'block'}}>
-          <path d={MR_L2} fill="#0d1f35"/>
-          {MR_SNOW.map((d,i)=><path key={i} d={d} fill="rgba(255,255,255,0.88)"/>)}
+          <defs>
+            <filter id="mr-snow-glow" x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <path d={MR_L2} fill="#17305a"/>
+          {MR_SNOW.map((d,i)=><path key={`sg${i}`} d={d} fill="rgba(180,220,255,0.45)" filter="url(#mr-snow-glow)"/>)}
+          {MR_SNOW.map((d,i)=><path key={i} d={d} fill="white"/>)}
           <path
             ref={trailRef}
             d={MR_TRAIL}
             fill="none"
-            stroke={atSummit?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.4)"}
+            stroke={atSummit?"rgba(255,255,255,0.95)":"rgba(255,255,255,0.65)"}
             strokeWidth="2"
             strokeDasharray="6,4"
             strokeLinecap="round"
           />
           {MR_TRAIL_MARKERS.map((pt,i)=>(
-            <circle key={i} cx={pt.x} cy={pt.y} r={2.5} fill="rgba(255,255,255,0.5)"/>
+            <circle key={i} cx={pt.x} cy={pt.y} r={2.5} fill="rgba(255,255,255,0.78)"/>
           ))}
           <g style={{transform:`translate(${markerPos.x}px,${markerPos.y}px)`,transition:'transform 600ms ease'}}>
             <circle r="10" fill="rgba(59,130,246,0.2)"/>
@@ -1379,7 +1397,7 @@ function MountainRange({view,weekH,weeklyTarget}){
       </div>
       <div style={ls(1)}>
         <svg width="2800" height="380" viewBox="0 0 2800 380" style={{display:'block'}}>
-          <path d={MR_L3} fill="#0a1628"/>
+          <path d={MR_L3} fill="#0e2040"/>
         </svg>
       </div>
     </div>
@@ -3206,46 +3224,41 @@ Respond ONLY with valid JSON:
               borderRadius:8,padding:"5px 12px",fontSize:10,cursor:"pointer",minHeight:44}}>Dismiss</button>
         </div>}
 
-        {/* ── Header ── */}
+        {/* ── Mountain Overlay: Hamburger (fixed, upper-left) ── */}
+        <button onClick={()=>setSideOpen(true)} className="btn-press"
+          style={{position:"fixed",top:`calc(env(safe-area-inset-top) + 14px)`,left:16,
+            background:"rgba(0,0,0,0.30)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",
+            border:"1px solid rgba(255,255,255,0.18)",borderRadius:12,cursor:"pointer",
+            display:"flex",flexDirection:"column",gap:5,
+            minWidth:44,minHeight:44,justifyContent:"center",alignItems:"center",
+            zIndex:20}}>
+          {[0,1,2].map(i=>(
+            <div key={i} style={{width:22,height:2,background:"rgba(255,255,255,0.85)",borderRadius:99}}/>
+          ))}
+          {unreadCount>0&&<div style={{position:"absolute",top:4,right:4,
+            background:T.blue,color:"#fff",borderRadius:"50%",
+            width:14,height:14,fontSize:8,fontWeight:800,
+            display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount>9?"9+":unreadCount}</div>}
+        </button>
+
+        {/* ── Mountain Overlay: Stats (fixed, upper-right, subtle) ── */}
         <div style={{
-          background:"rgba(13,27,42,0.88)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-          padding:`8px 16px 12px`,
-          borderBottom:"1px solid rgba(255,255,255,0.08)",position:"sticky",top:"env(safe-area-inset-top)",zIndex:50,
-          boxShadow:"0 4px 24px rgba(0,0,0,0.3)",
+          position:"fixed",top:`calc(env(safe-area-inset-top) + 16px)`,right:16,
+          zIndex:20,textAlign:"right",pointerEvents:"none",
         }}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-            <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-              <button onClick={()=>setSideOpen(true)} className="btn-press"
-                style={{background:"none",border:"none",cursor:"pointer",padding:"6px 4px",
-                  display:"flex",flexDirection:"column",gap:5,marginTop:4,flexShrink:0,
-                  minWidth:44,minHeight:44,justifyContent:"center",alignItems:"flex-start",
-                  position:"relative"}}>
-                {[0,1,2].map(i=>(
-                  <div key={i} style={{width:22,height:2,background:"rgba(255,255,255,0.6)",borderRadius:99}}/>
-                ))}
-                {unreadCount>0&&<div style={{position:"absolute",top:2,right:2,
-                  background:T.blue,color:"#fff",borderRadius:"50%",
-                  width:14,height:14,fontSize:8,fontWeight:800,
-                  display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount>9?"9+":unreadCount}</div>}
-              </button>
-              <div>
-                <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
-                <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.5,color:"#ffffff"}}>Learning Tracker</div>
-              </div>
-            </div>
-            <div style={{textAlign:"right",marginTop:4}}>
-              <div style={{fontSize:22,fontWeight:900,letterSpacing:-0.5,
-                color:weekH>=WEEKLY_TARGET?T.green:"#ffffff",
-                transition:"color 0.4s ease"}}>
-                {weekH.toFixed(1)}<span style={{fontSize:11,color:T.textDim,fontWeight:400}}>/{WEEKLY_TARGET}h</span>
-              </div>
-              <div style={{fontSize:9,color:T.textDim,marginTop:1}}>{getDayName()} · {dLeft}d left</div>
-            </div>
+          <div style={{fontSize:18,fontWeight:900,letterSpacing:-0.5,
+            color:weekH>=WEEKLY_TARGET?"rgba(34,197,94,0.65)":"rgba(255,255,255,0.45)",
+            transition:"color 0.4s ease"}}>
+            {weekH.toFixed(1)}<span style={{fontSize:10,color:"rgba(255,255,255,0.25)",fontWeight:400}}>/{WEEKLY_TARGET}h</span>
           </div>
-          <Bar pct={(weekH/WEEKLY_TARGET)*100} color={weekH>=WEEKLY_TARGET?T.green:T.blue} height={3} glow style={{marginBottom:4}}/>
-          <div style={{fontSize:9,color:T.textDim,marginBottom:14,textAlign:"right",letterSpacing:0.3}}>
-            {weekH>=WEEKLY_TARGET?"Target hit":`${(wkRem/Math.max(dLeft,1)).toFixed(1)}h/day to finish`}
-          </div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.28)",marginTop:1}}>{getDayName()} · {dLeft}d left</div>
+        </div>
+
+        {/* ── Mountain spacer: pushes content below mountain fade ── */}
+        <div style={{height:280}}/>
+
+        {/* ── Focus pills: below mountain fade ── */}
+        <div style={{padding:"0 16px 12px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,flex:1,paddingRight:8}}>
               {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
