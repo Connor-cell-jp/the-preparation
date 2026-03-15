@@ -887,7 +887,7 @@ function SplashScreen({ onDone }) {
           The Preparation
         </div>
         <div style={{
-          fontSize: 11.5, color: "rgba(255,255,255,0.52)",
+          fontSize: 11.5, color: T.textMid,
           fontFamily: T.fontUI, marginTop: 11, fontWeight: 400, letterSpacing: 3,
           textTransform: "uppercase",
         }}>
@@ -914,79 +914,79 @@ function SplashScreen({ onDone }) {
               overflow:"visible",
             }}
           >
-            {/* ── Outer bezel — double brass ring ── */}
-            <circle r="130" fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.8"/>
-            <circle r="127" fill="none" stroke="rgba(196,164,78,0.35)" strokeWidth="1.4"/>
-            <circle r="122" fill="none" stroke="rgba(196,164,78,0.16)" strokeWidth="0.5"/>
+            {/* ── Outer bezel — double ring ── */}
+            <circle r="130" fill="none" stroke="rgba(59,130,246,0.14)" strokeWidth="0.8"/>
+            <circle r="127" fill="none" stroke="rgba(59,130,246,0.28)" strokeWidth="1.4"/>
+            <circle r="122" fill="none" stroke="rgba(59,130,246,0.10)" strokeWidth="0.5"/>
 
             {/* ── Graduated inner rings ── */}
-            <circle r="110" fill="none" stroke="rgba(196,164,78,0.20)" strokeWidth="0.8"/>
-            <circle r="88"  fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.6"/>
-            <circle r="66"  fill="none" stroke="rgba(196,164,78,0.14)" strokeWidth="0.5"/>
-            <circle r="46"  fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.6"/>
-            <circle r="28"  fill="none" stroke="rgba(196,164,78,0.12)" strokeWidth="0.4"/>
-            <circle r="15"  fill="none" stroke="rgba(196,164,78,0.16)" strokeWidth="0.5"/>
+            <circle r="110" fill="none" stroke="rgba(59,130,246,0.16)" strokeWidth="0.8"/>
+            <circle r="88"  fill="none" stroke="rgba(59,130,246,0.13)" strokeWidth="0.6"/>
+            <circle r="66"  fill="none" stroke="rgba(59,130,246,0.10)" strokeWidth="0.5"/>
+            <circle r="46"  fill="none" stroke="rgba(59,130,246,0.14)" strokeWidth="0.6"/>
+            <circle r="28"  fill="none" stroke="rgba(59,130,246,0.09)" strokeWidth="0.4"/>
+            <circle r="15"  fill="none" stroke="rgba(59,130,246,0.12)" strokeWidth="0.5"/>
 
-            {/* ── Degree tick marks — brass, varied weight ── */}
+            {/* ── Degree tick marks — varied weight ── */}
             {Array.from({length:72}, (_,i) => {
               const deg = i * 5;
               if (deg % 45 === 0) return null;
               const rad = (deg * Math.PI) / 180;
               const is15 = deg % 15 === 0;
               const r1 = is15 ? 116 : 121;
-              const op = is15 ? 0.52 : 0.22;
+              const op = is15 ? 0.42 : 0.16;
               const sw = is15 ? 1.0  : 0.5;
               const s = Math.sin(rad), c = Math.cos(rad);
               return (
                 <line key={i}
                   x1={r1*s} y1={-r1*c} x2={127*s} y2={-127*c}
-                  stroke={`rgba(196,164,78,${op})`}
+                  stroke={`rgba(148,196,255,${op})`}
                   strokeWidth={sw} strokeLinecap="round"/>
               );
             })}
 
-            {/* ── 8 tertiary points (22.5°) — thin brass needles, 16-point wind rose ── */}
+            {/* ── 8 tertiary points (22.5°) — thin needles, 16-point wind rose ── */}
             {[22.5,67.5,112.5,157.5,202.5,247.5,292.5,337.5].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-52  4,-22  0,-7  -4,-22" fill="rgba(188,152,68,0.50)"/>
+                <polygon points="0,-52  4,-22  0,-7  -4,-22" fill="rgba(148,196,255,0.30)"/>
               </g>
             ))}
 
-            {/* ── 4 intercardinal points (NE/SE/SW/NW) — aged warm gray ── */}
+            {/* ── 4 intercardinal points (NE/SE/SW/NW) ── */}
             {[45,135,225,315].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-72  11,-34  0,-8  -11,-34" fill="#7a7660"/>
-                <polygon points="0,-72  11,-34  0,-8" fill="rgba(255,245,210,0.06)"/>
+                <polygon points="0,-72  11,-34  0,-8  -11,-34" fill="rgba(255,255,255,0.30)"/>
+                <polygon points="0,-72  11,-34  0,-8" fill="rgba(255,255,255,0.05)"/>
               </g>
             ))}
 
-            {/* ── Cardinal points S/E/W — aged parchment ── */}
+            {/* ── Cardinal points S/E/W ── */}
             {[90,180,270].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#ddd0a0"/>
-                <polygon points="0,-104  0,-8  -15,-48" fill="rgba(60,40,10,0.20)"/>
+                <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="rgba(255,255,255,0.55)"/>
+                <polygon points="0,-104  0,-8  -15,-48" fill="rgba(0,0,0,0.15)"/>
               </g>
             ))}
 
-            {/* ── N cardinal point — amber gold with fleur-de-lis crown ── */}
+            {/* ── N cardinal point — blue with crown ── */}
             {/* Needle body */}
-            <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#c8a050"/>
-            <polygon points="0,-104  0,-8  -15,-48" fill="rgba(60,30,0,0.28)"/>
-            {/* Fleur-de-lis: horizontal base bar */}
+            <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#3b82f6"/>
+            <polygon points="0,-104  0,-8  -15,-48" fill="rgba(0,0,0,0.22)"/>
+            {/* Crown: horizontal base bar */}
             <line x1="-10" y1="-106" x2="10" y2="-106"
-              stroke="#c8a050" strokeWidth="1.2" opacity="0.75" strokeLinecap="round"/>
-            {/* Central lobe — tall narrow diamond */}
-            <polygon points="0,-104  2.8,-112  0,-124  -2.8,-112" fill="#c8a050"/>
+              stroke="#3b82f6" strokeWidth="1.2" opacity="0.75" strokeLinecap="round"/>
+            {/* Central lobe */}
+            <polygon points="0,-104  2.8,-112  0,-124  -2.8,-112" fill="#3b82f6"/>
             {/* Left petal */}
-            <polygon points="-1,-107  -8,-106  -7,-113  -1,-112" fill="#c8a050" opacity="0.80"/>
+            <polygon points="-1,-107  -8,-106  -7,-113  -1,-112" fill="#3b82f6" opacity="0.80"/>
             {/* Right petal */}
-            <polygon points="1,-107  8,-106  7,-113  1,-112" fill="#c8a050" opacity="0.80"/>
-            {/* Crown tip jewel */}
-            <circle cx="0" cy="-121" r="2.2" fill="#c8a050"/>
+            <polygon points="1,-107  8,-106  7,-113  1,-112" fill="#3b82f6" opacity="0.80"/>
+            {/* Crown tip */}
+            <circle cx="0" cy="-121" r="2.2" fill="#60a5fa"/>
 
-            {/* ── Directional labels — warm ivory ── */}
-            {[["N",0,"#d4b060",800],["E",90,"rgba(218,200,150,0.85)",700],
-              ["S",180,"rgba(218,200,150,0.85)",700],["W",270,"rgba(218,200,150,0.85)",700]
+            {/* ── Directional labels ── */}
+            {[["N",0,"rgba(148,196,255,0.95)",800],["E",90,"rgba(255,255,255,0.65)",700],
+              ["S",180,"rgba(255,255,255,0.65)",700],["W",270,"rgba(255,255,255,0.65)",700]
             ].map(([lbl,deg,col,fw]) => {
               const rad = (deg * Math.PI) / 180, r = 143;
               return (
@@ -997,22 +997,22 @@ function SplashScreen({ onDone }) {
               );
             })}
 
-            {/* ── Inner 8-point star — warm tones ── */}
+            {/* ── Inner 8-point star ── */}
             {[0,90,180,270].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-25  3,-11  0,-4  -3,-11" fill="#d8c070" opacity="0.55"/>
+                <polygon points="0,-25  3,-11  0,-4  -3,-11" fill="rgba(148,196,255,0.50)"/>
               </g>
             ))}
             {[45,135,225,315].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-16  2,-7  0,-4  -2,-7" fill="#7a7660" opacity="0.55"/>
+                <polygon points="0,-16  2,-7  0,-4  -2,-7" fill="rgba(255,255,255,0.28)"/>
               </g>
             ))}
 
-            {/* ── Center hub — ornate brass rings ── */}
-            <circle r="13"  fill="rgba(13,27,42,0.96)" stroke="rgba(196,164,78,0.65)" strokeWidth="1.6"/>
-            <circle r="8"   fill="rgba(13,27,42,0.96)" stroke="rgba(196,164,78,0.35)" strokeWidth="0.8"/>
-            <circle r="4.5" fill="#c8a050"/>
+            {/* ── Center hub ── */}
+            <circle r="13"  fill="rgba(13,27,42,0.96)" stroke="rgba(59,130,246,0.55)" strokeWidth="1.6"/>
+            <circle r="8"   fill="rgba(13,27,42,0.96)" stroke="rgba(59,130,246,0.28)" strokeWidth="0.8"/>
+            <circle r="4.5" fill="#3b82f6"/>
             <circle r="1.8" fill="#0d1b2a"/>
           </svg>
 
@@ -1357,8 +1357,8 @@ function MountainRange({ view }){
 
 // ── Weekly Progress Arc ────────────────────────────────────────────────────────
 function WeeklyArcDisplay({ hoursLogged, weeklyTarget }){
-  const R=50, W=140, cy=8, cx=70;
-  const lx=cx-R, rx=cx+R; // 20, 120
+  const R=46, W=128, cy=6, cx=64;
+  const lx=cx-R, rx=cx+R;
   const arcLen=Math.PI*R;
   const progress=weeklyTarget>0?Math.min(1,hoursLogged/weeklyTarget):0;
   const filled=progress*arcLen;
@@ -1367,7 +1367,7 @@ function WeeklyArcDisplay({ hoursLogged, weeklyTarget }){
   return(
     <div style={{
       position:'fixed',
-      top:'calc(env(safe-area-inset-top) + 46px)',
+      top:'calc(env(safe-area-inset-top) + 48px)',
       left:'50%',
       transform:'translate3d(-50%,0,0)',
       zIndex:25,pointerEvents:'none',textAlign:'center',
@@ -1377,17 +1377,21 @@ function WeeklyArcDisplay({ hoursLogged, weeklyTarget }){
         style={{overflow:'visible',display:'block',margin:'0 auto'}}>
         <defs>
           <filter id="arc-glow-w" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-        <path d={path} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={3} strokeLinecap="round"/>
+        <path d={path} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={1.5} strokeLinecap="round"/>
         {filled>1&&<path d={path} fill="none"
-          stroke="rgba(59,130,246,0.9)" strokeWidth={3} strokeLinecap="round"
+          stroke="rgba(148,196,255,0.55)" strokeWidth={1.5} strokeLinecap="round"
           strokeDasharray={`${filled} ${arcLen}`} filter="url(#arc-glow-w)"/>}
       </svg>
-      <div style={{fontSize:13,color:'white',fontFamily:T.fontUI,fontWeight:400,marginTop:4,letterSpacing:0.2}}>
-        {hoursLogged.toFixed(1)}h / {weeklyTarget}h
+      <div style={{
+        fontSize:9,color:'rgba(255,255,255,0.28)',fontFamily:T.fontUI,
+        fontWeight:500,marginTop:2,letterSpacing:2,textTransform:'uppercase',
+        textShadow:'0 1px 6px rgba(0,0,0,0.5)',
+      }}>
+        {hoursLogged.toFixed(1)} / {weeklyTarget}h
       </div>
     </div>
   );
@@ -2990,7 +2994,7 @@ Respond ONLY with valid JSON:
             {isOnline?`Back online — ${offlineQueue.length} queued`:"Offline — AI features queued"}
           </div>
           {isOnline&&offlineQueue.length>0&&<button onClick={processQueue} className="btn-press"
-            style={{background:T.yellow,border:"none",color:"#fff",
+            style={{background:`linear-gradient(135deg, ${T.yellow}, #d97706)`,border:"none",color:"#fff",
               borderRadius:8,padding:"6px 12px",fontSize:10,cursor:"pointer",fontWeight:700,minHeight:36}}>
             Sync now</button>}
         </div>}
@@ -3655,9 +3659,10 @@ Respond ONLY with valid JSON:
             {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&
             <button onClick={()=>setShowSundayReview(true)} className="btn-press"
               style={{width:"100%",
-                background:"rgba(255,255,255,0.04)",
+                background:"rgba(245,158,11,0.07)",
                 backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-                border:"1px solid rgba(255,255,255,0.08)",
+                border:`1px solid rgba(245,158,11,0.3)`,
+                borderLeft:`3px solid ${T.yellow}`,
                 borderRadius:20,padding:13,fontSize:13,fontWeight:800,
                 color:T.yellow,cursor:"pointer",marginBottom:12,letterSpacing:0.3,minHeight:44}}>
               Write This Week's Review
@@ -3729,8 +3734,9 @@ Respond ONLY with valid JSON:
                     style={{flex:1,background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,
                       color:T.textMid,borderRadius:12,padding:12,fontSize:13,cursor:"pointer",minHeight:44}}>Keep Current</button>
                   <button onClick={()=>applyFocusProposal(aiResult.focusProposal)} className="btn-press"
-                    style={{flex:2,background:T.green,border:"none",color:"#fff",
-                      borderRadius:12,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44}}>
+                    style={{flex:2,background:"linear-gradient(135deg, #22c55e, #16a34a)",border:"none",color:"#fff",
+                      borderRadius:12,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44,
+                      boxShadow:"0 4px 16px rgba(34,197,94,0.3)"}}>
                     Apply New Focus</button>
                 </div>
               </Card>}
