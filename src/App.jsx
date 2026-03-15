@@ -13,6 +13,16 @@ const getCourseMaxSession = (weeklyTarget) => {
   if (weeklyTarget <= 30) return 2.5;
   return 3.0; // 31–45h
 };
+// Daily max hours derived from weekly target tier — replaces flat 8h cap
+const getDailyMax = (weeklyTarget) => {
+  if (weeklyTarget <= 10) return 2.5;
+  if (weeklyTarget <= 15) return 3;
+  if (weeklyTarget <= 20) return 4;
+  if (weeklyTarget <= 25) return 5;
+  if (weeklyTarget <= 30) return 6;
+  if (weeklyTarget <= 35) return 7;
+  return 8; // 36–45h
+};
 const maxRealPerSession = (item, s) => {
   if (item.type === "book" && item.mode) {
     if (item.mode === "passage") return 0.5;
@@ -33,23 +43,24 @@ const targetPctAfterSession = (item, p, sessionRealH, s) => {
   const newContent = Math.min(contentDone + contentGain, item.hours || 1);
   return Math.floor((newContent / (item.hours || 1)) * 100);
 };
-// Front-load: Day 1 up to 1.5x avg, Day 2 up to 1.25x avg, rest share equally. All days hard-capped at 8h.
-const distributeDays = (totalH, dayNames) => {
+// Front-load: Day 1 up to 1.5x avg, Day 2 up to 1.25x avg, rest share equally. All days capped at getDailyMax.
+const distributeDays = (totalH, dayNames, weeklyTarget) => {
   const n = dayNames.length;
   if (n === 0) return [];
+  const dailyMax = getDailyMax(weeklyTarget);
   const avg = totalH / n;
   const budgets = [];
   let allocated = 0;
   for (let i = 0; i < n; i++) {
     let h;
-    if (i === 0) h = Math.min(avg * 1.5, 8);
-    else if (i === 1) h = Math.min(avg * 1.25, 8);
+    if (i === 0) h = Math.min(avg * 1.5, dailyMax);
+    else if (i === 1) h = Math.min(avg * 1.25, dailyMax);
     else {
       const remaining = totalH - allocated;
       const daysLeft = n - i;
-      h = Math.min(remaining / daysLeft, 8);
+      h = Math.min(remaining / daysLeft, dailyMax);
     }
-    h = snap25(Math.max(0, Math.min(h, 8, totalH - allocated)));
+    h = snap25(Math.max(0, Math.min(h, dailyMax, totalH - allocated)));
     budgets.push(h);
     allocated += h;
     if (allocated >= totalH) {
@@ -109,8 +120,9 @@ const sortDaySessions = (items, curriculum) => [...items].sort((a, b) => {
 });
 
 // Validate plan against hard rules — returns array of error strings
-const validatePlanRules = (days, curriculum, progressMap, focusIds, maxCourses, maxBooks) => {
+const validatePlanRules = (days, curriculum, progressMap, focusIds, maxCourses, maxBooks, weeklyTarget) => {
   const errs = [];
+  const dailyMax = getDailyMax(weeklyTarget ?? 20);
   let prevDayCourseIds = new Set();
   const dayNamesSeen = new Set();
   for (const day of days) {
@@ -118,7 +130,7 @@ const validatePlanRules = (days, curriculum, progressMap, focusIds, maxCourses, 
     dayNamesSeen.add(day.day);
     const items = day.items || [];
     const dayTotal = parseFloat(items.reduce((s, it) => s + (it.realHours || 0), 0).toFixed(2));
-    if (dayTotal > 8.01) errs.push(`Day ${day.day}: ${dayTotal}h exceeds 8h cap`);
+    if (dayTotal > dailyMax + 0.01) errs.push(`Day ${day.day}: ${dayTotal}h exceeds ${dailyMax}h cap`);
     const dayCourseIds = new Set();
     for (const it of items) {
       const item = curriculum.find(c => c.id === it.id);
@@ -150,8 +162,10 @@ const normalizeParsedDays = (parsedDays, remainingDayNames) =>
   });
 
 // Build pre-computed scheduling context passed to AI as structured data
-const buildSchedulingContext = (curriculum, progressMap, focusIds, settings, weeklyTarget, remainingDayNames, dayBudgets) => ({
+const buildSchedulingContext = (curriculum, progressMap, focusIds, settings, weeklyTarget, remainingDayNames, dayBudgets, dailyMaxHours, remainingCapacity) => ({
   weeklyHours: weeklyTarget,
+  dailyMaxHours,
+  remainingCapacity,
   activeDaysRemaining: remainingDayNames.length,
   totalAvailableHours: parseFloat(dayBudgets.reduce((s, h) => s + h, 0).toFixed(2)),
   courseMaxSession: getCourseMaxSession(weeklyTarget),
@@ -554,6 +568,11 @@ function getMonday() {
   const d=new Date(),day=d.getDay(),diff=day===0?-6:1-day;
   d.setDate(d.getDate()+diff);d.setHours(0,0,0,0);
   return toLocalISO(d);
+}
+// Parse getMonday() ISO string as local midnight — avoids UTC-shift bug with new Date("YYYY-MM-DD")
+function getMondayDate() {
+  const [y,m,d]=getMonday().split("-").map(Number);
+  return new Date(y,m-1,d);
 }
 function getDayIdx(){ const d=new Date().getDay(); return d===0?6:d-1; }
 function getDayName(){ return ALL_DAYS[getDayIdx()]; }
@@ -1229,7 +1248,8 @@ const enqueue=(type,payload)=>{const q=loadQueue();q.push({id:Date.now(),type,pa
 const dequeue=id=>saveQueue(loadQueue().filter(x=>x.id!==id));
 
 function reconcileWeekHours(progress){
-  const mon=new Date(getMonday()),sun=new Date(mon);sun.setDate(mon.getDate()+6);
+  const mon=getMondayDate();
+  const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
   let total=0;
   Object.values(progress).forEach(p=>{
     (p.sessions||[]).forEach(s=>{
@@ -1978,15 +1998,19 @@ export default function App(){
     const effectiveWkRem=Math.max(0,WEEKLY_TARGET-weekH);
     if(ACTIVE_DAYS.length===0){toast_("Set your active study days to build a plan.");setAiLoading(false);return;}
     if(effectiveDLeft===0||effectiveWkRem===0){toast_("Week complete");setAiLoading(false);return;}
-    const dayBudgets=distributeDays(effectiveWkRem,remainingDayNames);
+    const dailyMax=getDailyMax(WEEKLY_TARGET);
+    const remainingCapacity=parseFloat(Math.min(effectiveWkRem,effectiveDLeft*dailyMax).toFixed(2));
+    const isReducedPlan=remainingCapacity<effectiveWkRem;
+    const planTarget=remainingCapacity;
+    const dayBudgets=distributeDays(planTarget,remainingDayNames,WEEKLY_TARGET);
 
     const courseMaxThisWeek = getCourseMaxSession(WEEKLY_TARGET);
     // Pre-compute scheduling context — AI arranges a pre-solved puzzle, not raw math
-    const schedCtx = buildSchedulingContext(CURRICULUM, mergedProgress||progress, focusIds, settings, WEEKLY_TARGET, remainingDayNames, dayBudgets);
+    const schedCtx = buildSchedulingContext(CURRICULUM, mergedProgress||progress, focusIds, settings, WEEKLY_TARGET, remainingDayNames, dayBudgets, dailyMax, remainingCapacity);
     const prompt=`Learning coach. Build this learner's weekly study plan. Respond ONLY with valid JSON — no commentary, no markdown, no code fences.
 
 ═══ HOUR MATH (pre-calculated — use exactly) ═══
-- Total available: ${effectiveWkRem}h real across ${effectiveDLeft} days (${remainingDayNames.join(",")})
+- Total available: ${planTarget}h real across ${effectiveDLeft} days (${remainingDayNames.join(",")})${isReducedPlan?` [reduced from ${effectiveWkRem}h — only ${effectiveDLeft} day${effectiveDLeft===1?"":"s"} remain]`:""}
 - Day budgets: ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
 - Every day's items MUST sum exactly to that day's budget (within 0.25h). Never over or under.
 - Courses use ${settings.courseRatio}:1 ratio — 1h content = ${settings.courseRatio}h real. Books use 1:1.
@@ -2009,11 +2033,11 @@ BOOK SESSIONS (fixed by mode field — no exceptions ever):
 - Passage books are identified by mode==="passage" — never use a hardcoded list
 
 ═══ DAILY HARD CAP ═══
-- Maximum 8h planned per day, never exceeded (day budgets already reflect this)
-- When 8h cap or budget forces cuts, use this order: cut free books first → reduce paired book sessions to minimum → reduce course sessions to 0.5h minimum → NEVER cut passage books
+- Maximum ${dailyMax}h planned per day, never exceeded (day budgets already reflect this)
+- When daily cap or budget forces cuts, use this order: cut free books first → reduce paired book sessions to minimum → reduce course sessions to 0.5h minimum → NEVER cut passage books
 
 ═══ PRIORITY HIERARCHY (non-negotiable, enforce in this exact order) ═══
-1. 8h daily hard cap
+1. ${dailyMax}h daily hard cap
 2. Passage book 30 min hard cap
 3. Course interleaving (never same course two consecutive days)
 4. Focus caps
@@ -2145,7 +2169,7 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
 
         // Strip completed items, apply scaleDayItems
         const validatedDays=normalizedDays.map((day,i)=>{
-          const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(effectiveWkRem/effectiveDLeft);
+          const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(planTarget/effectiveDLeft);
           const filteredItems=day.items.filter(it=>{
             const p=getP(it.id);
             return CURRICULUM.find(c=>c.id===it.id)&&(p.percentComplete||0)<100;
@@ -2158,7 +2182,7 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
 
         // Budget drift correction on last day
         const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
-        const drift=parseFloat((effectiveWkRem-grandTotal).toFixed(2));
+        const drift=parseFloat((planTarget-grandTotal).toFixed(2));
         if(Math.abs(drift)>=0.05&&validatedDays.length>0){
           const last=validatedDays[validatedDays.length-1];
           const newDayH=parseFloat((last.totalDayRealH+drift).toFixed(2));
@@ -2167,7 +2191,7 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
         }
 
         // JS validation layer — reject and retry if hard rules broken
-        const errs=validatePlanRules(validatedDays,CURRICULUM,mergedProgress||progress,focusIds,MAX_COURSES,MAX_BOOKS);
+        const errs=validatePlanRules(validatedDays,CURRICULUM,mergedProgress||progress,focusIds,MAX_COURSES,MAX_BOOKS,WEEKLY_TARGET);
         if(errs.length>0){
           console.warn(`Plan validation failed (attempt ${attempt+1}):`,errs);
           lastErr=`Validation: ${errs[0]}`;
@@ -2180,14 +2204,17 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
         });
         const insight=parsed.insight||parsed.weekSummary||"";
         const plan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
-          days:[...keptDays,...validatedDays],totalPlannedHours:effectiveWkRem,
+          days:[...keptDays,...validatedDays],totalPlannedHours:planTarget,
           reasoning:insight,assessment:parsed.assessment||"",nextMilestone:parsed.nextMilestone||"",
           focusReasoning:parsed.focusProposal?.reasoning||"",activeFocusIds:focusIds,
           flags:parsed.flags||[]};
         setWeekPlan(plan);
         setAiResult({...parsed,insight}); // ensure insight is always present for UI
         updateWeeklyHours(weekH);
-        push("Week Plan Ready",insight||"Your week has been planned. Tap to view.",{label:"View Week",type:"viewWeek"});
+        const planReadyBody=isReducedPlan
+          ?`${effectiveDLeft} day${effectiveDLeft===1?"":"s"} remaining — reduced schedule of ${planTarget}h`
+          :(insight||"Your week has been planned. Tap to view.");
+        push("Week Plan Ready",planReadyBody,{label:"View Week",type:"viewWeek"});
         lastErr=null;
         break; // success
       }catch(e){
@@ -2195,7 +2222,13 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
         lastErr=e.message||"Unknown error";
       }
     }
-    if(lastErr) toast_(`Planning failed: ${lastErr}`);
+    if(lastErr){
+      if(isReducedPlan){
+        push(`${effectiveDLeft} day${effectiveDLeft===1?"":"s"} remaining`,`Planning a reduced schedule of ${planTarget}h`,{label:"View Week",type:"viewWeek"});
+      } else {
+        toast_(`Planning failed: ${lastErr}`);
+      }
+    }
     setAiLoading(false);
   };
 
@@ -2204,8 +2237,9 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
     setSundaySubmitting(true);
     const completedThisWeek=CURRICULUM.filter(i=>{
       const sessions=(progress[i.id]?.sessions||[]);
-      const mon=new Date(getMonday());
-      return sessions.some(s=>new Date(s.date)>=mon)&&(progress[i.id]?.percentComplete||0)>=100;
+      const mon=getMondayDate();
+      const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
+      return sessions.some(s=>{const d=new Date(s.date);return d>=mon&&d<=sun;})&&(progress[i.id]?.percentComplete||0)>=100;
     }).map(i=>i.id);
     let summary=sundayForm.note||"";
     if(sundayForm.note.trim()&&navigator.onLine){
@@ -2368,7 +2402,7 @@ Respond ONLY with valid JSON:
     setLogging(null);
     setLogForm({hours:"",courseHours:"",note:"",date:new Date().toLocaleDateString(),_contentManuallySet:false});
     setConfirmLog(false);
-    const mon=new Date(getMonday()),sun=new Date(mon);sun.setDate(mon.getDate()+6);
+    const mon=getMondayDate(),sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
     const sd=new Date(dateStr);
     toast_(`${realH}h logged · ${logging.name}${sd<mon||sd>sun?" (prev week)":""}`);
   };
@@ -3510,8 +3544,8 @@ Respond ONLY with valid JSON:
                       onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
                       style={{...inputSt,fontSize:14}}/>
                     {(()=>{
-                      const sd=new Date(logForm.date),mon=new Date(getMonday());
-                      const sun=new Date(mon);sun.setDate(mon.getDate()+6);
+                      const sd=new Date(logForm.date),mon=getMondayDate();
+                      const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
                       return sd<mon||sd>sun?<div style={{fontSize:11,color:T.yellow,marginTop:5}}>
                         Previous week — won't count toward this week's {WEEKLY_TARGET}h
                       </div>:null;
