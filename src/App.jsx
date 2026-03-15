@@ -1250,11 +1250,18 @@ export default function App(){
   const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
 
   // ── Course/book caps based on weekly hour target ──
-  // 5–10h: 1 course, 2 books | 11–15h: 1 course, 3 books | 16–20h: 2 courses, 3 books
-  // 21–25h: 2 courses, 4 books | 26–30h: 2 courses, 4 books | 31–35h: 3 courses, 5 books | 36–45h: 3 courses, 5 books
-  // Passage books are exempt from the book cap
+  // Book slots = paired books (1 per active course, subject-matched) + free books (genre-contrasting) + passage books (daily, exempt)
+  // 5–10h:  1 course, 1 paired book, 0–1 free books → max 2 non-passage, passage books daily
+  // 11–15h: 1 course, 1 paired book, 1 free book   → max 2 non-passage, passage books daily
+  // 16–20h: 2 courses, 2 paired books, 1 free book  → max 3 non-passage, passage books daily
+  // 21–25h: 2 courses, 2 paired books, 1–2 free     → max 4 non-passage, passage books daily
+  // 26–30h: 2 courses, 2 paired books, 2 free books → max 4 non-passage, passage books daily
+  // 31–35h: 3 courses, 3 paired books, 1–2 free     → max 5 non-passage, passage books daily
+  // 36–45h: 3 courses, 3 paired books, 2 free books → max 5 non-passage, passage books daily
+  // At every tier: most demanding course first in the day and front-loaded in the week. Below 15h: 1 course only.
+  // Passage books: 30 min/day every active day, exempt from all caps, never paired with a course.
   const MAX_COURSES = WEEKLY_TARGET >= 31 ? 3 : WEEKLY_TARGET >= 16 ? 2 : 1;
-  const MAX_BOOKS   = WEEKLY_TARGET >= 31 ? 5 : WEEKLY_TARGET >= 21 ? 4 : WEEKLY_TARGET >= 11 ? 3 : 2;
+  const MAX_BOOKS   = WEEKLY_TARGET >= 31 ? 5 : WEEKLY_TARGET >= 21 ? 4 : WEEKLY_TARGET >= 16 ? 3 : 2;
 
   // ── 2. Core state ──
   const [splash, setSplash]           = useState(true);
@@ -1577,6 +1584,7 @@ export default function App(){
     const remainingDayNames=ALL_DAYS.slice(effectiveDayIdx_).filter(d=>ACTIVE_DAYS.includes(d));
     const effectiveDLeft=remainingDayNames.length;
     const effectiveWkRem=Math.max(0,WEEKLY_TARGET-weekH);
+    if(ACTIVE_DAYS.length===0){toast_("Set your active study days to build a plan.");setAiLoading(false);return;}
     if(effectiveDLeft===0||effectiveWkRem===0){toast_("Week complete");setAiLoading(false);return;}
     const dayBudgets=distributeDays(effectiveWkRem,remainingDayNames);
 
@@ -1590,26 +1598,48 @@ HOUR MATH (pre-calculated — do not change):
 STRICT HOUR RULES:
 - Courses: 1h content = ${settings.courseRatio}h real. Max ${settings.courseMaxSession}h real/session.
 - Books: session length is FIXED by mode — passage=0.5h, slow=1h, normal=1.5h, fast=2h. Never deviate.
-- Passage books: always schedule every active study day; exempt from book cap.
-- HARD RULE — Passage books are capped at exactly 0.5h per session, NO EXCEPTIONS. Never schedule a passage book for more than 0.5h under any circumstance, including to hit the weekly hour target.
+- PASSAGE BOOK RULE (highest priority, cannot be broken for any reason): Passage books are scheduled every active study day at exactly 0.5h (30 min), once per day. Exempt from all book caps. NEVER paired with a course session. Never extended or repeated to fill time.
 - HARD RULE — If the remaining days cannot absorb the full hour target without violating mode caps, the plan MUST run short. The weekly target is a goal, not a requirement. Mode session lengths are non-negotiable.
 - targetPct = floor((contentDone + contentGain) / totalContent × 100)
 - ONLY use item IDs that exist in the COURSE INDEX or BOOK INDEX below. Never invent IDs.
 
 COURSE SCHEDULING RULES (strictly enforced):
-- Place courses FIRST each day before books. Books fill remaining time after courses are scheduled.
+- Session order each day: (1) Passage books — 0.5h each, every active day. (2) Course session — most demanding first, interleaved across days. (3) Paired book — mode-based length. (4) Free book — mode-based length.
+- The most cognitively demanding course goes FIRST each day (after passage books) and is front-loaded earlier in the week.
 - Multiple active courses MUST be interleaved — never schedule the same course on two consecutive days.
 - If only one course is active, it may appear daily.
+- Below 15h/week: only 1 course regardless of settings or focus list.
+- 2-course tiers (16–30h): both courses MUST be from contrasting subject domains — never two courses from the same or similar genre. Alternate every day; never the same course two days in a row.
+- 3-course tiers (31–45h): all three courses MUST be from different subject domains. Rotate across days so no course repeats on consecutive days.
+- If contrasting options do not exist in the current focus, flag this in the insight and pick the best available pairing.
 
 FOCUS CAPS (strictly enforced):
 - Max ${MAX_COURSES} active course(s) + max ${MAX_BOOKS} non-passage books at ${WEEKLY_TARGET}h/week.
 - Passage books (mode=passage) do NOT count toward the book cap — always include them.
 - Working memory handles 4±1 concepts; fewer active items = deeper retention at lower hours.
+- At 11–15h: use only 1 course — do NOT activate a second course at this tier. Go deeper on one.
+- At 16–30h: if 2 courses are active they MUST be from contrasting subject domains.
+- At 31–45h: if 3 courses are active all three MUST be from different subject domains.
+- Do not activate a 3rd course until weekly target reaches 31h — depth over breadth.
+
+BOOK PAIRING SYSTEM (strictly enforced):
+- Each active course gets exactly 1 paired book that complements its subject domain:
+  Biology/Natural History course → natural history or science narrative book.
+  History course → same-era narrative or historical account book.
+  Investing/Finance course → financial history or investor biography book.
+  Physics/Science course → science history or technical narrative book.
+  (Apply same logic for other domains — pair by thematic or subject proximity.)
+- Remaining non-passage book slots are FREE books: must contrast with all active subjects — narrative fiction, philosophy, or cross-domain books. Never pick a free book from the same genre as any active course or its paired book.
+- Slot counts at this tier: ${MAX_COURSES} paired book(s), ${Math.max(0, MAX_BOOKS - MAX_COURSES)} free book slot(s).
+- Book auto-selection (when slots are empty): (1) Subject-match with active course for paired slots. (2) Genre contrast for free slots. (3) Curriculum position — prefer next in core sequence. (4) Learning profile weighting. Selections should feel like a real tutor chose them.
+- Book completion mid-week: If a book finishes mid-week, mark it complete and leave the slot empty for the rest of the week. Auto-select a replacement at the next Sunday planning session. Do not start a new book mid-week.
+- Slow book flag: If a book has been active more than 4 weeks with less than 25% progress, flag it in the insight field and suggest increasing session frequency or replacing it.
 
 REPLAN RULES:
 - Days already completed this week are locked — never modify them.
-- Missed sessions are redistributed evenly across remaining days.
+- Missed sessions are NOT stacked or redistributed. They become context for the next Sunday planning session — the AI sees what was missed and what was completed and absorbs it into the new week naturally.
 - If there is no room in the current week, flag overflow in the insight field.
+- Missed weeks: if an entire week was missed, treat it as a gap. Read all completed items, ignore the missed week entirely, plan fresh from current actual progress. No catch-up stacking ever.
 
 DAY DISTRIBUTION:
 - The provided day budgets are already front-loaded (earlier days are heavier).
@@ -1618,13 +1648,14 @@ DAY DISTRIBUTION:
 
 PLANNING PROCESS — READ ALL CONTEXT BEFORE BUILDING THE PLAN:
 1. Read learner profile, arc position, and velocity trend.
-2. Read all COMPLETED ITEMS to understand what has been mastered.
+2. Read ALL COMPLETED ITEMS — mandatory before every plan, replan, and review. This is the source of truth. Never assume progress.
 3. Read all ACTIVE ITEMS with their current progress and momentum.
 4. Read the LAST WEEKLY REVIEW summary for energy/difficulty signals.
 5. Scan the full curriculum — balance subjects, prioritize items near completion (>70%), honor genre variety, use best judgment rather than blindly following sequence.
-6. Apply priority hierarchy strictly: mode session caps first → course interleaving second → focus caps third → hour target last.
-7. Only then build the day-by-day schedule.
-IMPORTANT: Never reschedule COMPLETED ITEMS. Never deviate from mode caps for any reason.
+6. Apply priority hierarchy strictly: passage books first → mode session caps second → course interleaving third → focus caps fourth → hour target last.
+7. Apply book pairing: assign 1 paired book per active course (subject-domain match), fill remaining book slots with contrasting free books.
+8. Only then build the day-by-day schedule.
+IMPORTANT: Never reschedule COMPLETED ITEMS. Never deviate from mode caps for any reason. If weekly target is 0 or no active days are set, do not build a plan.
 
 LEARNER PROFILE:
 ${profile}
@@ -1647,6 +1678,12 @@ FOCUS PROPOSAL RULES:
 - Always keep at least 1 Philosophy book active.
 - Never propose Optional if genre has unfinished Core items.
 - Only rotate if >85% complete OR 0 momentum 2+ weeks.
+- When proposing 2 courses, they MUST be from contrasting subject domains — never two from the same or similar genre. Pick based on learning profile and curriculum position.
+- When proposing 3 courses, all three MUST be from different subject domains.
+- At 11–15h/week, propose only 1 course — do not split focus at this tier.
+- Do not propose a 3rd course unless weekly target is 31h or above.
+- For each proposed course, pair it with a complementary book (subject-domain match). Fill remaining book slots with genre-contrasting free books. Never propose a free book from the same genre as an active course or its paired book.
+- Weekly target changes mid-week: the existing confirmed plan stays locked. New target takes effect at the next Sunday planning session only.
 
 ACTIVE ITEMS:
 ${touchedAndFocus||"None."}
