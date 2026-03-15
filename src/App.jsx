@@ -1355,43 +1355,69 @@ function MountainRange({ view }){
   );
 }
 
-// ── Weekly Progress Arc ────────────────────────────────────────────────────────
-function WeeklyArcDisplay({ hoursLogged, weeklyTarget }){
-  const R=46, W=128, cy=6, cx=64;
-  const lx=cx-R, rx=cx+R;
-  const arcLen=Math.PI*R;
-  const progress=weeklyTarget>0?Math.min(1,hoursLogged/weeklyTarget):0;
-  const filled=progress*arcLen;
-  const path=`M ${lx},${cy} A ${R},${R} 0 0,1 ${rx},${cy}`;
-  const H=cy+R+2;
+// ── HUD Progress Bar ───────────────────────────────────────────────────────────
+function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum }){
+  const progress = weeklyTarget > 0 ? Math.min(1, hoursLogged / weeklyTarget) : 0;
+  const isComplete = hoursLogged >= weeklyTarget;
   return(
     <div style={{
       position:'fixed',
-      top:'calc(env(safe-area-inset-top) + 48px)',
-      left:'50%',
-      transform:'translate3d(-50%,0,0)',
-      zIndex:25,pointerEvents:'none',textAlign:'center',
-      willChange:'transform',
+      top:'env(safe-area-inset-top)',
+      left:0,right:0,
+      zIndex:25,pointerEvents:'none',
+      padding:'8px 16px',
     }}>
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}
-        style={{overflow:'visible',display:'block',margin:'0 auto'}}>
-        <defs>
-          <filter id="arc-glow-w" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
-            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-        </defs>
-        <path d={path} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={1.5} strokeLinecap="round"/>
-        {filled>1&&<path d={path} fill="none"
-          stroke="rgba(148,196,255,0.55)" strokeWidth={1.5} strokeLinecap="round"
-          strokeDasharray={`${filled} ${arcLen}`} filter="url(#arc-glow-w)"/>}
-      </svg>
       <div style={{
-        fontSize:9,color:'rgba(255,255,255,0.28)',fontFamily:T.fontUI,
-        fontWeight:500,marginTop:2,letterSpacing:2,textTransform:'uppercase',
-        textShadow:'0 1px 6px rgba(0,0,0,0.5)',
+        background:'rgba(8,18,38,0.58)',
+        backdropFilter:'blur(24px) saturate(180%)',
+        WebkitBackdropFilter:'blur(24px) saturate(180%)',
+        border:'1px solid rgba(255,255,255,0.13)',
+        borderRadius:14,
+        padding:'10px 14px 11px',
+        boxShadow:'0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)',
       }}>
-        {hoursLogged.toFixed(1)} / {weeklyTarget}h
+        {/* Label row */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
+          <div style={{display:'flex',alignItems:'baseline',gap:7}}>
+            <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.88)',
+              letterSpacing:1.8,textTransform:'uppercase',fontFamily:T.fontUI}}>
+              The Preparation
+            </span>
+            <span style={{fontSize:9,color:'rgba(255,255,255,0.35)',fontFamily:T.fontUI,
+              fontWeight:400,letterSpacing:0.4}}>
+              {dayName} · Week {weekNum}
+            </span>
+          </div>
+          <div style={{fontSize:13,fontWeight:700,letterSpacing:-0.3,fontFamily:T.fontUI,
+            color:isComplete?'rgba(74,222,128,0.95)':'rgba(148,196,255,0.95)',
+            transition:'color 0.4s ease'}}>
+            {hoursLogged.toFixed(1)}
+            <span style={{fontSize:9,color:'rgba(255,255,255,0.28)',fontWeight:400}}>
+              /{weeklyTarget}h
+            </span>
+          </div>
+        </div>
+        {/* Progress track */}
+        <div style={{
+          height:4,borderRadius:3,
+          background:'rgba(255,255,255,0.07)',
+          position:'relative',overflow:'visible',
+        }}>
+          {progress>0&&(
+            <div style={{
+              position:'absolute',left:0,top:0,bottom:0,
+              width:`${progress*100}%`,
+              borderRadius:3,
+              background:isComplete
+                ?'linear-gradient(90deg,#22c55e,#4ade80)'
+                :'linear-gradient(90deg,#2563eb,#60a5fa)',
+              boxShadow:isComplete
+                ?'0 0 8px rgba(74,222,128,0.9),0 0 22px rgba(34,197,94,0.45)'
+                :'0 0 8px rgba(96,165,250,0.95),0 0 22px rgba(59,130,246,0.55)',
+              transition:'width 0.7s cubic-bezier(0.4,0,0.2,1)',
+            }}/>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2934,23 +2960,8 @@ Respond ONLY with valid JSON:
 
         <MountainRange view={view}/>
 
-        {/* ── App Title ── */}
-        <div style={{
-          position:'fixed',top:0,left:0,right:0,
-          paddingTop:'calc(env(safe-area-inset-top) + 10px)',
-          textAlign:'center',zIndex:25,pointerEvents:'none',
-        }}>
-          <div style={{fontSize:11,fontWeight:600,color:'rgba(255,255,255,0.7)',
-            fontFamily:T.fontUI,letterSpacing:2,textTransform:'uppercase'}}>
-            The Preparation
-          </div>
-          <div style={{fontSize:9,color:'rgba(255,255,255,0.38)',marginTop:3,fontFamily:T.fontUI,fontWeight:400}}>
-            {getDayName()} · Week {weekNum}
-          </div>
-        </div>
-
-        {/* ── Weekly Progress Arc ── */}
-        <WeeklyArcDisplay hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET}/>
+        {/* ── HUD Progress Bar ── */}
+        <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}/>
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
@@ -3255,19 +3266,6 @@ Respond ONLY with valid JSON:
             width:14,height:14,fontSize:8,fontWeight:800,
             display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount>9?"9+":unreadCount}</div>}
         </button>
-
-        {/* ── Mountain Overlay: Stats (fixed, upper-right, subtle) ── */}
-        <div style={{
-          position:"fixed",top:`calc(env(safe-area-inset-top) + 16px)`,right:16,
-          zIndex:20,textAlign:"right",pointerEvents:"none",
-        }}>
-          <div style={{fontSize:18,fontWeight:900,letterSpacing:-0.5,
-            color:weekH>=WEEKLY_TARGET?"rgba(34,197,94,0.65)":"rgba(255,255,255,0.45)",
-            transition:"color 0.4s ease"}}>
-            {weekH.toFixed(1)}<span style={{fontSize:10,color:"rgba(255,255,255,0.25)",fontWeight:400}}>/{WEEKLY_TARGET}h</span>
-          </div>
-          <div style={{fontSize:9,color:"rgba(255,255,255,0.28)",marginTop:1}}>{getDayName()} · {dLeft}d left</div>
-        </div>
 
         {/* ── Mountain spacer: pushes content below mountain fade ── */}
         <div style={{height:280}}/>
