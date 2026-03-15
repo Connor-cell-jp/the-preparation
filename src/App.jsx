@@ -1310,45 +1310,14 @@ const MOUNTAIN_STARS=(()=>{
   );
   return a;
 })();
-// Winding trail from mountain base to summit (390×380 coordinate space)
-const MR_TRAIL_PNG="M 75,330 C 100,315 118,295 128,270 C 140,240 135,215 148,188 C 162,158 185,145 178,118 C 172,92 180,72 195,55 C 205,42 212,32 218,26";
-
-function MountainRange({view,weekH,weeklyTarget,curriculumPct}){
-  const trailRef=useRef(null);
-  const [markerPos,setMarkerPos]=useState({x:75,y:330});
-  const progress=weeklyTarget>0?Math.min(1,Math.max(0,weekH/weeklyTarget)):0;
-
-  useEffect(()=>{
-    if(!trailRef.current) return;
-    try{
-      const len=trailRef.current.getTotalLength();
-      if(!len) return;
-      const pt=trailRef.current.getPointAtLength(progress*len);
-      setMarkerPos({x:pt.x,y:pt.y});
-    }catch(e){}
-  },[progress]);
-
-  // Per-tab CSS transforms for PNG — subtle zoom/pan, full mountain always visible
-  const tabTransforms={
-    today:'scale(1.0)',
-    week:'scale(1.1) translate(-5%, 3%)',
-    ai:'scale(1.1) translate(5%, 3%)',
-    arc:'scale(1.3) translate(0, -5%)',
-  };
-  const imgTransform=tabTransforms[view]||tabTransforms.today;
-
-  // Moon — waxing phase driven by curriculum completion, shown in Arc tab sky
-  const moonX=295,moonY=52,moonR=13;
-  const moonPhase=Math.min(1,Math.max(0,(curriculumPct||0)/100));
-  const moonAdj=Math.max(0.05,moonPhase);
-  const shadowCx=moonX-moonR*moonAdj;
-  const shadowRx=Math.max(0.1,moonR*(1-moonAdj));
-
+function MountainRange(){
   return(
     <div style={{
       position:'fixed',top:'env(safe-area-inset-top)',left:0,
       width:'100%',height:380,zIndex:0,overflow:'hidden',pointerEvents:'none',
       background:'linear-gradient(180deg,#1a2e52 0%,#0f1e38 55%,#0d1b2a 100%)',
+      maskImage:'linear-gradient(to bottom, black 0%, black 60%, transparent 85%)',
+      WebkitMaskImage:'linear-gradient(to bottom, black 0%, black 60%, transparent 85%)',
     }}>
       {/* Stars — fixed SVG layer behind mountain image */}
       <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',zIndex:1,display:'block'}}
@@ -1373,67 +1342,8 @@ function MountainRange({view,weekH,weeklyTarget,curriculumPct}){
           objectFit:'cover',zIndex:2,
           mixBlendMode:'screen',
           filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
-          transform:imgTransform,
-          transition:'transform 600ms cubic-bezier(0.4,0,0.2,1)',
-          transformOrigin:'center center',
         }}
       />
-
-      {/* Mist layers — progressive blur toward base, mountain fades into fog not hard cutoff */}
-      <div style={{position:'absolute',bottom:0,left:0,width:'100%',height:'55%',
-        background:'linear-gradient(to bottom,transparent 0%,rgba(15,30,55,0.0) 100%)',
-        backdropFilter:'blur(1px)',WebkitBackdropFilter:'blur(1px)',zIndex:3,pointerEvents:'none'}}/>
-      <div style={{position:'absolute',bottom:0,left:0,width:'100%',height:'40%',
-        background:'linear-gradient(to bottom,transparent 0%,rgba(20,40,70,0.06) 100%)',
-        backdropFilter:'blur(3px)',WebkitBackdropFilter:'blur(3px)',zIndex:4,pointerEvents:'none'}}/>
-      <div style={{position:'absolute',bottom:0,left:0,width:'100%',height:'25%',
-        background:'linear-gradient(to bottom,transparent 0%,rgba(30,55,95,0.12) 100%)',
-        backdropFilter:'blur(6px)',WebkitBackdropFilter:'blur(6px)',zIndex:5,pointerEvents:'none'}}/>
-      <div style={{position:'absolute',bottom:0,left:0,width:'100%',height:'15%',
-        background:'linear-gradient(to bottom,transparent 0%,rgba(45,75,120,0.22) 100%)',
-        backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',zIndex:6,pointerEvents:'none'}}/>
-
-      {/* SVG overlay: winding trail + human silhouette — same transform as mountain, locked to mountain face */}
-      <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',zIndex:7,display:'block',
-        transform:imgTransform,transition:'transform 600ms cubic-bezier(0.4,0,0.2,1)',transformOrigin:'center center'}}
-        viewBox="0 0 390 380" preserveAspectRatio="none">
-        {/* Winding trail: base → summit, dashed white */}
-        <path ref={trailRef} d={MR_TRAIL_PNG}
-          fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2"
-          strokeDasharray="6,4" strokeLinecap="round"/>
-        {/* Human silhouette — side profile facing up-right, white fill, ~16px tall */}
-        <g style={{transform:`translate(${markerPos.x}px,${markerPos.y}px)`,transition:'transform 600ms cubic-bezier(0.4,0,0.2,1)'}}>
-          <circle cx="0.5" cy="-14.5" r="3" fill="white"/>
-          <path d="M-0.5,-11 C0,-12.5 1.5,-12.5 2,-11 L2.5,-7 C3,-5 1,-4.5 1,-4.5 L3,0.5 L2,0.5 L0,-4 L-2,0.5 L-3,0 L-1,-4.5 C-1,-4.5 -2,-5 -1.5,-7 Z" fill="white"/>
-          <path d="M1.5,-10.5 L5,-7.5" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-        </g>
-      </svg>
-
-      {/* SVG overlay: moon — fixed in sky, does not transform with mountain */}
-      <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',zIndex:8,display:'block'}}
-        viewBox="0 0 390 380" preserveAspectRatio="none">
-        <defs>
-          <clipPath id="mr-moon-clip">
-            <circle cx={moonX} cy={moonY} r={moonR}/>
-          </clipPath>
-          <filter id="mr-moon-halo" x="-80%" y="-80%" width="360%" height="360%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="8"/>
-          </filter>
-        </defs>
-        {/* Moon — waxing phase, Arc tab sky position; fades on other tabs */}
-        <g style={{opacity:view==='arc'?1:0.12,transition:'opacity 600ms cubic-bezier(0.4,0,0.2,1)'}}>
-          <circle cx={moonX} cy={moonY} r={moonR+8+moonPhase*14}
-            fill={`rgba(200,228,255,${0.05+moonPhase*0.16})`}
-            filter="url(#mr-moon-halo)"/>
-          <circle cx={moonX} cy={moonY} r={moonR} fill="rgba(228,244,255,0.94)"/>
-          {moonPhase<0.99&&(
-            <ellipse cx={shadowCx} cy={moonY} rx={shadowRx} ry={moonR}
-              fill="rgba(6,12,30,0.94)" clipPath="url(#mr-moon-clip)"/>
-          )}
-          <circle cx={moonX} cy={moonY} r={moonR} fill="none"
-            stroke="rgba(200,228,255,0.28)" strokeWidth="0.75"/>
-        </g>
-      </svg>
     </div>
   );
 }
@@ -2972,7 +2882,7 @@ Respond ONLY with valid JSON:
           {toast}
         </div>}
 
-        <MountainRange view={view} weekH={weekH} weeklyTarget={WEEKLY_TARGET} curriculumPct={curriculumPct}/>
+        <MountainRange/>
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
