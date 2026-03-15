@@ -831,20 +831,44 @@ function SplashScreen({ onDone }) {
   return (
     <div style={{
       position:"fixed", inset:0, zIndex:9999,
-      background:"linear-gradient(135deg, #0d1b2a 0%, #0f2240 50%, #0d1b2a 100%)",
-      paddingBottom:"env(safe-area-inset-bottom)",
+      background:"linear-gradient(160deg, #0d1b2a 0%, #0f2240 55%, #0d1b2a 100%)",
       pointerEvents:"none",
+      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+      paddingTop:"calc(env(safe-area-inset-top) + 16px)",
+      paddingBottom:"calc(env(safe-area-inset-bottom) + 16px)",
       opacity:  exiting ? 0 : 1,
       transition: exiting ? "opacity 0.47s cubic-bezier(0.4,0,0.2,1)" : "none",
     }}>
 
-      {/* ── Compass ring + canvas (centered) ── */}
+      {/* ── Title block — appears first ── */}
       <div style={{
-        position:"absolute", top:"50%", left:"50%",
-        transform:"translate(-50%,-50%)",
-        width:280, height:280,
+        textAlign:"center",
+        opacity:    textVisible ? 1 : 0,
+        transform:  `translateY(${textVisible ? 0 : 14}px)`,
+        transition: "opacity 0.65s cubic-bezier(0.4,0,0.2,1), transform 0.65s cubic-bezier(0.4,0,0.2,1)",
+        marginBottom: 34,
+        flexShrink: 0,
+        zIndex: 2,
       }}>
-        {/* Scale shrink + opacity wrapper — starts at ~500px, shrinks to 280px */}
+        <div style={{
+          fontSize: 26, fontWeight: 900, color: "#ffffff",
+          fontFamily: T.fontUI, letterSpacing: 5, lineHeight: 1,
+          textTransform: "uppercase",
+        }}>
+          The Preparation
+        </div>
+        <div style={{
+          fontSize: 11.5, color: "rgba(255,255,255,0.60)",
+          fontFamily: T.fontUI, marginTop: 11, fontWeight: 400, letterSpacing: 0.4,
+          lineHeight: 1.6,
+        }}>
+          How to Become Competent,<br/>Confident and Dangerous
+        </div>
+      </div>
+
+      {/* ── Compass rose + canvas ── */}
+      <div style={{width:280, height:280, position:"relative", flexShrink:0}}>
+        {/* Scale shrink + opacity wrapper — starts large, shrinks to 280px */}
         <div style={{
           width:280, height:280, position:"relative",
           opacity:         compassVisible ? 1 : 0,
@@ -853,94 +877,95 @@ function SplashScreen({ onDone }) {
           transform:       "scale(1.786)",
           animation:       compassSpin ? "compassShrink 2500ms cubic-bezier(0.25,0,0.1,1) forwards" : "none",
         }}>
-        {/* Rotating compass SVG */}
-        <svg viewBox="-140 -140 280 280" width="280" height="280"
-          style={{
-            position:"absolute", top:0, left:0,
-            transformOrigin:"center center",
-            animation: compassSpin ? "compassSpin 2500ms forwards" : "none",
-          }}
-        >
-          {/* Outer ring (spark orbit track) */}
-          <circle r="130" fill="none" stroke="rgba(255,255,255,0.88)" strokeWidth="1.5"/>
-          {/* Inner decorative rings */}
-          <circle r="120" fill="none" stroke="rgba(255,255,255,0.10)" strokeWidth="0.5"/>
-          <circle r="95"  fill="none" stroke="rgba(255,255,255,0.09)" strokeWidth="0.5"/>
-          <circle r="72"  fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="2 5"/>
+          {/* Rotating compass rose SVG */}
+          <svg viewBox="-140 -140 280 280" width="280" height="280"
+            style={{
+              position:"absolute", top:0, left:0,
+              transformOrigin:"center center",
+              animation: compassSpin ? "compassSpin 2500ms forwards" : "none",
+              overflow:"visible",
+            }}
+          >
+            {/* Outer spark orbit ring */}
+            <circle r="130" fill="none" stroke="rgba(245,240,232,0.28)" strokeWidth="1"/>
 
-          {/* Tick marks: 5° grid, 15° medium, 45° long, 90° cardinal */}
-          {Array.from({length:72}, (_,i) => {
-            const deg = i * 5;
-            const rad = (deg * Math.PI) / 180;
-            const isCard  = deg % 90 === 0;
-            const isInter = deg % 45 === 0 && !isCard;
-            const isMaj   = deg % 15 === 0 && !isInter && !isCard;
-            let r1, r2, op, sw;
-            if      (isCard)  { r1=107; r2=130; op=0.95; sw=1.5; }
-            else if (isInter) { r1=115; r2=130; op=0.72; sw=1.0; }
-            else if (isMaj)   { r1=123; r2=130; op=0.45; sw=0.7; }
-            else              { r1=127; r2=130; op=0.18; sw=0.5; }
-            const s=Math.sin(rad), c=Math.cos(rad);
-            return (
-              <line key={i}
-                x1={r1*s} y1={-r1*c} x2={r2*s} y2={-r2*c}
-                stroke={`rgba(255,255,255,${op})`}
-                strokeWidth={sw} strokeLinecap="round"/>
-            );
-          })}
+            {/* Concentric decorative rings */}
+            <circle r="114" fill="none" stroke="rgba(245,240,232,0.13)" strokeWidth="0.5"/>
+            <circle r="92"  fill="none" stroke="rgba(245,240,232,0.20)" strokeWidth="0.75"/>
+            <circle r="70"  fill="none" stroke="rgba(245,240,232,0.12)" strokeWidth="0.5"/>
+            <circle r="50"  fill="none" stroke="rgba(245,240,232,0.18)" strokeWidth="0.75"/>
+            <circle r="30"  fill="none" stroke="rgba(245,240,232,0.10)" strokeWidth="0.5"/>
 
-          {/* Cardinal labels outside ring */}
-          {[["N",0,"rgba(255,255,255,1)"],["E",90,"rgba(255,255,255,0.78)"],
-            ["S",180,"rgba(255,255,255,0.78)"],["W",270,"rgba(255,255,255,0.78)"]
-          ].map(([lbl,deg,col]) => {
-            const rad=(deg*Math.PI)/180, r=143;
-            return (
-              <text key={lbl} x={r*Math.sin(rad)} y={-r*Math.cos(rad)+4}
-                fill={col} fontSize="11" fontFamily="'DM Sans',sans-serif"
-                fontWeight="700" textAnchor="middle" letterSpacing="1">{lbl}</text>
-            );
-          })}
+            {/* Intercardinal points (NE/SE/SW/NW) — steel blue, drawn first so cardinals sit on top */}
+            {[45,135,225,315].map(deg=>(
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-64  11,-32  0,-8  -11,-32" fill="#4a7fa5"/>
+                {/* subtle right-half lightening */}
+                <polygon points="0,-64  11,-32  0,-8" fill="rgba(255,255,255,0.07)"/>
+              </g>
+            ))}
 
-          {/* Degree notations at intercardinals */}
-          {[["045",45],["135",135],["225",225],["315",315]].map(([lbl,deg]) => {
-            const rad=(deg*Math.PI)/180, r=108;
-            return (
-              <text key={lbl} x={r*Math.sin(rad)} y={-r*Math.cos(rad)+3}
-                fill="rgba(255,255,255,0.27)" fontSize="6.5" fontFamily="monospace"
-                fontWeight="400" textAnchor="middle">{lbl}</text>
-            );
-          })}
+            {/* Cardinal points (N/S/E/W) — cream/ivory elongated diamonds */}
+            {[0,90,180,270].map(deg=>(
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-108  16,-50  0,-8  -16,-50" fill="#f5f0e8"/>
+                {/* left-half shadow for depth */}
+                <polygon points="0,-108  0,-8  -16,-50" fill="rgba(0,0,0,0.09)"/>
+              </g>
+            ))}
 
-          {/* Compass needle — north=white, blue accent at base, south=dim */}
-          <polygon points="0,-85 -5,-15 0,-38 5,-15" fill="rgba(255,255,255,0.95)"/>
-          <polygon points="0,-38 -5,-15 5,-15"        fill="rgba(59,130,246,0.80)"/>
-          <polygon points="0,85  -4.5,15 0,36 4.5,15" fill="rgba(255,255,255,0.20)"/>
-          {/* Center cap */}
-          <circle r="6.5" fill="#0d1b2a" stroke="rgba(255,255,255,0.65)" strokeWidth="1.5"/>
-          <circle r="2.5" fill="rgba(255,255,255,0.9)"/>
-        </svg>
+            {/* Tick marks at 5° increments on the outer ring, skipping the 8 point directions */}
+            {Array.from({length:72}, (_,i)=>{
+              const deg=i*5;
+              if(deg%45===0) return null; // points cover these
+              const rad=(deg*Math.PI)/180;
+              const isM15=deg%15===0;
+              const r1=isM15?119:125;
+              const op=isM15?0.38:0.16;
+              const sw=isM15?0.8:0.45;
+              const s=Math.sin(rad),c=Math.cos(rad);
+              return(
+                <line key={i}
+                  x1={r1*s} y1={-r1*c} x2={130*s} y2={-130*c}
+                  stroke={`rgba(245,240,232,${op})`}
+                  strokeWidth={sw} strokeLinecap="round"/>
+              );
+            })}
 
-        {/* Canvas — spark + trail + fairy lights (does not rotate, scales with wrapper) */}
-        <canvas ref={canvasRef}
-          style={{position:"absolute",top:0,left:0,width:280,height:280,pointerEvents:"none"}}/>
-        </div>
-      </div>
+            {/* N/S/E/W labels outside the rings */}
+            {[["N",0,"#f5f0e8",800],["E",90,"rgba(245,240,232,0.82)",700],
+              ["S",180,"rgba(245,240,232,0.82)",700],["W",270,"rgba(245,240,232,0.82)",700]
+            ].map(([lbl,deg,col,fw])=>{
+              const rad=(deg*Math.PI)/180, r=143;
+              return(
+                <text key={lbl}
+                  x={r*Math.sin(rad)} y={-r*Math.cos(rad)+4}
+                  fill={col} fontSize="11" fontFamily="'DM Sans',sans-serif"
+                  fontWeight={fw} textAnchor="middle" letterSpacing="2">{lbl}</text>
+              );
+            })}
 
-      {/* ── Text (centered, layered over compass interior) ── */}
-      <div style={{
-        position:"absolute", top:"50%", left:"50%",
-        transform:`translate(-50%,-50%) translateY(${textVisible?0:10}px)`,
-        textAlign:"center", zIndex:1,
-        opacity:    textVisible ? 1 : 0,
-        transition: "opacity 0.60s cubic-bezier(0.4,0,0.2,1), transform 0.60s cubic-bezier(0.4,0,0.2,1)",
-      }}>
-        <div style={{fontSize:28,fontWeight:800,color:"#ffffff",
-          fontFamily:T.fontUI,letterSpacing:-0.4,lineHeight:1}}>
-          The Preparation
-        </div>
-        <div style={{fontSize:12,color:"rgba(255,255,255,0.50)",
-          fontFamily:T.fontUI,marginTop:9,fontWeight:400,letterSpacing:0.6}}>
-          Your 4-Year Curriculum
+            {/* Inner miniature 8-point star — decorative repeat at small scale */}
+            {[0,90,180,270].map(deg=>(
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-23  3,-10  0,-4  -3,-10" fill="#f5f0e8" opacity="0.62"/>
+              </g>
+            ))}
+            {[45,135,225,315].map(deg=>(
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-14  2,-7  0,-4  -2,-7" fill="#4a7fa5" opacity="0.62"/>
+              </g>
+            ))}
+
+            {/* Center hub */}
+            <circle r="9"   fill="#0d1b2a" stroke="rgba(245,240,232,0.55)" strokeWidth="1.5"/>
+            <circle r="4.5" fill="#f5f0e8"/>
+            <circle r="1.8" fill="#0d1b2a"/>
+          </svg>
+
+          {/* Canvas — spark + arc trail + fairy lights (does not rotate, scales with wrapper) */}
+          <canvas ref={canvasRef}
+            style={{position:"absolute",top:0,left:0,width:280,height:280,pointerEvents:"none"}}/>
         </div>
       </div>
 
@@ -1189,9 +1214,13 @@ function buildItemContext(item,p,settings){
 const callAI=async(prompt,max_tokens=1500,model="claude-sonnet-4-20250514")=>{
   const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({model,max_tokens,messages:[{role:"user",content:prompt}]})});
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  if(!r.ok){
+    let errBody="";
+    try{const t=await r.text();errBody=t.slice(0,200);}catch(_){}
+    throw new Error(`HTTP ${r.status}${errBody?`: ${errBody}`:""}`);
+  }
   const d=await r.json();
-  if(d.error) throw new Error(d.error.message||"API error");
+  if(d.error) throw new Error(d.error.message||JSON.stringify(d.error).slice(0,200));
   return d.content.map(c=>c.text||"").join("");
 };
 const loadQueue=()=>load(SK_QUEUE,[]);
@@ -1509,6 +1538,13 @@ function SidePanel({ open, onClose, reviews, profile, setProfile, onExport, onIm
                 style={{background:"none",border:`1px solid rgba(255,255,255,0.12)`,color:T.textDim,
                   borderRadius:8,padding:"6px 12px",fontSize:10,cursor:"pointer",minHeight:36,minWidth:44}}>Clear all</button>}
             </div>
+            {typeof Notification!=="undefined"&&Notification.permission!=="granted"&&<button
+              onClick={()=>requestNotificationPermission()} className="btn-press"
+              style={{width:"100%",background:"rgba(59,130,246,0.12)",border:`1px solid rgba(59,130,246,0.3)`,
+                color:T.blue,borderRadius:10,padding:"10px 14px",fontSize:12,cursor:"pointer",
+                fontWeight:700,marginBottom:12,minHeight:40}}>
+              Enable Notifications
+            </button>}
             {notifs.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.textDim,fontSize:13}}>
               No notifications yet
             </div>}
@@ -1679,7 +1715,6 @@ export default function App(){
   const [bonusItems, setBonusItems]             = useState(()=>load("tp_bonus1",[]));
   const [bonusLoading, setBonusLoading]         = useState(false);
   const [weekCompleteDismissed, setWeekCompleteDismissed] = useState(false);
-  const [exportReminder, setExportReminder]     = useState(false);
   const [newItem, setNewItem]                   = useState({name:"",hours:"",type:"course",section:"Core",genre:""});
   const [showSundayReview, setShowSundayReview] = useState(false);
   const [sundayForm, setSundayForm]             = useState({stars:0,note:""});
@@ -1719,10 +1754,6 @@ export default function App(){
     });
   },[progress]);
 
-  useEffect(()=>{
-    const last=parseInt(localStorage.getItem("tp_last_export")||"0");
-    if((Date.now()-last)/(1000*60*60*24)>=14) setExportReminder(true);
-  },[]);
 
   useEffect(()=>{
     const up=()=>{setIsOnline(true);processQueue();};
@@ -1743,7 +1774,6 @@ export default function App(){
 
   useEffect(()=>{
     if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
-    requestNotificationPermission();
     const todayISO=getTodayISO();
     if(isSunday()){
       const doneSunday=load(SK_SUNDAY_DONE,null);
@@ -2165,7 +2195,7 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
         lastErr=e.message||"Unknown error";
       }
     }
-    if(lastErr) toast_("Couldn't generate — try again");
+    if(lastErr) toast_(`Planning failed: ${lastErr}`);
     setAiLoading(false);
   };
 
@@ -2597,24 +2627,6 @@ Respond ONLY with valid JSON:
             Sync now</button>}
         </div>}
 
-        {exportReminder&&<div style={{
-          background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
-          borderBottom:`1px solid rgba(255,255,255,0.08)`,borderLeft:`3px solid ${T.blue}`,
-          padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
-          animation:"fadeUp 0.25s ease both"}}>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>Time to back up</div>
-            <div style={{fontSize:10,color:T.textDim,marginTop:2}}>2+ weeks since last export</div>
-          </div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>setExportReminder(false)} className="btn-press"
-              style={{background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,color:T.textDim,
-                borderRadius:8,padding:"6px 12px",fontSize:10,cursor:"pointer",minHeight:36}}>Later</button>
-            <button onClick={()=>{doExport();setExportReminder(false);}} className="btn-press"
-              style={{background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",borderRadius:8,
-                padding:"6px 12px",fontSize:10,fontWeight:800,cursor:"pointer",minHeight:36}}>Export Now</button>
-          </div>
-        </div>}
 
         {completionBanner.length>0&&<div style={{
           background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
@@ -2680,8 +2692,8 @@ Respond ONLY with valid JSON:
         {/* ── Header ── */}
         <div style={{
           background:"rgba(13,27,42,0.88)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-          padding:`calc(env(safe-area-inset-top) + 16px) 16px 12px`,
-          borderBottom:"1px solid rgba(255,255,255,0.08)",position:"sticky",top:0,zIndex:50,
+          padding:`8px 16px 12px`,
+          borderBottom:"1px solid rgba(255,255,255,0.08)",position:"sticky",top:"env(safe-area-inset-top)",zIndex:50,
           boxShadow:"0 4px 24px rgba(0,0,0,0.3)",
         }}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
@@ -2759,7 +2771,7 @@ Respond ONLY with valid JSON:
           ))}
         </div>}
 
-        <div style={{padding:"16px 14px"}}>
+        <div style={{padding:"12px 14px"}}>
 
           {/* ══ TODAY ══ */}
           {view==="today"&&<div className="tab-content">
@@ -3564,40 +3576,46 @@ Respond ONLY with valid JSON:
       </div>
 
       {/* ── Bottom Navigation ── */}
-      <div style={{
-        position:"fixed",bottom:0,left:0,right:0,zIndex:50,
-        background:"rgba(13,27,42,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-        borderTop:"1px solid rgba(255,255,255,0.08)",
-        boxShadow:"0 -4px 24px rgba(0,0,0,0.4)",
-        display:"flex",paddingBottom:"env(safe-area-inset-bottom)",
-      }}>
-        {[
-          ["today","Today","☀"],
-          ["week","Week","▦"],
-          ["ai","Check-In","✦"],
-          ["arc","Arc","△"],
-        ].map(([k,label,icon])=>(
-          <button key={k} onClick={()=>setView(k)} className="btn-press"
-            style={{
-              flex:1,padding:"10px 4px 8px",background:"none",border:"none",
-              cursor:"pointer",display:"flex",flexDirection:"column",
-              alignItems:"center",gap:4,color:view===k?T.blue:"rgba(255,255,255,0.35)",
-              transition:"color 0.22s cubic-bezier(0.4,0,0.2,1)",minHeight:56,position:"relative",
-            }}>
-            {view===k&&<div style={{
-              position:"absolute",top:0,left:"20%",right:"20%",
-              height:2,
-              background:"linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)",
-              borderRadius:"0 0 3px 3px",
-              boxShadow:"0 0 8px rgba(59,130,246,0.7), 0 0 20px rgba(59,130,246,0.3)",
-            }}/>}
-            <span style={{fontSize:18,lineHeight:1,opacity:view===k?1:1}}>{icon}</span>
-            <span style={{
-              fontSize:10,fontWeight:view===k?800:500,
-              letterSpacing:0.8,textTransform:"uppercase",
-            }}>{label}</span>
-          </button>
-        ))}
+      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50}}>
+        {/* Background layer — absolutely fills the full area including safe zone */}
+        <div style={{
+          position:"absolute",inset:0,
+          background:"rgba(13,27,42,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+          borderTop:"1px solid rgba(255,255,255,0.08)",
+          boxShadow:"0 -4px 24px rgba(0,0,0,0.4)",
+        }}/>
+        {/* Button row */}
+        <div style={{display:"flex",position:"relative"}}>
+          {[
+            ["today","Today","☀"],
+            ["week","Week","▦"],
+            ["ai","Check-In","✦"],
+            ["arc","Arc","△"],
+          ].map(([k,label,icon])=>(
+            <button key={k} onClick={()=>setView(k)} className="btn-press"
+              style={{
+                flex:1,padding:"10px 4px 8px",background:"none",border:"none",
+                cursor:"pointer",display:"flex",flexDirection:"column",
+                alignItems:"center",gap:4,color:view===k?T.blue:"rgba(255,255,255,0.35)",
+                transition:"color 0.22s cubic-bezier(0.4,0,0.2,1)",minHeight:56,position:"relative",
+              }}>
+              {view===k&&<div style={{
+                position:"absolute",top:0,left:"20%",right:"20%",
+                height:2,
+                background:"linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)",
+                borderRadius:"0 0 3px 3px",
+                boxShadow:"0 0 8px rgba(59,130,246,0.7), 0 0 20px rgba(59,130,246,0.3)",
+              }}/>}
+              <span style={{fontSize:18,lineHeight:1}}>{icon}</span>
+              <span style={{
+                fontSize:10,fontWeight:view===k?800:500,
+                letterSpacing:0.8,textTransform:"uppercase",
+              }}>{label}</span>
+            </button>
+          ))}
+        </div>
+        {/* Safe area filler — solid background, no blur needed */}
+        <div style={{height:"env(safe-area-inset-bottom)",background:"#0d1b2a",position:"relative"}}/>
       </div>
     </>
   );
