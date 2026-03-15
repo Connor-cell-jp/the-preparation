@@ -497,7 +497,7 @@ const shadow={
 
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin:0; padding:0; background:#f0f4ff; overscroll-behavior:none; }
+  html, body { margin:0; padding:0; background:linear-gradient(135deg, #e8f0fe 0%, #f0f4ff 50%, #e8f4fd 100%); background-attachment:fixed; overscroll-behavior:none; }
   body { -webkit-overflow-scrolling: touch; }
   @keyframes splashBloom {
     0%   { opacity:0; transform:scale(0.6); }
@@ -2031,7 +2031,7 @@ Respond ONLY with valid JSON:
       {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner}/>}
 
       <div style={{
-        background:T.bg,minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,
+        background:"linear-gradient(135deg, #e8f0fe 0%, #f0f4ff 50%, #e8f4fd 100%)",minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,
         paddingBottom:`calc(env(safe-area-inset-bottom) + 88px)`,
         opacity:splash?0:1,transition:"opacity 0.4s ease 0.1s",
         WebkitFontSmoothing:"antialiased",MozOsxFontSmoothing:"grayscale",

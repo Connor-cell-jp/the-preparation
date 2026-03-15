@@ -6,7 +6,8 @@
 }
 
 body {
-  background: #f0f4ff;
+  background: linear-gradient(135deg, #e8f0fe 0%, #f0f4ff 50%, #e8f4fd 100%);
+  background-attachment: fixed;
   color: #0f172a;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   overscroll-behavior: none;
