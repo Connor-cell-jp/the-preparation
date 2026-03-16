@@ -905,18 +905,116 @@ function SplashScreen({ onDone }) {
           transform:       "scale(1.786)",
           animation:       compassSpin ? "compassShrink 2500ms cubic-bezier(0.25,0,0.1,1) forwards" : "none",
         }}>
-          {/* Rotating compass icon */}
-          <img src="/icon.png" alt=""
+          {/* Rotating vintage compass rose SVG */}
+          <svg viewBox="-140 -140 280 280" width="280" height="280"
             style={{
-              position:"absolute",
-              top:80, left:80,
-              width:120, height:120,
-              borderRadius:"50%",
+              position:"absolute", top:0, left:0,
               transformOrigin:"center center",
               animation: compassSpin ? "compassSpin 2500ms cubic-bezier(0.37,0,0.63,1) forwards" : "none",
-              display:"block",
+              overflow:"visible",
             }}
-          />
+          >
+            {/* ── Outer bezel — double brass ring ── */}
+            <circle r="130" fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.8"/>
+            <circle r="127" fill="none" stroke="rgba(196,164,78,0.35)" strokeWidth="1.4"/>
+            <circle r="122" fill="none" stroke="rgba(196,164,78,0.16)" strokeWidth="0.5"/>
+
+            {/* ── Graduated inner rings ── */}
+            <circle r="110" fill="none" stroke="rgba(196,164,78,0.20)" strokeWidth="0.8"/>
+            <circle r="88"  fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.6"/>
+            <circle r="66"  fill="none" stroke="rgba(196,164,78,0.14)" strokeWidth="0.5"/>
+            <circle r="46"  fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.6"/>
+            <circle r="28"  fill="none" stroke="rgba(196,164,78,0.12)" strokeWidth="0.4"/>
+            <circle r="15"  fill="none" stroke="rgba(196,164,78,0.16)" strokeWidth="0.5"/>
+
+            {/* ── Degree tick marks — brass, varied weight ── */}
+            {Array.from({length:72}, (_,i) => {
+              const deg = i * 5;
+              if (deg % 45 === 0) return null;
+              const rad = (deg * Math.PI) / 180;
+              const is15 = deg % 15 === 0;
+              const r1 = is15 ? 116 : 121;
+              const op = is15 ? 0.52 : 0.22;
+              const sw = is15 ? 1.0  : 0.5;
+              const s = Math.sin(rad), c = Math.cos(rad);
+              return (
+                <line key={i}
+                  x1={r1*s} y1={-r1*c} x2={127*s} y2={-127*c}
+                  stroke={`rgba(196,164,78,${op})`}
+                  strokeWidth={sw} strokeLinecap="round"/>
+              );
+            })}
+
+            {/* ── 8 tertiary points (22.5°) — thin brass needles, 16-point wind rose ── */}
+            {[22.5,67.5,112.5,157.5,202.5,247.5,292.5,337.5].map(deg => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-52  4,-22  0,-7  -4,-22" fill="rgba(188,152,68,0.50)"/>
+              </g>
+            ))}
+
+            {/* ── 4 intercardinal points (NE/SE/SW/NW) — aged warm gray ── */}
+            {[45,135,225,315].map(deg => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-72  11,-34  0,-8  -11,-34" fill="#7a7660"/>
+                <polygon points="0,-72  11,-34  0,-8" fill="rgba(255,245,210,0.06)"/>
+              </g>
+            ))}
+
+            {/* ── Cardinal points S/E/W — aged parchment ── */}
+            {[90,180,270].map(deg => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#ddd0a0"/>
+                <polygon points="0,-104  0,-8  -15,-48" fill="rgba(60,40,10,0.20)"/>
+              </g>
+            ))}
+
+            {/* ── N cardinal point — amber gold with fleur-de-lis crown ── */}
+            {/* Needle body */}
+            <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#c8a050"/>
+            <polygon points="0,-104  0,-8  -15,-48" fill="rgba(60,30,0,0.28)"/>
+            {/* Fleur-de-lis: horizontal base bar */}
+            <line x1="-10" y1="-106" x2="10" y2="-106"
+              stroke="#c8a050" strokeWidth="1.2" opacity="0.75" strokeLinecap="round"/>
+            {/* Central lobe — tall narrow diamond */}
+            <polygon points="0,-104  2.8,-112  0,-124  -2.8,-112" fill="#c8a050"/>
+            {/* Left petal */}
+            <polygon points="-1,-107  -8,-106  -7,-113  -1,-112" fill="#c8a050" opacity="0.80"/>
+            {/* Right petal */}
+            <polygon points="1,-107  8,-106  7,-113  1,-112" fill="#c8a050" opacity="0.80"/>
+            {/* Crown tip jewel */}
+            <circle cx="0" cy="-121" r="2.2" fill="#c8a050"/>
+
+            {/* ── Directional labels — warm ivory ── */}
+            {[["N",0,"#d4b060",800],["E",90,"rgba(218,200,150,0.85)",700],
+              ["S",180,"rgba(218,200,150,0.85)",700],["W",270,"rgba(218,200,150,0.85)",700]
+            ].map(([lbl,deg,col,fw]) => {
+              const rad = (deg * Math.PI) / 180, r = 143;
+              return (
+                <text key={lbl}
+                  x={r * Math.sin(rad)} y={-r * Math.cos(rad) + 4}
+                  fill={col} fontSize="11" fontFamily="'DM Sans',sans-serif"
+                  fontWeight={fw} textAnchor="middle" letterSpacing="2">{lbl}</text>
+              );
+            })}
+
+            {/* ── Inner 8-point star — warm tones ── */}
+            {[0,90,180,270].map(deg => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-25  3,-11  0,-4  -3,-11" fill="#d8c070" opacity="0.55"/>
+              </g>
+            ))}
+            {[45,135,225,315].map(deg => (
+              <g key={deg} transform={`rotate(${deg})`}>
+                <polygon points="0,-16  2,-7  0,-4  -2,-7" fill="#7a7660" opacity="0.55"/>
+              </g>
+            ))}
+
+            {/* ── Center hub — ornate brass rings ── */}
+            <circle r="13"  fill="rgba(13,27,42,0.96)" stroke="rgba(196,164,78,0.65)" strokeWidth="1.6"/>
+            <circle r="8"   fill="rgba(13,27,42,0.96)" stroke="rgba(196,164,78,0.35)" strokeWidth="0.8"/>
+            <circle r="4.5" fill="#c8a050"/>
+            <circle r="1.8" fill="#0d1b2a"/>
+          </svg>
 
           {/* Canvas — spark + arc trail + fairy lights */}
           <canvas ref={canvasRef}
