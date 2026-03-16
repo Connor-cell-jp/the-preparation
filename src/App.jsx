@@ -1519,7 +1519,6 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
   onNotifAction, onNotifClose, onSignOut }) {
   const [section, setSection] = useState("settings");
   const [localSettings, setLocalSettings] = useState(settings);
-  const [notifOpen, setNotifOpen] = useState(false);
   useEffect(() => setLocalSettings(settings), [settings]);
 
   const toggleDay = (day) => {
@@ -1536,46 +1535,80 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
     borderRadius:12,padding:"10px 12px",color:T.text,fontSize:16,
     boxSizing:"border-box",fontFamily:"inherit"};
   const numSt = {...inputSt, width:80, textAlign:"center", fontSize:16, fontWeight:700, padding:"8px 10px"};
+  const tabs = [["settings","Settings"],["history","Reviews"],["notifs","Inbox"]];
 
   return (
     <>
+      {/* Overlay */}
       <div onClick={onClose} style={{
-        position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.5)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",
-        transform:"translateZ(0)",
+        position:"fixed",inset:0,zIndex:200,
+        background:"rgba(4,9,22,0.65)",
+        backdropFilter:"blur(8px) saturate(140%)",WebkitBackdropFilter:"blur(8px) saturate(140%)",
         opacity:open?1:0,pointerEvents:open?"all":"none",
-        transition:"opacity 0.28s cubic-bezier(0.4,0,0.2,1)",touchAction:open?"none":"auto",
+        transition:"opacity 0.32s cubic-bezier(0.4,0,0.2,1)",touchAction:open?"none":"auto",
       }}/>
+
+      {/* Panel */}
       <div style={{
-        position:"fixed",top:0,left:0,bottom:0,width:"min(88vw,360px)",
-        background:"linear-gradient(180deg, rgba(13,27,42,0.97) 0%, rgba(15,34,64,0.97) 100%)",
-        backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
-        zIndex:201,borderRight:`1px solid rgba(255,255,255,0.08)`,
-        boxShadow:"4px 0 40px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",
-        transform:open?"translate3d(0,0,0)":"translate3d(-100%,0,0)",
-        transition:"transform 0.35s cubic-bezier(0.4,0,0.2,1)",
+        position:"fixed",top:0,left:0,bottom:0,width:"min(86vw,340px)",
+        background:"linear-gradient(180deg, rgba(6,13,30,0.97) 0%, rgba(9,19,44,0.96) 60%, rgba(8,16,38,0.97) 100%)",
+        backdropFilter:"blur(48px) saturate(180%)",WebkitBackdropFilter:"blur(48px) saturate(180%)",
+        zIndex:201,
+        borderRight:"1px solid rgba(255,255,255,0.09)",
+        borderRadius:"0 28px 28px 0",
+        boxShadow:"16px 0 80px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.07), inset -1px 0 0 rgba(255,255,255,0.04)",
+        display:"flex",flexDirection:"column",
+        transform:open?"translate3d(0,0,0)":"translate3d(-105%,0,0)",
+        transition:"transform 0.38s cubic-bezier(0.32,0,0.14,1)",
         willChange:"transform",
-        overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",
+        overflow:"hidden",
       }}>
-        <div style={{padding:`calc(env(safe-area-inset-top) + 18px) 18px 14px`,
-          borderBottom:`1px solid rgba(255,255,255,0.08)`,flexShrink:0}}>
-          <div style={{fontSize:9,color:T.textDim,letterSpacing:4,textTransform:"uppercase",marginBottom:4}}>The Preparation</div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontSize:18,fontWeight:800,letterSpacing:-0.3,color:T.text}}>Learning Tracker</div>
+        {/* Header */}
+        <div style={{padding:`calc(env(safe-area-inset-top) + 22px) 20px 0`,flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22}}>
+            <div>
+              <div style={{fontSize:9,color:"rgba(96,165,250,0.55)",letterSpacing:3.5,textTransform:"uppercase",marginBottom:6,fontWeight:700}}>
+                The Preparation
+              </div>
+              <div style={{fontSize:24,fontWeight:800,letterSpacing:-0.6,color:"rgba(255,255,255,0.95)",lineHeight:1}}>
+                Menu
+              </div>
+            </div>
             <button onClick={onClose} className="btn-press"
-              style={{background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.1)`,color:T.textMid,
-                borderRadius:10,padding:"5px 12px",fontSize:12,cursor:"pointer",fontWeight:700,minHeight:44,minWidth:44}}>✕</button>
+              style={{
+                background:"rgba(255,255,255,0.06)",
+                border:"1px solid rgba(255,255,255,0.1)",
+                color:"rgba(255,255,255,0.4)",
+                borderRadius:12,width:38,height:38,fontSize:15,cursor:"pointer",
+                display:"flex",alignItems:"center",justifyContent:"center",
+                marginTop:2,flexShrink:0,
+              }}>✕</button>
           </div>
-          <div style={{display:"flex",gap:0,marginTop:14}}>
-            {[["settings","Settings"],["history","Reviews"],["notifs","Inbox"]].map(([k,l])=>(
+
+          {/* Pill tab switcher */}
+          <div style={{
+            display:"flex",gap:3,
+            background:"rgba(255,255,255,0.04)",
+            borderRadius:16,padding:4,
+            border:"1px solid rgba(255,255,255,0.07)",
+            marginBottom:20,
+          }}>
+            {tabs.map(([k,l])=>(
               <button key={k} onClick={()=>setSection(k)} className="btn-press"
-                style={{flex:1,padding:"10px 0",background:"none",border:"none",
-                  borderBottom:section===k?`2px solid ${T.blue}`:"2px solid transparent",
-                  color:section===k?T.blue:T.textDim,fontSize:11,fontWeight:700,cursor:"pointer",
-                  textTransform:"uppercase",letterSpacing:0.8,transition:"color 0.2s, border-color 0.2s",
-                  position:"relative",minHeight:44}}>
+                style={{
+                  flex:1,padding:"9px 0",
+                  background:section===k?"rgba(255,255,255,0.11)":"transparent",
+                  border:"none",
+                  borderRadius:12,
+                  color:section===k?"rgba(255,255,255,0.92)":"rgba(255,255,255,0.32)",
+                  fontSize:11,fontWeight:section===k?700:500,cursor:"pointer",
+                  letterSpacing:0.2,position:"relative",minHeight:36,
+                  transition:"background 0.2s, color 0.2s",
+                  boxShadow:section===k?"0 1px 10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)":"none",
+                }}>
                 {l}
                 {k==="notifs"&&unreadCount>0&&<span style={{
-                  position:"absolute",top:4,right:4,background:T.blue,color:"#fff",
+                  position:"absolute",top:4,right:8,background:T.blue,color:"#fff",
                   borderRadius:"50%",width:14,height:14,fontSize:8,fontWeight:800,
                   display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
                   {unreadCount>9?"9+":unreadCount}
@@ -1583,9 +1616,12 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
               </button>
             ))}
           </div>
+
+          {/* Divider */}
+          <div style={{height:1,background:"linear-gradient(90deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 80%, transparent 100%)",marginBottom:4}}/>
         </div>
 
-        <div style={{flex:1,overflowY:"auto",padding:"16px 18px 60px",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
+        <div style={{flex:1,overflowY:"auto",padding:"14px 20px 60px",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
           {section==="settings"&&<div style={{animation:"fadeUp 0.28s ease both"}}>
 
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
@@ -1986,7 +2022,6 @@ export default function App({ onSignOut }){
   const [aiResult, setAiResult]                 = useState(null);
   const [editFocus, setEditFocus]               = useState(false);
   const [completionBanner, setCompletionBanner] = useState([]);
-  const [graduationProposal, setGraduationProposal] = useState(null);
   const [editSession, setEditSession]           = useState(null);
   const [editSessionForm, setEditSessionForm]   = useState({hours:"",courseHours:"",note:""});
   const [missedDayBanner, setMissedDayBanner]   = useState(false);
@@ -2109,19 +2144,6 @@ export default function App({ onSignOut }){
           const nextFull=nextPlanItem?CURRICULUM.find(c=>c.id===nextPlanItem.id):null;
           const nextStep=nextFull?`Up next: ${nextFull.name}`:`All sessions logged — great work`;
           push(`You finished ${item.name}`,nextStep,{label:"Check-In",type:"viewCheckin"});
-        }
-        if(!item||item.section!=="Core") return;
-        const isInFocus=(focus.courses||[]).includes(id)||(focus.books||[]).includes(id);
-        if(!isInFocus) return;
-        const nextItem=CURRICULUM.find(i=>
-          i.section==="Core"&&(getP(i.id).percentComplete||0)===0&&i.id!==id&&i.type===item.type);
-        if(nextItem){
-          setGraduationProposal({completed:item,next:nextItem});
-          push(
-            `Up Next: ${nextItem.id}`,
-            `Add "${nextItem.name}" to your focus?`,
-            {label:"Add to Focus",type:"graduation",payload:{completed:item,next:nextItem}}
-          );
         }
       });
     }
@@ -2427,16 +2449,6 @@ ${courseIndex.slice(0,2000)}
 BOOK INDEX (ONLY use these IDs for books):
 ${bookIndex.slice(0,2500)}
 
-FOCUS PROPOSAL RULES:
-- Keep MAX_COURSES=${maxC}, MAX_BOOKS=${maxB} (passage books excluded)
-- Always keep ≥1 Philosophy book active
-- Never propose Optional when Core genre has unfinished items
-- Only rotate if >85% complete OR 0 momentum for 2+ weeks
-- At 2+ courses: must be contrasting subject domains
-- At 3 courses: all must be different subject domains
-- Below 15h: propose only 1 course
-- For each proposed course, include 1 paired book (domain map) + contrasting free books
-
 PERSONAL PACE RATIOS (measured — use instead of defaults when available):
 ${ratioLines||"No personal data yet."}
 
@@ -2447,7 +2459,7 @@ PRE-COMPUTED SCHEDULE DATA (use these exact numbers — do not recalculate):
 ${JSON.stringify(schedCtx, null, 0)}
 
 RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use this exact schema:
-{"days":[{"day":"Mon","totalDayRealH":3,"sessions":[{"itemId":"A1","itemName":"Biology","type":"course","mode":null,"sessionHours":1.5,"order":1}]}],"insight":"1 sentence","assessment":"1 sentence","nextMilestone":"1 sentence","flags":[],"focusProposal":{"courses":["A1"],"books":["B34","B99"],"reasoning":"1 sentence"}}`;
+{"days":[{"day":"Mon","totalDayRealH":3,"sessions":[{"itemId":"A1","itemName":"Biology","type":"course","mode":null,"sessionHours":1.5,"order":1}]}],"insight":"1 sentence","assessment":"1 sentence","nextMilestone":"1 sentence","flags":[]}`;
 
     let lastErr=null,resultPlan=null,resultAiResult=null;
     for(let attempt=0;attempt<3;attempt++){
@@ -2499,7 +2511,7 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
         resultPlan={weekStart:getMonday(),generatedAt:new Date().toISOString(),
           days:[...keptDays,...validatedDays],totalPlannedHours:planTarget,
           reasoning:insight,assessment:parsed.assessment||"",nextMilestone:parsed.nextMilestone||"",
-          focusReasoning:parsed.focusProposal?.reasoning||"",activeFocusIds:focusIds,
+          activeFocusIds:focusIds,
           flags:parsed.flags||[]};
         resultAiResult={...parsed,insight};
         lastErr=null;
@@ -2821,11 +2833,6 @@ Respond ONLY with valid JSON:
       percentComplete:Math.round((newContent/tot)*100)}}));
     setEditSession(null);toast_("Session deleted");
   };
-  const applyFocusProposal=proposal=>{
-    setFocus({courses:proposal.courses,books:proposal.books,manual:false});
-    setAiResult(r=>({...r,focusProposal:null}));
-    toast_("Focus updated");
-  };
   const addCustomItem=()=>{
     const{name,hours,type,section,genre}=newItem;
     if(!name.trim()||!hours||!genre.trim()){toast_("Fill in name, hours, and genre");return;}
@@ -2965,13 +2972,6 @@ Respond ONLY with valid JSON:
     else if(type==="planWeek") { setView("ai"); setSideOpen(false); }
     else if(type==="viewCheckin") { setView("ai"); setSideOpen(false); }
     else if(type==="sundayReview") { setShowSundayReview(true); setSideOpen(false); }
-    else if(type==="graduation"&&payload) {
-      const {next,completed} = payload;
-      const key = next.type==="course"?"courses":"books";
-      setFocus(f=>({...f,[key]:[...(f[key]||[]).filter(id=>id!==completed.id),next.id],manual:false}));
-      setSideOpen(false);
-      toast_(`${next.id} added to focus`);
-    }
   };
 
   // ── Render ──
@@ -3259,32 +3259,6 @@ Respond ONLY with valid JSON:
           </div>
         </div>}
 
-        {graduationProposal&&<div style={{
-          background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
-          borderBottom:`1px solid rgba(255,255,255,0.08)`,borderLeft:`3px solid ${T.blue}`,
-          padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
-          transform:"translateZ(0)",animation:"fadeUp 0.25s ease both"}}>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>
-              {graduationProposal.completed.id} complete
-            </div>
-            <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-              Add {graduationProposal.next.id} "{graduationProposal.next.name}"?
-            </div>
-          </div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>setGraduationProposal(null)} className="btn-press"
-              style={{background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,color:T.textDim,
-                borderRadius:8,padding:"5px 10px",fontSize:10,cursor:"pointer",minHeight:44}}>Skip</button>
-            <button onClick={()=>{
-              const key=graduationProposal.next.type==="course"?"courses":"books";
-              setFocus(f=>({...f,[key]:[...(f[key]||[]).filter(id=>id!==graduationProposal.completed.id),graduationProposal.next.id],manual:false}));
-              setGraduationProposal(null);toast_(`${graduationProposal.next.id} added to focus`);
-            }} className="btn-press"
-              style={{background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",borderRadius:8,
-                padding:"5px 12px",fontSize:10,fontWeight:800,cursor:"pointer",minHeight:44}}>Add to Focus</button>
-          </div>
-        </div>}
 
         {missedDayBanner&&<div style={{
           background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
@@ -3717,43 +3691,6 @@ Respond ONLY with valid JSON:
                   <div style={{fontSize:9,color:c,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7,fontWeight:700}}>{label}</div>
                   <div style={{fontSize:13,color:T.textMid,lineHeight:1.65}}>{aiResult[k]}</div>
                 </Card>)}
-              {aiResult.focusProposal&&<Card style={{padding:"13px 14px",marginBottom:10,borderLeft:`3px solid ${T.pink}`}}>
-                <div style={{fontSize:9,color:T.pink,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12,fontWeight:700}}>
-                  Proposed Focus Update
-                </div>
-                {[["COURSES","courses"],["BOOKS","books"]].map(([label,key])=>(
-                  <div key={key} style={{marginBottom:12}}>
-                    <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>{label}</div>
-                    {(aiResult.focusProposal[key]||[]).map(id=>{
-                      const item=CURRICULUM.find(i=>i.id===id);
-                      const p=getP(id);const current=(focus[key]||[]).includes(id);
-                      return item?<div key={id} style={{display:"flex",alignItems:"center",gap:10,
-                        padding:"7px 0",borderBottom:`1px solid rgba(255,255,255,0.06)`}}>
-                        <div style={{width:5,height:5,borderRadius:"50%",flexShrink:0,background:current?"rgba(255,255,255,0.2)":T.green}}/>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name}</div>
-                          <div style={{fontSize:9,color:T.textDim,marginTop:1}}>
-                            {item.genre} · {p.percentComplete}% · {realHoursRemaining(item,p,settings).toFixed(2)}h real left
-                          </div>
-                        </div>
-                        {!current&&<span style={{fontSize:9,color:T.green,fontWeight:700}}>NEW</span>}
-                      </div>:null;
-                    })}
-                  </div>
-                ))}
-                {aiResult.focusProposal.reasoning&&<div style={{fontSize:11,color:T.textMid,marginBottom:14,
-                  lineHeight:1.6,fontStyle:"italic"}}>{aiResult.focusProposal.reasoning}</div>}
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setAiResult(r=>({...r,focusProposal:null}))} className="btn-press"
-                    style={{flex:1,background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,
-                      color:T.textMid,borderRadius:12,padding:12,fontSize:13,cursor:"pointer",minHeight:44}}>Keep Current</button>
-                  <button onClick={()=>applyFocusProposal(aiResult.focusProposal)} className="btn-press"
-                    style={{flex:2,background:"linear-gradient(135deg, #22c55e, #16a34a)",border:"none",color:"#fff",
-                      borderRadius:12,padding:12,fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44,
-                      boxShadow:"0 4px 16px rgba(34,197,94,0.3)"}}>
-                    Apply New Focus</button>
-                </div>
-              </Card>}
             </div>}
           </div>}
 
