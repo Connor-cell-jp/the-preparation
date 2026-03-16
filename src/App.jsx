@@ -664,7 +664,7 @@ const shadow={
 
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin:0; padding:0; background:linear-gradient(135deg, #0d1b2a 0%, #0f2240 50%, #0d1b2a 100%) fixed; background-attachment:fixed; overscroll-behavior-y:auto; min-height:100dvh; }
+  html, body { margin:0; padding:0; background:#0d1b2a; overscroll-behavior-y:none; min-height:100dvh; }
   body { -webkit-overflow-scrolling: touch; }
   @keyframes splashBloom {
     0%   { opacity:0; transform:scale(0.6); }
@@ -914,20 +914,20 @@ function SplashScreen({ onDone }) {
               overflow:"visible",
             }}
           >
-            {/* ── Outer bezel — double brass ring ── */}
-            <circle r="130" fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.8"/>
-            <circle r="127" fill="none" stroke="rgba(196,164,78,0.35)" strokeWidth="1.4"/>
-            <circle r="122" fill="none" stroke="rgba(196,164,78,0.16)" strokeWidth="0.5"/>
+            {/* ── Outer bezel — double ring ── */}
+            <circle r="130" fill="none" stroke="rgba(59,130,246,0.18)" strokeWidth="0.8"/>
+            <circle r="127" fill="none" stroke="rgba(59,130,246,0.35)" strokeWidth="1.4"/>
+            <circle r="122" fill="none" stroke="rgba(59,130,246,0.16)" strokeWidth="0.5"/>
 
             {/* ── Graduated inner rings ── */}
-            <circle r="110" fill="none" stroke="rgba(196,164,78,0.20)" strokeWidth="0.8"/>
-            <circle r="88"  fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.6"/>
-            <circle r="66"  fill="none" stroke="rgba(196,164,78,0.14)" strokeWidth="0.5"/>
-            <circle r="46"  fill="none" stroke="rgba(196,164,78,0.18)" strokeWidth="0.6"/>
-            <circle r="28"  fill="none" stroke="rgba(196,164,78,0.12)" strokeWidth="0.4"/>
-            <circle r="15"  fill="none" stroke="rgba(196,164,78,0.16)" strokeWidth="0.5"/>
+            <circle r="110" fill="none" stroke="rgba(59,130,246,0.20)" strokeWidth="0.8"/>
+            <circle r="88"  fill="none" stroke="rgba(59,130,246,0.18)" strokeWidth="0.6"/>
+            <circle r="66"  fill="none" stroke="rgba(59,130,246,0.14)" strokeWidth="0.5"/>
+            <circle r="46"  fill="none" stroke="rgba(59,130,246,0.18)" strokeWidth="0.6"/>
+            <circle r="28"  fill="none" stroke="rgba(59,130,246,0.12)" strokeWidth="0.4"/>
+            <circle r="15"  fill="none" stroke="rgba(59,130,246,0.16)" strokeWidth="0.5"/>
 
-            {/* ── Degree tick marks — brass, varied weight ── */}
+            {/* ── Degree tick marks — varied weight ── */}
             {Array.from({length:72}, (_,i) => {
               const deg = i * 5;
               if (deg % 45 === 0) return null;
@@ -940,53 +940,53 @@ function SplashScreen({ onDone }) {
               return (
                 <line key={i}
                   x1={r1*s} y1={-r1*c} x2={127*s} y2={-127*c}
-                  stroke={`rgba(196,164,78,${op})`}
+                  stroke={`rgba(59,130,246,${op})`}
                   strokeWidth={sw} strokeLinecap="round"/>
               );
             })}
 
-            {/* ── 8 tertiary points (22.5°) — thin brass needles, 16-point wind rose ── */}
+            {/* ── 8 tertiary points (22.5°) — thin needles, 16-point wind rose ── */}
             {[22.5,67.5,112.5,157.5,202.5,247.5,292.5,337.5].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-52  4,-22  0,-7  -4,-22" fill="rgba(188,152,68,0.50)"/>
+                <polygon points="0,-52  4,-22  0,-7  -4,-22" fill="rgba(59,130,246,0.45)"/>
               </g>
             ))}
 
-            {/* ── 4 intercardinal points (NE/SE/SW/NW) — aged warm gray ── */}
+            {/* ── 4 intercardinal points (NE/SE/SW/NW) ── */}
             {[45,135,225,315].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-72  11,-34  0,-8  -11,-34" fill="#7a7660"/>
-                <polygon points="0,-72  11,-34  0,-8" fill="rgba(255,245,210,0.06)"/>
+                <polygon points="0,-72  11,-34  0,-8  -11,-34" fill="rgba(148,196,255,0.50)"/>
+                <polygon points="0,-72  11,-34  0,-8" fill="rgba(0,20,60,0.12)"/>
               </g>
             ))}
 
-            {/* ── Cardinal points S/E/W — aged parchment ── */}
+            {/* ── Cardinal points S/E/W ── */}
             {[90,180,270].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#ddd0a0"/>
-                <polygon points="0,-104  0,-8  -15,-48" fill="rgba(60,40,10,0.20)"/>
+                <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="rgba(255,255,255,0.75)"/>
+                <polygon points="0,-104  0,-8  -15,-48" fill="rgba(0,10,40,0.20)"/>
               </g>
             ))}
 
-            {/* ── N cardinal point — amber gold with fleur-de-lis crown ── */}
+            {/* ── N cardinal point — theme blue with fleur-de-lis crown ── */}
             {/* Needle body */}
-            <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#c8a050"/>
-            <polygon points="0,-104  0,-8  -15,-48" fill="rgba(60,30,0,0.28)"/>
+            <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#60a5fa"/>
+            <polygon points="0,-104  0,-8  -15,-48" fill="rgba(0,10,40,0.28)"/>
             {/* Fleur-de-lis: horizontal base bar */}
             <line x1="-10" y1="-106" x2="10" y2="-106"
-              stroke="#c8a050" strokeWidth="1.2" opacity="0.75" strokeLinecap="round"/>
+              stroke="#60a5fa" strokeWidth="1.2" opacity="0.75" strokeLinecap="round"/>
             {/* Central lobe — tall narrow diamond */}
-            <polygon points="0,-104  2.8,-112  0,-124  -2.8,-112" fill="#c8a050"/>
+            <polygon points="0,-104  2.8,-112  0,-124  -2.8,-112" fill="#60a5fa"/>
             {/* Left petal */}
-            <polygon points="-1,-107  -8,-106  -7,-113  -1,-112" fill="#c8a050" opacity="0.80"/>
+            <polygon points="-1,-107  -8,-106  -7,-113  -1,-112" fill="#60a5fa" opacity="0.80"/>
             {/* Right petal */}
-            <polygon points="1,-107  8,-106  7,-113  1,-112" fill="#c8a050" opacity="0.80"/>
+            <polygon points="1,-107  8,-106  7,-113  1,-112" fill="#60a5fa" opacity="0.80"/>
             {/* Crown tip jewel */}
-            <circle cx="0" cy="-121" r="2.2" fill="#c8a050"/>
+            <circle cx="0" cy="-121" r="2.2" fill="#60a5fa"/>
 
-            {/* ── Directional labels — warm ivory ── */}
-            {[["N",0,"#d4b060",800],["E",90,"rgba(218,200,150,0.85)",700],
-              ["S",180,"rgba(218,200,150,0.85)",700],["W",270,"rgba(218,200,150,0.85)",700]
+            {/* ── Directional labels ── */}
+            {[["N",0,"#ffffff",800],["E",90,"rgba(255,255,255,0.65)",700],
+              ["S",180,"rgba(255,255,255,0.65)",700],["W",270,"rgba(255,255,255,0.65)",700]
             ].map(([lbl,deg,col,fw]) => {
               const rad = (deg * Math.PI) / 180, r = 143;
               return (
@@ -997,22 +997,22 @@ function SplashScreen({ onDone }) {
               );
             })}
 
-            {/* ── Inner 8-point star — warm tones ── */}
+            {/* ── Inner 8-point star ── */}
             {[0,90,180,270].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-25  3,-11  0,-4  -3,-11" fill="#d8c070" opacity="0.55"/>
+                <polygon points="0,-25  3,-11  0,-4  -3,-11" fill="rgba(96,165,250,0.65)" opacity="0.9"/>
               </g>
             ))}
             {[45,135,225,315].map(deg => (
               <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-16  2,-7  0,-4  -2,-7" fill="#7a7660" opacity="0.55"/>
+                <polygon points="0,-16  2,-7  0,-4  -2,-7" fill="rgba(255,255,255,0.30)" opacity="0.9"/>
               </g>
             ))}
 
-            {/* ── Center hub — ornate brass rings ── */}
-            <circle r="13"  fill="rgba(13,27,42,0.96)" stroke="rgba(196,164,78,0.65)" strokeWidth="1.6"/>
-            <circle r="8"   fill="rgba(13,27,42,0.96)" stroke="rgba(196,164,78,0.35)" strokeWidth="0.8"/>
-            <circle r="4.5" fill="#c8a050"/>
+            {/* ── Center hub ── */}
+            <circle r="13"  fill="rgba(13,27,42,0.96)" stroke="rgba(59,130,246,0.65)" strokeWidth="1.6"/>
+            <circle r="8"   fill="rgba(13,27,42,0.96)" stroke="rgba(59,130,246,0.35)" strokeWidth="0.8"/>
+            <circle r="4.5" fill="#3b82f6"/>
             <circle r="1.8" fill="#0d1b2a"/>
           </svg>
 
@@ -1087,6 +1087,7 @@ function NotifBanner({ notif, onDismiss }) {
       padding:"12px 14px",
       display:"flex",alignItems:"center",gap:12,
       pointerEvents:"all",
+      transform:"translateZ(0)",willChange:"transform",
       animation:hiding?"bannerOut 0.4s cubic-bezier(0.4,0,1,1) forwards":"bannerIn 0.35s cubic-bezier(0.2,0,0,1) both",
     }}>
       <div style={{flex:1,minWidth:0}}>
@@ -1122,14 +1123,15 @@ function Bar({pct,color=T.blue,height=4,style={},glow=false}){
     }}/>
   </div>;
 }
-function Card({children,style={},accent,glow=false}){
+function Card({children,style={},accent,glow=false,noBlur=false}){
   return <div style={{
     background:"linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-    backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+    backdropFilter:noBlur?"none":"blur(20px)",WebkitBackdropFilter:noBlur?"none":"blur(20px)",
     borderRadius:20,border:"1px solid rgba(255,255,255,0.08)",
     borderTop:"1px solid rgba(255,255,255,0.12)",
     boxShadow:glow&&accent?`${shadow.card}, 0 0 24px ${accent}20`:shadow.card,
     ...(accent?{borderLeft:`3px solid ${accent}`}:{}),
+    transform:"translateZ(0)",
     ...style}}>{children}</div>;
 }
 function StarRating({value,onChange}){
@@ -1188,7 +1190,7 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
     background:"linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
     backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
     border:"1px solid rgba(255,255,255,0.08)",borderTop:"1px solid rgba(255,255,255,0.12)",
-    borderRadius:20,marginBottom:8,overflow:"hidden",boxShadow:shadow.card}}>
+    borderRadius:20,marginBottom:8,overflow:"hidden",boxShadow:shadow.card,transform:"translateZ(0)"}}>
     <div onClick={()=>setOpen(o=>!o)} className="btn-press"
       style={{padding:"14px 16px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",minHeight:56}}>
       <div>
@@ -1376,6 +1378,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
         padding:'10px 14px 11px',
         boxShadow:'0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)',
         pointerEvents:'auto',
+        transform:'translateZ(0)',
         display:'flex',alignItems:'center',gap:10,
       }}>
         {/* Hamburger button — far left */}
@@ -1449,6 +1452,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
             color:editFocus?'rgba(255,255,255,0.85)':'rgba(255,255,255,0.45)',
             borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:500,
             cursor:'pointer',display:'inline-flex',alignItems:'center',
+            transform:'translateZ(0)',
             transition:'all 0.2s',whiteSpace:'nowrap'}}>
           {editFocus?'Done':'Edit Focus'}
         </button>
@@ -1486,6 +1490,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
     <>
       <div onClick={onClose} style={{
         position:"fixed",inset:0,zIndex:200,background:"rgba(0,0,0,0.5)",backdropFilter:"blur(4px)",WebkitBackdropFilter:"blur(4px)",
+        transform:"translateZ(0)",
         opacity:open?1:0,pointerEvents:open?"all":"none",
         transition:"opacity 0.28s cubic-bezier(0.4,0,0.2,1)",touchAction:open?"none":"auto",
       }}/>
@@ -1535,7 +1540,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Learning Profile
             </div>
-            <Card style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
+            <Card noBlur style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
               <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:12}}>
                 The AI reads this every time it plans. Fill in what applies.
               </div>
@@ -1572,7 +1577,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
                 </div>
               </div>
             </Card>
-            {(structuredProfile.aiInsights?.length>0)&&<Card style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.pink}`}}>
+            {(structuredProfile.aiInsights?.length>0)&&<Card noBlur style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.pink}`}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                 <div style={{fontSize:10,color:T.pink,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>What the AI has learned about you</div>
                 <button onClick={()=>setStructuredProfile(sp=>({...sp,aiInsights:[]}))} className="btn-press"
@@ -1591,7 +1596,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Schedule
             </div>
-            <Card style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
+            <Card noBlur style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
 
               <div style={{marginBottom:16}}>
                 <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:8,fontWeight:600}}>
@@ -1644,7 +1649,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
               Study Ratios
             </div>
-            <Card style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
+            <Card noBlur style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
               <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:12}}>
                 How many real hours does 1h of content take? Courses default 2:1, books default 1:1. Allowed: 1.0, 1.5, 2.0, 2.5, 3.0.
               </div>
@@ -1691,7 +1696,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             </button>
 
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
-            <Card style={{padding:"13px 14px",marginBottom:20}}>
+            <Card noBlur style={{padding:"13px 14px",marginBottom:20}}>
               <div style={{display:"flex",gap:8,marginBottom:8}}>
                 <button onClick={onExport} className="btn-press"
                   style={{flex:1,background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,
@@ -1706,7 +1711,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             </Card>
 
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Add Custom Item</div>
-            <Card style={{padding:"13px 14px",marginBottom:12}}>
+            <Card noBlur style={{padding:"13px 14px",marginBottom:12}}>
               <div style={{marginBottom:10}}>
                 <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Title *</label>
                 <input value={newItem.name} onChange={e=>setNewItem(n=>({...n,name:e.target.value}))}
@@ -1768,7 +1773,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
               </div>
               {customItems.map(item=>{
                 const p=getP(item.id),c=gc(item.genre);
-                return <Card key={item.id} accent={c} style={{padding:"10px 14px",marginBottom:8}}>
+                return <Card noBlur key={item.id} accent={c} style={{padding:"10px 14px",marginBottom:8}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div style={{flex:1,minWidth:0,paddingRight:10}}>
                       <div style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -1844,7 +1849,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
                 No reviews yet — write your first Sunday review.
               </div>
               :reviews.map((r,i)=>(
-                <Card key={i} style={{padding:"14px 16px",marginBottom:10,animation:`fadeUp 0.18s ease ${i*0.06}s both`}}>
+                <Card noBlur key={i} style={{padding:"14px 16px",marginBottom:10,animation:`fadeUp 0.18s ease ${i*0.06}s both`}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                     <div>
                       <div style={{fontSize:12,fontWeight:700,color:T.text}}>{r.date}</div>
@@ -2983,12 +2988,13 @@ Respond ONLY with valid JSON:
 
         {toast&&<div style={{
           position:"fixed",bottom:`calc(env(safe-area-inset-bottom) + 96px)`,left:"50%",
-          transform:"translateX(-50%)",
+          transform:"translateX(-50%) translateZ(0)",willChange:"transform",
           background:"rgba(15,34,64,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
           border:"1px solid rgba(255,255,255,0.12)",
           color:"#ffffff",padding:"10px 20px",
           borderRadius:99,fontWeight:600,zIndex:500,fontSize:13,letterSpacing:0.2,
-          boxShadow:"0 8px 32px rgba(0,0,0,0.5)",whiteSpace:"nowrap",animation:"toastIn 0.25s cubic-bezier(0.4,0,0.2,1) both"}}>
+          boxShadow:"0 8px 32px rgba(0,0,0,0.5)",whiteSpace:"nowrap",
+          animation:"toastIn 0.25s cubic-bezier(0.4,0,0.2,1) both"}}>
           {toast}
         </div>}
 
@@ -3028,6 +3034,7 @@ Respond ONLY with valid JSON:
               background:"rgba(15,34,64,0.92)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
               border:`1px solid rgba(245,158,11,0.4)`,color:T.yellow,fontSize:18,cursor:"pointer",
               zIndex:60,boxShadow:`0 4px 20px rgba(0,0,0,0.4), 0 0 16px rgba(245,158,11,0.2)`,
+              transform:"translateZ(0)",
               display:"flex",alignItems:"center",justifyContent:"center",animation:"fadeIn 0.3s ease both"}}>
             ✍
           </button>}
@@ -3035,7 +3042,8 @@ Respond ONLY with valid JSON:
         {(!isOnline||offlineQueue.length>0)&&<div style={{
           background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
           borderBottom:`1px solid rgba(255,255,255,0.08)`,borderLeft:`3px solid ${isOnline?T.yellow:T.red}`,
-          padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
+          transform:"translateZ(0)"}}>
           <div style={{fontSize:10,color:isOnline?T.yellow:T.red,fontWeight:700,letterSpacing:0.5}}>
             {isOnline?`Back online — ${offlineQueue.length} queued`:"Offline — AI features queued"}
           </div>
@@ -3053,6 +3061,7 @@ Respond ONLY with valid JSON:
           backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
           display:"flex",flexDirection:"column",overflowY:"auto",
           paddingTop:"env(safe-area-inset-top)",paddingBottom:`calc(env(safe-area-inset-bottom) + 20px)`,
+          transform:"translateZ(0)",
           animation:"fadeIn 0.22s ease both",
         }}>
 
@@ -3228,7 +3237,7 @@ Respond ONLY with valid JSON:
           background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
           borderBottom:`1px solid rgba(255,255,255,0.08)`,borderLeft:`3px solid ${T.green}`,
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
-          animation:"fadeUp 0.25s ease both"}}>
+          transform:"translateZ(0)",animation:"fadeUp 0.25s ease both"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
               {completionBanner.length} item{completionBanner.length>1?"s":""} completed
@@ -3251,7 +3260,7 @@ Respond ONLY with valid JSON:
           background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
           borderBottom:`1px solid rgba(255,255,255,0.08)`,borderLeft:`3px solid ${T.blue}`,
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
-          animation:"fadeUp 0.25s ease both"}}>
+          transform:"translateZ(0)",animation:"fadeUp 0.25s ease both"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:T.blue,letterSpacing:0.5}}>
               {graduationProposal.completed.id} complete
@@ -3278,7 +3287,7 @@ Respond ONLY with valid JSON:
           background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
           borderBottom:`1px solid rgba(255,255,255,0.08)`,borderLeft:`3px solid ${T.yellow}`,
           padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
-          animation:"fadeUp 0.25s ease both"}}>
+          transform:"translateZ(0)",animation:"fadeUp 0.25s ease both"}}>
           <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>Missed session yesterday</div>
           <button onClick={()=>setMissedDayBanner(false)} className="btn-press"
             style={{background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,color:T.textDim,
@@ -3300,7 +3309,7 @@ Respond ONLY with valid JSON:
         {editFocus&&<div style={{
           background:"rgba(13,27,42,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
           padding:"14px 16px",borderBottom:"1px solid rgba(255,255,255,0.08)",
-          animation:"fadeUp 0.2s cubic-bezier(0.4,0,0.2,1) both"}}>
+          transform:"translateZ(0)",animation:"fadeUp 0.2s cubic-bezier(0.4,0,0.2,1) both"}}>
           <div style={{fontSize:10,fontWeight:700,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:12}}>
             Manual Focus Override
           </div>
@@ -3670,12 +3679,13 @@ Respond ONLY with valid JSON:
                 border:`1px solid rgba(245,158,11,0.3)`,
                 borderLeft:`3px solid ${T.yellow}`,
                 borderRadius:20,padding:13,fontSize:13,fontWeight:800,
-                color:T.yellow,cursor:"pointer",marginBottom:12,letterSpacing:0.3,minHeight:44}}>
+                color:T.yellow,cursor:"pointer",marginBottom:12,letterSpacing:0.3,minHeight:44,
+                transform:"translateZ(0)"}}>
               Write This Week's Review
             </button>}
 
             {planIsFromThisWeek&&<div style={{
-              background:"rgba(34,197,94,0.07)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
+              background:"rgba(34,197,94,0.07)",
               borderRadius:16,padding:"10px 14px",
               marginBottom:12,border:`1px solid rgba(34,197,94,0.2)`,animation:"fadeUp 0.2s ease both",
               display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -3760,7 +3770,7 @@ Respond ONLY with valid JSON:
                   [CURRICULUM.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length,"In Progress",T.blue],
                   [CURRICULUM.filter(i=>getP(i.id).percentComplete===0).length,"Untouched",T.textDim],
                   [totalItems,"Total Items",T.textMid]].map(([v,l,c],i)=>(
-                  <div key={l} style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
+                  <div key={l} style={{background:"rgba(255,255,255,0.04)",
                     borderRadius:12,padding:"12px 14px",
                     border:"1px solid rgba(255,255,255,0.08)",
                     animation:`fadeUp 0.18s ease ${i*0.05}s both`}}>
@@ -3769,7 +3779,7 @@ Respond ONLY with valid JSON:
                   </div>
                 ))}
               </div>
-              <div style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.08)"}}>
+              <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.08)"}}>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Personal Bests</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
                   {[[bestWeek.toFixed(1)+"h","Best Week",T.blue],
@@ -3782,7 +3792,7 @@ Respond ONLY with valid JSON:
                   ))}
                 </div>
               </div>
-              <div style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.08)"}}>
+              <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.08)"}}>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>12-Week Hours</div>
                 <div style={{display:"flex",alignItems:"flex-end",gap:3,height:56}}>
                   {chartWeeks.map((w,i)=>{
@@ -3796,7 +3806,7 @@ Respond ONLY with valid JSON:
                   })}
                 </div>
               </div>
-              {genreBalance.length>0&&<div style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.08)"}}>
+              {genreBalance.length>0&&<div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.08)"}}>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Genre Balance</div>
                 {genreBalance.map(([genre,h])=>{
                   const c=gc(genre),pct=h/genreBalance[0][1]*100;
@@ -3808,7 +3818,7 @@ Respond ONLY with valid JSON:
                   </div>;
                 })}
               </div>}
-              <div style={{background:"rgba(255,255,255,0.04)",backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.08)"}}>
+              <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"12px 14px",marginBottom:12,border:"1px solid rgba(255,255,255,0.08)"}}>
                 <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>Real Study Hours</div>
                 <div style={{fontSize:28,fontWeight:900,color:T.blue,letterSpacing:-1}}>
                   {totalSpentRealH.toFixed(1)}<span style={{fontSize:12,color:T.textDim,fontWeight:400}}> hrs</span>
@@ -3853,8 +3863,8 @@ Respond ONLY with valid JSON:
 
         {/* ══ SUNDAY REVIEW ══ */}
         {showSundayReview&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
-          display:"flex",alignItems:"flex-end",zIndex:150,backdropFilter:"blur(8px)",
-          animation:"fadeIn 0.2s ease both"}}>
+          display:"flex",alignItems:"flex-end",zIndex:150,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
+          transform:"translateZ(0)",animation:"fadeIn 0.2s ease both"}}>
           <div style={{
             background:"linear-gradient(145deg, rgba(13,27,42,0.98) 0%, rgba(15,34,64,0.98) 100%)",
             backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
@@ -3863,6 +3873,7 @@ Respond ONLY with valid JSON:
             width:"100%",boxSizing:"border-box",
             borderTop:`3px solid ${T.yellow}`,border:"1px solid rgba(255,255,255,0.1)",
             borderTop:`3px solid ${T.yellow}`,boxShadow:shadow.raised,
+            transform:"translateZ(0)",willChange:"transform",
             animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
           }}>
             <div style={{fontSize:17,fontWeight:800,letterSpacing:-0.3,marginBottom:4,color:T.text}}>Week Review</div>
@@ -3905,7 +3916,7 @@ Respond ONLY with valid JSON:
           const item=CURRICULUM.find(i=>i.id===itemId);
           return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
             display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",
-            animation:"fadeIn 0.2s ease both"}}>
+            transform:"translateZ(0)",animation:"fadeIn 0.2s ease both",WebkitBackdropFilter:"blur(8px)"}}>
             <div style={{
               background:"linear-gradient(145deg, rgba(13,27,42,0.98) 0%, rgba(15,34,64,0.98) 100%)",
               backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
@@ -3914,6 +3925,7 @@ Respond ONLY with valid JSON:
               width:"100%",boxSizing:"border-box",
               border:"1px solid rgba(255,255,255,0.1)",borderTop:`3px solid ${T.blue}`,
               boxShadow:shadow.raised,
+              transform:"translateZ(0)",willChange:"transform",
               animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
             }}>
               <div style={{fontSize:16,fontWeight:800,marginBottom:3,color:T.text}}>Edit Session</div>
@@ -3963,8 +3975,8 @@ Respond ONLY with valid JSON:
             :null;
           const canSubmit=parseFloat(logForm.studyHours||0)>0&&(isCourse?parseFloat(logForm.contentHours||0)>0:true);
           return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
-            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",
-            animation:"fadeIn 0.2s ease both"}}>
+            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
+            transform:"translateZ(0)",animation:"fadeIn 0.2s ease both"}}>
             <div style={{
               background:"linear-gradient(145deg, rgba(13,27,42,0.98) 0%, rgba(15,34,64,0.98) 100%)",
               backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
@@ -3973,6 +3985,7 @@ Respond ONLY with valid JSON:
               width:"100%",boxSizing:"border-box",
               border:"1px solid rgba(255,255,255,0.1)",borderTop:`3px solid ${gc(logging.genre)}`,
               boxShadow:shadow.raised,
+              transform:"translateZ(0)",willChange:"transform",
               animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
             }}>
               <div style={{marginBottom:16}}>
@@ -4047,6 +4060,7 @@ Respond ONLY with valid JSON:
           background:"rgba(13,27,42,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
           borderTop:"1px solid rgba(255,255,255,0.08)",
           boxShadow:"0 -4px 24px rgba(0,0,0,0.4)",
+          transform:"translateZ(0)",
         }}/>
         {/* Button row */}
         <div style={{display:"flex",position:"relative"}}>
