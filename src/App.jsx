@@ -720,6 +720,18 @@ const GLOBAL_CSS = `
   input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.25); }
   input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.4); }
   * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  @media (min-width: 769px) {
+    #app-phone {
+      width: 430px;
+      max-width: 430px;
+      margin: 0 auto;
+      position: relative;
+      min-height: 100dvh;
+      overflow: hidden;
+      transform: translateZ(0);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 4px 80px rgba(0,0,0,0.9);
+    }
+  }
 `;
 
 // ── Splash ────────────────────────────────────────────────────────────────────
@@ -1356,7 +1368,7 @@ function MountainRange({ view }){
 }
 
 // ── HUD Progress Bar ───────────────────────────────────────────────────────────
-function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum }){
+function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, editFocus, onToggleEditFocus, unreadCount }){
   const progress = weeklyTarget > 0 ? Math.min(1, hoursLogged / weeklyTarget) : 0;
   const isComplete = hoursLogged >= weeklyTarget;
   return(
@@ -1375,49 +1387,83 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum }){
         borderRadius:14,
         padding:'10px 14px 11px',
         boxShadow:'0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)',
+        pointerEvents:'auto',
+        display:'flex',alignItems:'center',gap:10,
       }}>
-        {/* Label row */}
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}}>
-          <div style={{display:'flex',alignItems:'baseline',gap:7}}>
-            <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.88)',
-              letterSpacing:1.8,textTransform:'uppercase',fontFamily:T.fontUI}}>
-              The Preparation
-            </span>
-            <span style={{fontSize:9,color:'rgba(255,255,255,0.35)',fontFamily:T.fontUI,
-              fontWeight:400,letterSpacing:0.4}}>
-              {dayName} · Week {weekNum}
-            </span>
+        {/* Hamburger button — far left */}
+        <button onClick={onOpenMenu} className="btn-press"
+          style={{position:'relative',flexShrink:0,
+            background:'transparent',border:'none',cursor:'pointer',
+            display:'flex',flexDirection:'column',gap:5,
+            width:36,height:36,justifyContent:'center',alignItems:'center',
+            borderRadius:8,padding:0}}>
+          {[0,1,2].map(i=>(
+            <div key={i} style={{width:20,height:2,background:'rgba(255,255,255,0.80)',borderRadius:99}}/>
+          ))}
+          {unreadCount>0&&<div style={{position:'absolute',top:2,right:2,
+            background:T.blue,color:'#fff',borderRadius:'50%',
+            width:14,height:14,fontSize:8,fontWeight:800,
+            display:'flex',alignItems:'center',justifyContent:'center'}}>{unreadCount>9?'9+':unreadCount}</div>}
+        </button>
+
+        {/* Center: title + hours + progress bar */}
+        <div style={{flex:1,minWidth:0}}>
+          {/* Label row */}
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:7}}>
+            <div style={{display:'flex',alignItems:'baseline',gap:7}}>
+              <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.88)',
+                letterSpacing:1.8,textTransform:'uppercase',fontFamily:T.fontUI}}>
+                The Preparation
+              </span>
+              <span style={{fontSize:9,color:'rgba(255,255,255,0.35)',fontFamily:T.fontUI,
+                fontWeight:400,letterSpacing:0.4}}>
+                {dayName} · Week {weekNum}
+              </span>
+            </div>
+            <div style={{fontSize:13,fontWeight:700,letterSpacing:-0.3,fontFamily:T.fontUI,
+              color:isComplete?'rgba(74,222,128,0.95)':'rgba(148,196,255,0.95)',
+              transition:'color 0.4s ease'}}>
+              {hoursLogged.toFixed(1)}
+              <span style={{fontSize:9,color:'rgba(255,255,255,0.28)',fontWeight:400}}>
+                /{weeklyTarget}h
+              </span>
+            </div>
           </div>
-          <div style={{fontSize:13,fontWeight:700,letterSpacing:-0.3,fontFamily:T.fontUI,
-            color:isComplete?'rgba(74,222,128,0.95)':'rgba(148,196,255,0.95)',
-            transition:'color 0.4s ease'}}>
-            {hoursLogged.toFixed(1)}
-            <span style={{fontSize:9,color:'rgba(255,255,255,0.28)',fontWeight:400}}>
-              /{weeklyTarget}h
-            </span>
+          {/* Progress track */}
+          <div style={{
+            height:4,borderRadius:3,
+            background:'rgba(255,255,255,0.07)',
+            position:'relative',overflow:'visible',
+          }}>
+            {progress>0&&(
+              <div style={{
+                position:'absolute',left:0,top:0,bottom:0,
+                width:`${progress*100}%`,
+                borderRadius:3,
+                background:isComplete
+                  ?'linear-gradient(90deg,#22c55e,#4ade80)'
+                  :'linear-gradient(90deg,#2563eb,#60a5fa)',
+                boxShadow:isComplete
+                  ?'0 0 8px rgba(74,222,128,0.9),0 0 22px rgba(34,197,94,0.45)'
+                  :'0 0 8px rgba(96,165,250,0.95),0 0 22px rgba(59,130,246,0.55)',
+                transition:'width 0.7s cubic-bezier(0.4,0,0.2,1)',
+              }}/>
+            )}
           </div>
         </div>
-        {/* Progress track */}
-        <div style={{
-          height:4,borderRadius:3,
-          background:'rgba(255,255,255,0.07)',
-          position:'relative',overflow:'visible',
-        }}>
-          {progress>0&&(
-            <div style={{
-              position:'absolute',left:0,top:0,bottom:0,
-              width:`${progress*100}%`,
-              borderRadius:3,
-              background:isComplete
-                ?'linear-gradient(90deg,#22c55e,#4ade80)'
-                :'linear-gradient(90deg,#2563eb,#60a5fa)',
-              boxShadow:isComplete
-                ?'0 0 8px rgba(74,222,128,0.9),0 0 22px rgba(34,197,94,0.45)'
-                :'0 0 8px rgba(96,165,250,0.95),0 0 22px rgba(59,130,246,0.55)',
-              transition:'width 0.7s cubic-bezier(0.4,0,0.2,1)',
-            }}/>
-          )}
-        </div>
+
+        {/* Edit Focus pill — far right */}
+        <button onClick={onToggleEditFocus} className="btn-press"
+          style={{flexShrink:0,
+            background:'rgba(255,255,255,0.07)',
+            backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
+            border:`1px solid ${editFocus?'rgba(255,255,255,0.22)':'rgba(255,255,255,0.10)'}`,
+            color:editFocus?'rgba(255,255,255,0.85)':'rgba(255,255,255,0.45)',
+            borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:500,
+            cursor:'pointer',display:'inline-flex',alignItems:'center',
+            transition:'all 0.2s',whiteSpace:'nowrap'}}>
+          {editFocus?'Done':'Edit Focus'}
+        </button>
       </div>
     </div>
   );
@@ -2935,6 +2981,7 @@ Respond ONLY with valid JSON:
   return(
     <>
       <style>{GLOBAL_CSS}</style>
+      <div id="app-phone">
       {splash&&<SplashScreen onDone={()=>setSplash(false)}/>}
 
       {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner}/>}
@@ -2961,7 +3008,8 @@ Respond ONLY with valid JSON:
         <MountainRange view={view}/>
 
         {/* ── HUD Progress Bar ── */}
-        <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}/>
+        <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}
+          onOpenMenu={()=>setSideOpen(true)} editFocus={editFocus} onToggleEditFocus={()=>setEditFocus(e=>!e)} unreadCount={unreadCount}/>
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
@@ -3250,38 +3298,11 @@ Respond ONLY with valid JSON:
               borderRadius:8,padding:"5px 12px",fontSize:10,cursor:"pointer",minHeight:44}}>Dismiss</button>
         </div>}
 
-        {/* ── Mountain Overlay: Hamburger (fixed, upper-left) ── */}
-        <button onClick={()=>setSideOpen(true)} className="btn-press"
-          style={{position:"fixed",top:`calc(env(safe-area-inset-top) + 14px)`,left:16,
-            background:"rgba(0,0,0,0.30)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",
-            border:"1px solid rgba(255,255,255,0.18)",borderRadius:12,cursor:"pointer",
-            display:"flex",flexDirection:"column",gap:5,
-            minWidth:44,minHeight:44,justifyContent:"center",alignItems:"center",
-            zIndex:20}}>
-          {[0,1,2].map(i=>(
-            <div key={i} style={{width:22,height:2,background:"rgba(255,255,255,0.85)",borderRadius:99}}/>
-          ))}
-          {unreadCount>0&&<div style={{position:"absolute",top:4,right:4,
-            background:T.blue,color:"#fff",borderRadius:"50%",
-            width:14,height:14,fontSize:8,fontWeight:800,
-            display:"flex",alignItems:"center",justifyContent:"center"}}>{unreadCount>9?"9+":unreadCount}</div>}
-        </button>
-
         {/* ── Mountain spacer: pushes content below mountain fade ── */}
         <div style={{height:280}}/>
 
         {/* ── Focus pills: below mountain fade ── */}
         <div style={{padding:"0 16px 12px"}}>
-          <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
-            style={{background:"rgba(255,255,255,0.07)",
-              backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
-              border:`1px solid ${editFocus?"rgba(255,255,255,0.22)":"rgba(255,255,255,0.10)"}`,
-              color:editFocus?"rgba(255,255,255,0.85)":"rgba(255,255,255,0.35)",
-              borderRadius:99,padding:"4px 12px",fontSize:10,letterSpacing:0.5,fontWeight:500,
-              cursor:"pointer",display:"inline-flex",alignItems:"center",
-              transition:"all 0.2s",marginBottom:8}}>
-            {editFocus?"Done":"Edit Focus"}
-          </button>
           <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
             {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
               <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
@@ -4073,6 +4094,7 @@ Respond ONLY with valid JSON:
         {/* Safe area filler — solid background, no blur needed */}
         <div style={{height:"env(safe-area-inset-bottom)",background:"#0d1b2a",position:"relative"}}/>
       </div>
+      </div>{/* #app-phone */}
     </>
   );
 }
