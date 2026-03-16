@@ -22,7 +22,11 @@ export default function AuthScreen() {
     if (!email || !password) { setError('Enter email and password'); return; }
     setLoading(true); setError(''); setMessage('');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { setError(error.message); setLoading(false); }
+    if (error) {
+      console.error('[Auth] signInWithPassword error:', error);
+      setError(`${error.message}${error.status ? ` (${error.status})` : ''}${error.code ? ` [${error.code}]` : ''}`);
+      setLoading(false);
+    }
     // On success, AuthWrapper's onAuthStateChange handles the rest
   };
 
@@ -31,8 +35,14 @@ export default function AuthScreen() {
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true); setError(''); setMessage('');
     const { error } = await supabase.auth.signUp({ email, password });
-    if (error) { setError(error.message); setLoading(false); }
-    else { setMessage('Check your email to confirm your account, then sign in.'); setLoading(false); }
+    if (error) {
+      console.error('[Auth] signUp error:', error);
+      setError(`${error.message}${error.status ? ` (${error.status})` : ''}${error.code ? ` [${error.code}]` : ''}`);
+      setLoading(false);
+    } else {
+      setMessage('Check your email to confirm your account, then sign in.');
+      setLoading(false);
+    }
   };
 
   const inputSt = {

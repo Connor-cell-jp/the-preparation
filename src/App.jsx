@@ -706,13 +706,23 @@ const GLOBAL_CSS = `
     from { transform:translateY(0);     opacity:1; }
     to   { transform:translateY(-80px); opacity:0; }
   }
+  @keyframes notifExpand {
+    from { opacity:0; max-height:0; padding-top:0; padding-bottom:0; }
+    to   { opacity:1; max-height:80px; padding-top:10px; padding-bottom:12px; }
+  }
+  @keyframes notifCollapse {
+    from { opacity:1; max-height:80px; padding-top:10px; padding-bottom:12px; }
+    to   { opacity:0; max-height:0; padding-top:0; padding-bottom:0; }
+  }
   @keyframes toastIn {
     from { opacity:0; transform:translateX(-50%) translateY(8px) scale(0.95); }
     to   { opacity:1; transform:translateX(-50%) translateY(0)   scale(1); }
   }
   .btn-press { transition: transform 0.08s cubic-bezier(0.4,0,0.2,1), opacity 0.15s ease; }
   .btn-press:active { transform: scale(0.97); transition: transform 0.08s cubic-bezier(0.4,0,0.2,1); }
-  .tab-content { animation: fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both; padding-top: 220px; position: relative; z-index: 1; will-change: transform; }
+  .tab-content { animation: fadeIn 0.15s ease both; padding-top: 220px; position: relative; z-index: 1; }
+  .tab-card { animation: fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both; }
+  html, body { overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; }
   input, textarea, select { transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1); font-size: 16px; color: #ffffff; }
   input:focus, textarea:focus { border-color: rgba(59,130,246,0.5) !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); outline:none; }
   body.menu-open { overflow: hidden; position: fixed; width: 100%; }
@@ -1357,9 +1367,19 @@ function MountainRange({ view }){
 }
 
 // ── HUD Progress Bar ───────────────────────────────────────────────────────────
-function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, editFocus, onToggleEditFocus, unreadCount }){
+function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, editFocus, onToggleEditFocus, unreadCount, currentBanner, dismissBanner, onBannerAction }){
   const progress = weeklyTarget > 0 ? Math.min(1, hoursLogged / weeklyTarget) : 0;
   const isComplete = hoursLogged >= weeklyTarget;
+  const [bannerHiding, setBannerHiding] = useState(false);
+  const bannerRef = useRef(null);
+  useEffect(()=>{
+    if(!currentBanner){ setBannerHiding(false); return; }
+    setBannerHiding(false);
+    const t1=setTimeout(()=>setBannerHiding(true), 3000);
+    const t2=setTimeout(()=>dismissBanner(), 3400);
+    return()=>{ clearTimeout(t1); clearTimeout(t2); };
+  },[currentBanner]);
+  const doCloseBanner=()=>{ setBannerHiding(true); setTimeout(()=>dismissBanner(),400); };
   return(
     <div style={{
       position:'fixed',
@@ -1374,12 +1394,13 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
         WebkitBackdropFilter:'blur(24px) saturate(180%)',
         border:'1px solid rgba(255,255,255,0.13)',
         borderRadius:14,
-        padding:'10px 14px 11px',
         boxShadow:'0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)',
         pointerEvents:'auto',
         transform:'translateZ(0)',
-        display:'flex',alignItems:'center',gap:10,
+        overflow:'hidden',
+        transition:'box-shadow 0.3s ease',
       }}>
+      <div style={{padding:'10px 14px 11px',display:'flex',alignItems:'center',gap:10}}>
         {/* Hamburger button — far left */}
         <button onClick={onOpenMenu} className="btn-press"
           style={{position:'relative',flexShrink:0,
@@ -1455,6 +1476,37 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
             transition:'all 0.2s',whiteSpace:'nowrap'}}>
           {editFocus?'Done':'Edit Focus'}
         </button>
+      </div>
+      {/* ── Notification bubble expansion ── */}
+      {currentBanner&&<div
+        onClick={()=>{ onBannerAction&&onBannerAction(currentBanner); doCloseBanner(); }}
+        style={{
+          borderTop:'1px solid rgba(255,255,255,0.07)',
+          padding:'10px 14px 12px',
+          display:'flex',alignItems:'center',gap:12,
+          cursor:'pointer',
+          animation:bannerHiding
+            ?'notifCollapse 0.35s cubic-bezier(0.4,0,1,1) forwards'
+            :'notifExpand 0.32s cubic-bezier(0.2,0,0,1) both',
+        }}>
+        <div style={{width:6,height:6,borderRadius:'50%',background:T.blue,flexShrink:0,
+          boxShadow:`0 0 8px ${T.blue}`}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:700,color:'#fff',letterSpacing:-0.2,lineHeight:1.3}}>
+            {currentBanner.title}
+          </div>
+          {currentBanner.body&&<div style={{fontSize:11,color:'rgba(255,255,255,0.55)',marginTop:2,lineHeight:1.4,
+            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {currentBanner.body}
+          </div>}
+        </div>
+        {currentBanner.action?.label&&<div style={{fontSize:11,fontWeight:700,color:T.blue,flexShrink:0,letterSpacing:0.3}}>
+          {currentBanner.action.label}
+        </div>}
+        <button onClick={e=>{e.stopPropagation();doCloseBanner();}} className="btn-press"
+          style={{background:'none',border:'none',color:'rgba(255,255,255,0.3)',fontSize:14,
+            cursor:'pointer',padding:4,flexShrink:0,lineHeight:1}}>✕</button>
+      </div>}
       </div>
     </div>
   );
@@ -2016,8 +2068,7 @@ export default function App({ onSignOut }){
     if(isSunday()){
       const doneSunday=load(SK_SUNDAY_DONE,null);
       if(doneSunday!==todayISO&&new Date().getHours()>=18){
-        setShowSundayReview(true);
-        push("Week Review","Time to review your week and summarize your progress.",{label:"Review Now",type:"sundayReview"});
+        push("Time for your weekly review","Tap to reflect on your week and log your progress.",{label:"Open Review",type:"sundayReview"});
       }
     }
     if(isMonday()&&new Date().getHours()>=7&&!(weekPlan?.weekStart===getMonday())){
@@ -2929,7 +2980,6 @@ Respond ONLY with valid JSON:
       <style>{GLOBAL_CSS}</style>
       {splash&&<SplashScreen onDone={()=>setSplash(false)}/>}
 
-      {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner}/>}
 
       <div style={{
         background:"transparent",
@@ -2955,7 +3005,8 @@ Respond ONLY with valid JSON:
 
         {/* ── HUD Progress Bar ── */}
         <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}
-          onOpenMenu={()=>setSideOpen(true)} editFocus={editFocus} onToggleEditFocus={()=>setEditFocus(e=>!e)} unreadCount={unreadCount}/>
+          onOpenMenu={()=>setSideOpen(true)} editFocus={editFocus} onToggleEditFocus={()=>setEditFocus(e=>!e)} unreadCount={unreadCount}
+          currentBanner={currentBanner} dismissBanner={dismissBanner} onBannerAction={handleNotifAction}/>
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
@@ -3290,7 +3341,7 @@ Respond ONLY with valid JSON:
           {view==="today"&&<div className="tab-content">
 
             {/* No plan state */}
-            {!planIsFromThisWeek&&<Card style={{padding:"28px 20px",textAlign:"center",marginBottom:16}}>
+            {!planIsFromThisWeek&&<Card style={{padding:"28px 20px",textAlign:"center",marginBottom:16,animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
               <div style={{fontSize:32,marginBottom:14}}>📋</div>
               <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:8}}>No plan for this week yet</div>
               <div style={{fontSize:13,color:T.textDim,marginBottom:24,lineHeight:1.6}}>
@@ -3332,7 +3383,7 @@ Respond ONLY with valid JSON:
                 </div>
               </Card>}
 
-              {todayPlannedH>0&&<Card style={{padding:"12px 14px",marginBottom:14}}>
+              {todayPlannedH>0&&<Card style={{padding:"12px 14px",marginBottom:14,animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div style={{fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1}}>
                     Today — {todayName_}
@@ -3375,7 +3426,7 @@ Respond ONLY with valid JSON:
                 const isComplete=isDone||(sessionDoneToday&&remainingH===0);
                 return <Card key={item.id} accent={isComplete?T.green:c} glow
                   style={{marginBottom:10,padding:16,opacity:isComplete?0.55:1,
-                    animation:`fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) ${idx*0.07}s both`,transition:"opacity 0.3s"}}>
+                    animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${idx*0.03}s both`,transition:"opacity 0.3s"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                     <div style={{flex:1,paddingRight:10}}>
                       <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>
@@ -3469,7 +3520,7 @@ Respond ONLY with valid JSON:
             </div>
 
             {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).length>0&&
-            <Card style={{padding:"13px 14px",marginBottom:12}}>
+            <Card style={{padding:"13px 14px",marginBottom:12,animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
               <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
                 Projected Finish
               </div>
@@ -3511,7 +3562,7 @@ Respond ONLY with valid JSON:
               })}
             </Card>}
 
-            {planIsFromThisWeek&&weekPlan.days&&<Card style={{padding:"13px 14px",marginBottom:12}}>
+            {planIsFromThisWeek&&weekPlan.days&&<Card style={{padding:"13px 14px",marginBottom:12,animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.03s both"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <div style={{fontSize:9,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700}}>
                   {weekH>=WEEKLY_TARGET?"Week Plan (Complete)":"Week Schedule"}
@@ -3591,7 +3642,7 @@ Respond ONLY with valid JSON:
               const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
               const realLeft=contentToReal(item,contentLeft,settings);
               return <Card key={item.id} accent={c} style={{marginBottom:10,padding:"13px 14px",
-                animation:`fadeUp 0.18s cubic-bezier(0.4,0,0.2,1) ${idx*0.06}s both`}}>
+                animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${idx*0.03}s both`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div style={{flex:1,minWidth:0,paddingRight:10}}>
                     <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>
@@ -3619,9 +3670,17 @@ Respond ONLY with valid JSON:
 
           {/* ══ CHECK-IN ══ */}
           {view==="ai"&&<div className="tab-content">
-            <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-              Plan Monday · Review Sunday
-            </div>
+            <Card style={{padding:"10px 14px",marginBottom:14,animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
+              <div style={{fontSize:10,color:T.textDim,letterSpacing:0.3,lineHeight:1.5}}>
+                <span style={{color:T.blue,fontWeight:700}}>Plan</span> Monday&nbsp;·&nbsp;<span style={{color:T.yellow,fontWeight:700}}>Review</span> Sunday
+              </div>
+              {planIsFromThisWeek&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,paddingTop:8,borderTop:"1px solid rgba(255,255,255,0.07)"}}>
+                <div style={{fontSize:10,fontWeight:700,color:T.green,letterSpacing:0.3}}>Week plan active</div>
+                <div style={{fontSize:10,color:T.textDim}}>
+                  {new Date(weekPlan.generatedAt).toLocaleDateString()} · {weekPlan.totalPlannedHours}h
+                </div>
+              </div>}
+            </Card>
 
             {isSunday()&&load(SK_SUNDAY_DONE,null)!==getTodayISO()&&
             <button onClick={()=>setShowSundayReview(true)} className="btn-press"
@@ -3635,19 +3694,6 @@ Respond ONLY with valid JSON:
                 transform:"translateZ(0)"}}>
               Write This Week's Review
             </button>}
-
-            {planIsFromThisWeek&&<div style={{
-              background:"rgba(34,197,94,0.07)",
-              borderRadius:16,padding:"10px 14px",
-              marginBottom:12,border:`1px solid rgba(34,197,94,0.2)`,animation:"fadeUp 0.2s ease both",
-              display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div>
-                <div style={{fontSize:10,fontWeight:700,color:T.green,letterSpacing:0.5}}>Week plan active</div>
-                <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-                  {new Date(weekPlan.generatedAt).toLocaleDateString()} · {weekPlan.totalPlannedHours}h
-                </div>
-              </div>
-            </div>}
 
             <button onClick={()=>{
               setPlanFlowSettings({weeklyTarget:WEEKLY_TARGET,activeDays:ACTIVE_DAYS});
@@ -3713,7 +3759,7 @@ Respond ONLY with valid JSON:
 
           {/* ══ YEAR ARC ══ */}
           {view==="arc"&&<div className="tab-content">
-            <Card style={{marginBottom:16,padding:16}}>
+            <Card style={{marginBottom:16,padding:16,animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
               <div style={{fontSize:9,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:14}}>
                 Curriculum Overview
               </div>
@@ -3725,7 +3771,7 @@ Respond ONLY with valid JSON:
                   <div key={l} style={{background:"rgba(255,255,255,0.04)",
                     borderRadius:12,padding:"12px 14px",
                     border:"1px solid rgba(255,255,255,0.08)",
-                    animation:`fadeUp 0.18s ease ${i*0.05}s both`}}>
+                    animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i*0.03}s both`}}>
                     <div style={{fontSize:24,fontWeight:900,color:c,letterSpacing:-1}}>{v}</div>
                     <div style={{fontSize:10,color:T.textDim,marginTop:2,letterSpacing:0.3}}>{l}</div>
                   </div>
@@ -3940,11 +3986,37 @@ Respond ONLY with valid JSON:
               transform:"translateZ(0)",willChange:"transform",
               animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
             }}>
-              <div style={{marginBottom:16}}>
-                <div style={{fontSize:15,fontWeight:800,color:T.text}}>{logging.name}</div>
-                <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-                  {p.percentComplete}% complete · {contentLeft.toFixed(1)}h content left
+              {/* Date row at top so native calendar picker has room above */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div style={{fontSize:15,fontWeight:800,color:T.text,flex:1,paddingRight:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{logging.name}</div>
+                <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
+                  style={{background:"none",border:"none",color:logForm.showDate?T.blue:T.textDim,fontSize:11,
+                    cursor:"pointer",padding:"2px 0",flexShrink:0,
+                    textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
+                  {logForm.showDate?"Today":"Different day"}
+                </button>
+              </div>
+              {logForm.showDate&&<div style={{marginBottom:14,padding:"10px 12px",background:"rgba(255,255,255,0.04)",
+                borderRadius:10,border:"1px solid rgba(255,255,255,0.08)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:11,color:T.textDim,flexShrink:0}}>Date</span>
+                  <input type="date"
+                    value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
+                    max={new Date().toLocaleDateString('en-CA')}
+                    onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
+                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+                      color:T.textMid,borderRadius:8,padding:"5px 8px",fontSize:12,outline:"none",cursor:"pointer",flex:1}}/>
                 </div>
+                {(()=>{
+                  const sd=new Date(logForm.date),mon=getMondayDate();
+                  const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
+                  return sd<mon||sd>sun?<div style={{fontSize:10,color:T.yellow,marginTop:6}}>
+                    Previous week — won't count toward this week's {WEEKLY_TARGET}h
+                  </div>:null;
+                })()}
+              </div>}
+              <div style={{fontSize:10,color:T.textDim,marginBottom:14}}>
+                {p.percentComplete}% complete · {contentLeft.toFixed(1)}h content left
               </div>
               {isCourse&&<div style={{marginBottom:12}}>
                 <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Content Covered (hrs)</label>
@@ -3970,35 +4042,12 @@ Respond ONLY with valid JSON:
                   boxShadow:canSubmit?"0 4px 16px rgba(59,130,246,0.35)":"none",marginBottom:14}}>
                 Log Session
               </button>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{textAlign:"center"}}>
                 <button onClick={()=>{setLogging(null);setLogForm({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});}} className="btn-press"
                   style={{background:"none",border:"none",color:T.textDim,fontSize:12,cursor:"pointer",padding:"2px 0"}}>
                   Cancel
                 </button>
-                <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
-                  style={{background:"none",border:"none",color:T.textDim,fontSize:11,cursor:"pointer",padding:"2px 0",
-                    textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
-                  {logForm.showDate?"Hide":"Log for different day"}
-                </button>
               </div>
-              {logForm.showDate&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.07)"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <span style={{fontSize:11,color:T.textDim,flexShrink:0}}>Date</span>
-                  <input type="date"
-                    value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
-                    max={new Date().toLocaleDateString('en-CA')}
-                    onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
-                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
-                      color:T.textMid,borderRadius:8,padding:"5px 8px",fontSize:12,outline:"none",cursor:"pointer"}}/>
-                </div>
-                {(()=>{
-                  const sd=new Date(logForm.date),mon=getMondayDate();
-                  const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
-                  return sd<mon||sd>sun?<div style={{fontSize:10,color:T.yellow,marginTop:6}}>
-                    Previous week — won't count toward this week's {WEEKLY_TARGET}h
-                  </div>:null;
-                })()}
-              </div>}
             </div>
           </div>;
         })()}
