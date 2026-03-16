@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { upsertUserDataRaw } from "./supabase";
 
 // ── Settings-aware pure helpers ───────────────────────────────────────────────
 const snap25 = h => Math.round(h * 4) / 4;
@@ -561,7 +562,7 @@ const gc = g => {
 };
 
 const load = (k,d) => { try { return JSON.parse(localStorage.getItem(k))??d; } catch { return d; } };
-const save = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} };
+const save = (k,v) => { const raw=JSON.stringify(v); try { localStorage.setItem(k,raw); } catch {} upsertUserDataRaw(k,raw); };
 
 function toLocalISO(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${dd}`; }
 function getMonday() {
@@ -594,8 +595,6 @@ const NOTIF_TTL_MS = 3*24*60*60*1000;
 const DEFAULT_SETTINGS={
   weeklyTarget: 20,
   activeDays: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
-  courseRatio: 2,
-  bookRatio: 1,
 };
 
 const DEFAULT_PROFILE=`LEARNER: Connor, 18, Kamloops BC. Self-directed 4-year curriculum called The Preparation.
@@ -1465,7 +1464,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
 function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredProfile, onExport, onImport, onClearAll,
   customItems, newItem, setNewItem, addCustomItem, removeCustomItem, getP,
   settings, onSaveSettings, notifs, unreadCount, onMarkRead, onDismissNotif, onClearNotifs,
-  onNotifAction, onNotifClose }) {
+  onNotifAction, onNotifClose, onSignOut }) {
   const [section, setSection] = useState("settings");
   const [localSettings, setLocalSettings] = useState(settings);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -1643,56 +1642,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             <button onClick={()=>onSaveSettings(localSettings)} className="btn-press"
               style={{width:"100%",background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",
                 borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20,minHeight:44}}>
-              Save Schedule
-            </button>
-
-            <div style={{fontSize:9,color:T.blue,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}>
-              Study Ratios
-            </div>
-            <Card noBlur style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.blue}`}}>
-              <div style={{fontSize:11,color:T.textMid,lineHeight:1.6,marginBottom:12}}>
-                How many real hours does 1h of content take? Courses default 2:1, books default 1:1. Allowed: 1.0, 1.5, 2.0, 2.5, 3.0.
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-                <div>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,fontWeight:600}}>Course ratio</label>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                    {[1,1.5,2,2.5,3].map(v=>{
-                      const on=(localSettings.courseRatio??2)===v;
-                      return <button key={v} onClick={()=>setLocalSettings(s=>({...s,courseRatio:v}))} className="btn-press"
-                        style={{background:on?"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)":"rgba(255,255,255,0.08)",border:`1px solid ${on?"transparent":"rgba(255,255,255,0.12)"}`,
-                          color:on?"#fff":T.textDim,borderRadius:8,padding:"7px 8px",fontSize:11,
-                          cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:44}}>{v}</button>;
-                    })}
-                  </div>
-                  <div style={{fontSize:10,color:T.textFaint,marginTop:6}}>1h content = {localSettings.courseRatio??2}h real</div>
-                </div>
-                <div>
-                  <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6,fontWeight:600}}>Book ratio</label>
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                    {[1,1.5,2,2.5,3].map(v=>{
-                      const on=(localSettings.bookRatio??1)===v;
-                      return <button key={v} onClick={()=>setLocalSettings(s=>({...s,bookRatio:v}))} className="btn-press"
-                        style={{background:on?"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)":"rgba(255,255,255,0.08)",border:`1px solid ${on?"transparent":"rgba(255,255,255,0.12)"}`,
-                          color:on?"#fff":T.textDim,borderRadius:8,padding:"7px 8px",fontSize:11,
-                          cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:44}}>{v}</button>;
-                    })}
-                  </div>
-                  <div style={{fontSize:10,color:T.textFaint,marginTop:6}}>1h content = {localSettings.bookRatio??1}h real</div>
-                </div>
-              </div>
-              <div style={{borderTop:`1px solid rgba(255,255,255,0.08)`,paddingTop:12,marginTop:4}}>
-                <div style={{fontSize:11,color:T.textDim,lineHeight:1.5}}>
-                  Session lengths are set automatically by tier:<br/>
-                  ≤10h → 1.5h/session · ≤20h → 2h · ≤30h → 2.5h · 31h+ → 3h (max 3h absolute).
-                  Books are fixed by mode (passage=30min, slow=1h, normal=1.5h, fast=2h).
-                </div>
-              </div>
-            </Card>
-            <button onClick={()=>onSaveSettings(localSettings)} className="btn-press"
-              style={{width:"100%",background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",
-                borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:800,cursor:"pointer",marginBottom:20,minHeight:44}}>
-              Save Ratios
+              Save Settings
             </button>
 
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
@@ -1708,6 +1658,9 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
               <button onClick={onClearAll} className="btn-press"
                 style={{width:"100%",background:"rgba(220,38,38,0.1)",border:`1px solid rgba(239,68,68,0.3)`,
                   color:T.red,borderRadius:12,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>Clear All Data</button>
+              {onSignOut&&<button onClick={onSignOut} className="btn-press"
+                style={{width:"100%",marginTop:8,background:"rgba(255,255,255,0.05)",border:`1px solid rgba(255,255,255,0.1)`,
+                  color:T.textMid,borderRadius:12,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>Sign Out</button>}
             </Card>
 
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Add Custom Item</div>
@@ -1759,7 +1712,7 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
                 </div>
               </div>
               {newItem.type==="course"&&newItem.hours&&<div style={{fontSize:11,color:T.blue,marginBottom:10}}>
-                = {(parseFloat(newItem.hours||0)*(localSettings.courseRatio??2)).toFixed(1)}h real study time
+                = {(parseFloat(newItem.hours||0)*2).toFixed(1)}h real study time
               </div>}
               <button onClick={addCustomItem} className="btn-press"
                 style={{width:"100%",background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",
@@ -1878,12 +1831,12 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
 // ══════════════════════════════════════════════════════════════════════════════
 // Main App
 // ══════════════════════════════════════════════════════════════════════════════
-export default function App(){
+export default function App({ onSignOut }){
   // ── 1. Settings ──
   const [settings, setSettings] = useState(() => {
     const saved = load(SK_SETTINGS, {});
     // Strip removed keys so stale values never bleed into auto-computed logic
-    const { courseMaxSession: _cms, bookMaxSession: _bms, _courseMaxRaw: _cmr, _bookMaxRaw: _bmr, ...cleanSaved } = saved;
+    const { courseMaxSession: _cms, bookMaxSession: _bms, _courseMaxRaw: _cmr, _bookMaxRaw: _bmr, courseRatio: _cr, bookRatio: _br, ...cleanSaved } = saved;
     return { ...DEFAULT_SETTINGS, ...cleanSaved };
   });
   const WEEKLY_TARGET = Math.max(5, Math.min(45, settings.weeklyTarget ?? 20));
@@ -2019,14 +1972,14 @@ export default function App(){
   useEffect(()=>save(SK_REVIEWS,reviews),[reviews]);
   useEffect(()=>save("tp_bonus1",bonusItems),[bonusItems]);
   useEffect(()=>save(SK_WEEKLY_HOURS,weeklyHours),[weeklyHours]);
-  useEffect(()=>localStorage.setItem(SK_PROFILE,JSON.stringify(structuredProfile)),[structuredProfile]);
+  useEffect(()=>{const raw=JSON.stringify(structuredProfile);try{localStorage.setItem(SK_PROFILE,raw);}catch{}upsertUserDataRaw(SK_PROFILE,raw);},[structuredProfile]);
   useEffect(()=>save(SK_PLAN,weekPlan),[weekPlan]);
   useEffect(()=>save(SK_CUSTOM,customItems),[customItems]);
   useEffect(()=>save(SK_SETTINGS,settings),[settings]);
   useEffect(()=>save(SK_HIDDEN,hiddenIds),[hiddenIds]);
   useEffect(()=>save(SK_RATIOS,paceRatios),[paceRatios]);
   useEffect(()=>save(SK_HISTORY,planHistory),[planHistory]);
-  useEffect(()=>localStorage.setItem(SK_FOCUS_INPUT,planFlowFocusText),[planFlowFocusText]);
+  useEffect(()=>{try{localStorage.setItem(SK_FOCUS_INPUT,planFlowFocusText);}catch{}upsertUserDataRaw(SK_FOCUS_INPUT,planFlowFocusText);},[planFlowFocusText]);
 
   // ── 7. Effects ──
   useEffect(()=>{
@@ -2297,7 +2250,7 @@ export default function App(){
 - Total available: ${planTarget}h real across ${effectiveDLeft} days (${remainingDayNames.join(",")})${isReducedPlan?` [reduced from ${effectiveWkRem}h — only ${effectiveDLeft} day${effectiveDLeft===1?"":"s"} remain]`:""}
 - Day budgets: ${remainingDayNames.map((d,i)=>`${d}:${dayBudgets[i]}h`).join("|")}
 - Every day's items MUST sum exactly to that day's budget (within 0.25h). Never over or under.
-- Courses use ${settings.courseRatio}:1 ratio — 1h content = ${settings.courseRatio}h real. Books use 1:1.
+- Courses use 2:1 ratio — 1h content = 2h real. Books use 1:1.
 - All math in REAL hours only. Never use content hours for totals.
 
 ═══ SESSION LENGTH RULES (non-negotiable) ═══
@@ -3014,13 +2967,12 @@ Respond ONLY with valid JSON:
           onMarkRead={markRead} onDismissNotif={dismissNotif}
           onClearNotifs={clearNotifs} onNotifAction={handleNotifAction}
           onNotifClose={()=>setSideOpen(false)}
+          onSignOut={onSignOut}
           onSaveSettings={s=>{
-            const { courseMaxSession: _cms, bookMaxSession: _bms, _courseMaxRaw: _cmr, _bookMaxRaw: _bmr, ...rest } = s;
+            const { courseMaxSession: _cms, bookMaxSession: _bms, _courseMaxRaw: _cmr, _bookMaxRaw: _bmr, courseRatio: _cr, bookRatio: _br, ...rest } = s;
             const clean={
               ...rest,
               weeklyTarget:Math.max(5,Math.min(45,parseInt(s.weeklyTarget)||20)),
-              courseRatio:[1,1.5,2,2.5,3].includes(parseFloat(s.courseRatio))?parseFloat(s.courseRatio):2,
-              bookRatio:[1,1.5,2,2.5,3].includes(parseFloat(s.bookRatio))?parseFloat(s.bookRatio):1,
             };
             setSettings(clean);
             toast_("Settings saved");
@@ -3937,7 +3889,7 @@ Respond ONLY with valid JSON:
               </div>
               <div style={{marginBottom:14}}>
                 <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:6}}>
-                  Content hours {item?.type==="course"?`(real÷${settings.courseRatio})`:"(= real for books)"}
+                  Content hours {item?.type==="course"?"(real÷2)":"(= real for books)"}
                 </label>
                 <input type="number" min="0.1" max={item?.hours} step="0.1" value={editSessionForm.courseHours}
                   onChange={e=>setEditSessionForm(f=>({...f,courseHours:e.target.value}))} style={inputSt}/>
