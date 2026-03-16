@@ -1140,7 +1140,7 @@ function Card({children,style={},accent,glow=false,noBlur=false}){
     borderTop:"1px solid rgba(255,255,255,0.12)",
     boxShadow:glow&&accent?`${shadow.card}, 0 0 24px ${accent}20`:shadow.card,
     ...(accent?{borderLeft:`3px solid ${accent}`}:{}),
-    transform:"translateZ(0)",
+    transform:"translateZ(0)",willChange:"backdrop-filter",
     ...style}}>{children}</div>;
 }
 function StarRating({value,onChange}){
@@ -1362,6 +1362,15 @@ function MountainRange({ view }){
           display:'block',
         }}
       />
+      {/* Dark overlay — gives backdrop-filter a flat surface to blur instead of the complex image */}
+      <div style={{
+        position:'absolute',top:0,left:0,
+        width:'100%',height:'100%',
+        background:'rgba(10,20,36,0.55)',
+        zIndex:3,
+        transform:'translateZ(0)',
+        willChange:'transform',
+      }}/>
     </div>
   );
 }
