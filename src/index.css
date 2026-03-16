@@ -13,13 +13,6 @@ body {
   overscroll-behavior-y: auto;
 }
 
-@media (min-width: 769px) {
-  body {
-    background: linear-gradient(135deg, #0d1b2a 0%, #0f2240 50%, #0d1b2a 100%);
-    background-attachment: fixed;
-  }
-}
-
 input, textarea, select, button {
   font-family: inherit;
 }

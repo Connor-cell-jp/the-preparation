@@ -720,18 +720,6 @@ const GLOBAL_CSS = `
   input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.25); }
   input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.4); }
   * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-  @media (min-width: 769px) {
-    #app-phone {
-      width: 430px;
-      max-width: 430px;
-      margin: 0 auto;
-      position: relative;
-      min-height: 100dvh;
-      overflow: hidden;
-      transform: translateZ(0);
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 4px 80px rgba(0,0,0,0.9);
-    }
-  }
 `;
 
 // ── Splash ────────────────────────────────────────────────────────────────────
@@ -917,116 +905,18 @@ function SplashScreen({ onDone }) {
           transform:       "scale(1.786)",
           animation:       compassSpin ? "compassShrink 2500ms cubic-bezier(0.25,0,0.1,1) forwards" : "none",
         }}>
-          {/* Rotating vintage compass rose SVG */}
-          <svg viewBox="-140 -140 280 280" width="280" height="280"
+          {/* Rotating compass icon */}
+          <img src="/icon.png" alt=""
             style={{
-              position:"absolute", top:0, left:0,
+              position:"absolute",
+              top:80, left:80,
+              width:120, height:120,
+              borderRadius:"50%",
               transformOrigin:"center center",
               animation: compassSpin ? "compassSpin 2500ms cubic-bezier(0.37,0,0.63,1) forwards" : "none",
-              overflow:"visible",
+              display:"block",
             }}
-          >
-            {/* ── Outer bezel — double ring ── */}
-            <circle r="130" fill="none" stroke="rgba(59,130,246,0.14)" strokeWidth="0.8"/>
-            <circle r="127" fill="none" stroke="rgba(59,130,246,0.28)" strokeWidth="1.4"/>
-            <circle r="122" fill="none" stroke="rgba(59,130,246,0.10)" strokeWidth="0.5"/>
-
-            {/* ── Graduated inner rings ── */}
-            <circle r="110" fill="none" stroke="rgba(59,130,246,0.16)" strokeWidth="0.8"/>
-            <circle r="88"  fill="none" stroke="rgba(59,130,246,0.13)" strokeWidth="0.6"/>
-            <circle r="66"  fill="none" stroke="rgba(59,130,246,0.10)" strokeWidth="0.5"/>
-            <circle r="46"  fill="none" stroke="rgba(59,130,246,0.14)" strokeWidth="0.6"/>
-            <circle r="28"  fill="none" stroke="rgba(59,130,246,0.09)" strokeWidth="0.4"/>
-            <circle r="15"  fill="none" stroke="rgba(59,130,246,0.12)" strokeWidth="0.5"/>
-
-            {/* ── Degree tick marks — varied weight ── */}
-            {Array.from({length:72}, (_,i) => {
-              const deg = i * 5;
-              if (deg % 45 === 0) return null;
-              const rad = (deg * Math.PI) / 180;
-              const is15 = deg % 15 === 0;
-              const r1 = is15 ? 116 : 121;
-              const op = is15 ? 0.42 : 0.16;
-              const sw = is15 ? 1.0  : 0.5;
-              const s = Math.sin(rad), c = Math.cos(rad);
-              return (
-                <line key={i}
-                  x1={r1*s} y1={-r1*c} x2={127*s} y2={-127*c}
-                  stroke={`rgba(148,196,255,${op})`}
-                  strokeWidth={sw} strokeLinecap="round"/>
-              );
-            })}
-
-            {/* ── 8 tertiary points (22.5°) — thin needles, 16-point wind rose ── */}
-            {[22.5,67.5,112.5,157.5,202.5,247.5,292.5,337.5].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-52  4,-22  0,-7  -4,-22" fill="rgba(148,196,255,0.30)"/>
-              </g>
-            ))}
-
-            {/* ── 4 intercardinal points (NE/SE/SW/NW) ── */}
-            {[45,135,225,315].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-72  11,-34  0,-8  -11,-34" fill="rgba(255,255,255,0.30)"/>
-                <polygon points="0,-72  11,-34  0,-8" fill="rgba(255,255,255,0.05)"/>
-              </g>
-            ))}
-
-            {/* ── Cardinal points S/E/W ── */}
-            {[90,180,270].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="rgba(255,255,255,0.55)"/>
-                <polygon points="0,-104  0,-8  -15,-48" fill="rgba(0,0,0,0.15)"/>
-              </g>
-            ))}
-
-            {/* ── N cardinal point — blue with crown ── */}
-            {/* Needle body */}
-            <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#3b82f6"/>
-            <polygon points="0,-104  0,-8  -15,-48" fill="rgba(0,0,0,0.22)"/>
-            {/* Crown: horizontal base bar */}
-            <line x1="-10" y1="-106" x2="10" y2="-106"
-              stroke="#3b82f6" strokeWidth="1.2" opacity="0.75" strokeLinecap="round"/>
-            {/* Central lobe */}
-            <polygon points="0,-104  2.8,-112  0,-124  -2.8,-112" fill="#3b82f6"/>
-            {/* Left petal */}
-            <polygon points="-1,-107  -8,-106  -7,-113  -1,-112" fill="#3b82f6" opacity="0.80"/>
-            {/* Right petal */}
-            <polygon points="1,-107  8,-106  7,-113  1,-112" fill="#3b82f6" opacity="0.80"/>
-            {/* Crown tip */}
-            <circle cx="0" cy="-121" r="2.2" fill="#60a5fa"/>
-
-            {/* ── Directional labels ── */}
-            {[["N",0,"rgba(148,196,255,0.95)",800],["E",90,"rgba(255,255,255,0.65)",700],
-              ["S",180,"rgba(255,255,255,0.65)",700],["W",270,"rgba(255,255,255,0.65)",700]
-            ].map(([lbl,deg,col,fw]) => {
-              const rad = (deg * Math.PI) / 180, r = 143;
-              return (
-                <text key={lbl}
-                  x={r * Math.sin(rad)} y={-r * Math.cos(rad) + 4}
-                  fill={col} fontSize="11" fontFamily="'DM Sans',sans-serif"
-                  fontWeight={fw} textAnchor="middle" letterSpacing="2">{lbl}</text>
-              );
-            })}
-
-            {/* ── Inner 8-point star ── */}
-            {[0,90,180,270].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-25  3,-11  0,-4  -3,-11" fill="rgba(148,196,255,0.50)"/>
-              </g>
-            ))}
-            {[45,135,225,315].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-16  2,-7  0,-4  -2,-7" fill="rgba(255,255,255,0.28)"/>
-              </g>
-            ))}
-
-            {/* ── Center hub ── */}
-            <circle r="13"  fill="rgba(13,27,42,0.96)" stroke="rgba(59,130,246,0.55)" strokeWidth="1.6"/>
-            <circle r="8"   fill="rgba(13,27,42,0.96)" stroke="rgba(59,130,246,0.28)" strokeWidth="0.8"/>
-            <circle r="4.5" fill="#3b82f6"/>
-            <circle r="1.8" fill="#0d1b2a"/>
-          </svg>
+          />
 
           {/* Canvas — spark + arc trail + fairy lights */}
           <canvas ref={canvasRef}
@@ -2981,7 +2871,6 @@ Respond ONLY with valid JSON:
   return(
     <>
       <style>{GLOBAL_CSS}</style>
-      <div id="app-phone">
       {splash&&<SplashScreen onDone={()=>setSplash(false)}/>}
 
       {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner}/>}
@@ -4094,7 +3983,6 @@ Respond ONLY with valid JSON:
         {/* Safe area filler — solid background, no blur needed */}
         <div style={{height:"env(safe-area-inset-bottom)",background:"#0d1b2a",position:"relative"}}/>
       </div>
-      </div>{/* #app-phone */}
     </>
   );
 }
