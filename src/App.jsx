@@ -1194,7 +1194,8 @@ function MountainRange({ view }){
 }
 
 // ── HUD Progress Bar ───────────────────────────────────────────────────────────
-function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, unreadCount, appReady }){
+function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, unreadCount, appReady,
+  editFocus, setEditFocus, focusItems, getP, focus, setFocus, curriculum }){
   const progress = weeklyTarget > 0 ? Math.min(1, hoursLogged / weeklyTarget) : 0;
   const isComplete = hoursLogged >= weeklyTarget;
   return(
@@ -1282,6 +1283,62 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
         </div>
 
       </div>
+
+      {/* ── Focus Row — divider + pills + edit button ── */}
+      <div style={{borderTop:'1px solid rgba(255,255,255,0.08)'}}>
+        <div style={{
+          padding:'7px 12px',
+          display:'flex',
+          alignItems:'center',
+          gap:8,
+          flexWrap:'wrap',
+        }}>
+          <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
+            style={{flexShrink:0,
+              background:editFocus?'rgba(59,130,246,0.22)':'rgba(255,255,255,0.10)',
+              border:`1px solid ${editFocus?'rgba(59,130,246,0.45)':'rgba(255,255,255,0.16)'}`,
+              color:editFocus?'rgba(255,255,255,1)':'rgba(255,255,255,0.70)',
+              borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:600,
+              cursor:'pointer',display:'inline-flex',alignItems:'center',
+              transition:'all 0.2s',whiteSpace:'nowrap'}}>
+            {editFocus?'Done':'Edit Focus'}
+          </button>
+          {(focusItems||[]).filter(i=>getP(i.id).percentComplete<100).map(i=>(
+            <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
+          ))}
+        </div>
+
+        {/* Expanded focus editor */}
+        <div style={{
+          maxHeight: editFocus ? 520 : 0,
+          overflow:'hidden',
+          transition:'max-height 0.38s cubic-bezier(0.4,0,0.2,1)',
+        }}>
+          <div style={{
+            borderTop:'1px solid rgba(255,255,255,0.08)',
+            padding:'10px 12px 12px',
+          }}>
+            {[["Courses","courses","course"],["Books","books","book"]].map(([label,key,type])=>(
+              <div key={key} style={{marginBottom:10}}>
+                <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:6,fontWeight:600}}>{label}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                  {(curriculum||[]).filter(i=>i.type===type&&getP(i.id).percentComplete<100).map(i=>{
+                    const on=(focus[key]||[]).includes(i.id),c=gc(i.genre);
+                    return <button key={i.id} className="btn-press"
+                      onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
+                      style={{background:on?c:"rgba(255,255,255,0.08)",border:`1px solid ${on?"transparent":"rgba(255,255,255,0.12)"}`,
+                        color:on?"#fff":T.textDim,borderRadius:20,padding:"7px 13px",fontSize:11,
+                        cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:36}}>
+                      {i.id}{i.custom?" *":""}
+                    </button>;
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       </div>
     </div>
   );
@@ -2764,85 +2821,12 @@ Respond ONLY with valid JSON:
           {toast}
         </div>}
 
-        {/* ── HUD Progress Bar ── */}
+        {/* ── HUD Progress Bar + Focus Row — unified glass panel ── */}
         <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}
-          onOpenMenu={()=>setSideOpen(true)} unreadCount={unreadCount} appReady={appReady}/>
-        {/* ── Focus Row + Focus Editor — unified glass panel below HUD ── */}
-        <div style={{
-          position:'fixed',
-          top:'calc(env(safe-area-inset-top) + 68px)',
-          left:0,right:0,
-          zIndex:24,
-          pointerEvents:'none',
-          padding:'0 16px',
-          animation:appReady?'hudReveal 0.75s ease both 0.15s':'none',
-        }}>
-          <div style={{
-            background:'rgba(8,18,38,0.72)',
-            backdropFilter:'blur(24px) saturate(180%)',
-            WebkitBackdropFilter:'blur(24px) saturate(180%)',
-            border:'1px solid rgba(255,255,255,0.14)',
-            borderTop:'1px solid rgba(255,255,255,0.18)',
-            borderRadius:14,
-            boxShadow:'0 4px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10)',
-            pointerEvents:'auto',
-            transform:'translateZ(0)',
-            overflow:'hidden',
-          }}>
-            {/* Pill row */}
-            <div style={{
-              padding:'7px 12px',
-              display:'flex',
-              alignItems:'center',
-              gap:8,
-              flexWrap:'wrap',
-            }}>
-              <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
-                style={{flexShrink:0,
-                  background:editFocus?'rgba(59,130,246,0.22)':'rgba(255,255,255,0.10)',
-                  border:`1px solid ${editFocus?'rgba(59,130,246,0.45)':'rgba(255,255,255,0.16)'}`,
-                  color:editFocus?'rgba(255,255,255,1)':'rgba(255,255,255,0.70)',
-                  borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:600,
-                  cursor:'pointer',display:'inline-flex',alignItems:'center',
-                  transition:'all 0.2s',whiteSpace:'nowrap'}}>
-                {editFocus?'Done':'Edit Focus'}
-              </button>
-              {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
-                <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
-              ))}
-            </div>
-
-            {/* Expanded focus editor — smooth reveal */}
-            <div style={{
-              maxHeight: editFocus ? 520 : 0,
-              overflow:'hidden',
-              transition:'max-height 0.38s cubic-bezier(0.4,0,0.2,1)',
-            }}>
-              <div style={{
-                borderTop:'1px solid rgba(255,255,255,0.08)',
-                padding:'10px 12px 12px',
-              }}>
-                {[["Courses","courses","course"],["Books","books","book"]].map(([label,key,type])=>(
-                  <div key={key} style={{marginBottom:10}}>
-                    <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:6,fontWeight:600}}>{label}</div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                      {CURRICULUM.filter(i=>i.type===type&&getP(i.id).percentComplete<100).map(i=>{
-                        const on=(focus[key]||[]).includes(i.id),c=gc(i.genre);
-                        return <button key={i.id} className="btn-press"
-                          onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
-                          style={{background:on?c:"rgba(255,255,255,0.08)",border:`1px solid ${on?"transparent":"rgba(255,255,255,0.12)"}`,
-                            color:on?"#fff":T.textDim,borderRadius:20,padding:"7px 13px",fontSize:11,
-                            cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:36}}>
-                          {i.id}{i.custom?" *":""}
-                        </button>;
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+          onOpenMenu={()=>setSideOpen(true)} unreadCount={unreadCount} appReady={appReady}
+          editFocus={editFocus} setEditFocus={setEditFocus}
+          focusItems={focusItems} getP={getP} focus={focus} setFocus={setFocus}
+          curriculum={CURRICULUM}/>
         {/* ── Notification banner — always on top of everything ── */}
         {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner} onAction={handleNotifAction}/>}
         <SidePanel
