@@ -735,53 +735,51 @@ const GLOBAL_CSS = `
 
 // ── Cinematic splash ──────────────────────────────────────────────────────────
 function CinematicSplash({ onAppReady, onDone }) {
-  const [bgOpacity, setBgOpacity]           = useState(1);
-  const [bgTransition, setBgTransition]     = useState("none");
-  const [titleOpacity, setTitleOpacity]     = useState(0);
+  const [veilOpacity, setVeilOpacity]         = useState(1);
+  const [veilTransition, setVeilTransition]   = useState("none");
+  const [titleOpacity, setTitleOpacity]       = useState(0);
   const [subtitleOpacity, setSubtitleOpacity] = useState(0);
-  const [titleTransDur, setTitleTransDur]   = useState("0.9s");
-  const [lineVisible, setLineVisible]       = useState(false);
-  const [lineFading, setLineFading]         = useState(false);
+  const [titleTransDur, setTitleTransDur]     = useState("0.9s");
+  const [lineVisible, setLineVisible]         = useState(false);
+  const [lineFading, setLineFading]           = useState(false);
 
   useEffect(() => {
-    // t=50ms  — mountain dawn begins: overlay 1.0 → 0.10 over 1.6s
+    // t=50ms — veil dissolves completely over 1.8s, mountain emerges from black
     const t1 = setTimeout(() => {
-      setBgTransition("opacity 1.6s cubic-bezier(0.4,0,0.2,1)");
-      setBgOpacity(0.10);
+      setVeilTransition("opacity 1.8s cubic-bezier(0.4,0,0.2,1)");
+      setVeilOpacity(0);
     }, 50);
-    // t=1700ms — title fades in
-    const t2 = setTimeout(() => setTitleOpacity(1), 1700);
-    // t=2200ms — subtitle fades in
-    const t3 = setTimeout(() => setSubtitleOpacity(1), 2200);
-    // t=2600ms — horizon line draws
-    const t4 = setTimeout(() => setLineVisible(true), 2600);
-    // t=3350ms — app elements reveal; title + line + overlay fade out
+    // t=1800ms — title fades in over the fully revealed mountain
+    const t2 = setTimeout(() => setTitleOpacity(1), 1800);
+    // t=2300ms — subtitle
+    const t3 = setTimeout(() => setSubtitleOpacity(1), 2300);
+    // t=2700ms — horizon line draws
+    const t4 = setTimeout(() => setLineVisible(true), 2700);
+    // t=3400ms — app UI reveals; title + horizon fade out (veil already gone — no jump)
     const t5 = setTimeout(() => {
       onAppReady();
       setTitleTransDur("0.55s");
       setTitleOpacity(0);
       setSubtitleOpacity(0);
       setLineFading(true);
-      setBgTransition("opacity 0.65s cubic-bezier(0.4,0,0.2,1)");
-      setBgOpacity(0);
-    }, 3350);
-    // t=4020ms — unmount
-    const t6 = setTimeout(onDone, 4020);
+    }, 3400);
+    // t=4100ms — unmount splash text layer
+    const t6 = setTimeout(onDone, 4100);
     return () => [t1,t2,t3,t4,t5,t6].forEach(clearTimeout);
   }, []);
 
   return (
     <>
-      {/* ── Dark veil — fades away to reveal the mountain ── */}
+      {/* ── Dark veil — dissolves to reveal the mountain (zIndex:0) behind it ── */}
       <div style={{
         position:"fixed", inset:0, zIndex:9997,
         background:"#0d1b2a",
-        opacity: bgOpacity,
-        transition: bgTransition,
+        opacity: veilOpacity,
+        transition: veilTransition,
         pointerEvents:"none",
       }}/>
 
-      {/* ── Title + horizon line layer ── */}
+      {/* ── Title + horizon line — over the mountain once revealed ── */}
       <div style={{
         position:"fixed", inset:0, zIndex:9998,
         pointerEvents:"none",
@@ -789,8 +787,6 @@ function CinematicSplash({ onAppReady, onDone }) {
         alignItems:"center", justifyContent:"center",
         paddingTop:"env(safe-area-inset-top)",
       }}>
-
-        {/* Title block */}
         <div style={{
           textAlign:"center",
           opacity: titleOpacity,
@@ -883,7 +879,7 @@ function NotifBanner({ notif, onDismiss, onAction }) {
       position:"fixed",
       top:`calc(env(safe-area-inset-top) + 8px)`,
       left:12,right:12,
-      zIndex:9998,
+      zIndex:99999,
       background:"linear-gradient(135deg, rgba(13,27,42,0.97) 0%, rgba(15,34,64,0.97) 100%)",
       backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
       borderRadius:16,
@@ -1183,7 +1179,7 @@ function MountainRange({ view }){
 }
 
 // ── HUD Progress Bar ───────────────────────────────────────────────────────────
-function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, editFocus, onToggleEditFocus, unreadCount, appReady }){
+function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, unreadCount, appReady }){
   const progress = weeklyTarget > 0 ? Math.min(1, hoursLogged / weeklyTarget) : 0;
   const isComplete = hoursLogged >= weeklyTarget;
   return(
@@ -1270,19 +1266,6 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
           </div>
         </div>
 
-        {/* Edit Focus pill — far right */}
-        <button onClick={onToggleEditFocus} className="btn-press"
-          style={{flexShrink:0,
-            background:editFocus?'rgba(59,130,246,0.22)':'rgba(255,255,255,0.12)',
-            backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
-            border:`1px solid ${editFocus?'rgba(59,130,246,0.50)':'rgba(255,255,255,0.22)'}`,
-            color:editFocus?'rgba(255,255,255,1)':'rgba(255,255,255,0.80)',
-            borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:600,
-            cursor:'pointer',display:'inline-flex',alignItems:'center',
-            transform:'translateZ(0)',
-            transition:'all 0.2s',whiteSpace:'nowrap'}}>
-          {editFocus?'Done':'Edit Focus'}
-        </button>
       </div>
       </div>
     </div>
@@ -1793,7 +1776,7 @@ export default function App({ onSignOut }){
   const [showSundayReview, setShowSundayReview] = useState(false);
   const [sundayForm, setSundayForm]             = useState({stars:0,note:""});
   const [sundaySubmitting, setSundaySubmitting] = useState(false);
-  const prevProgressRef = useRef({});
+  const prevProgressRef = useRef(progress);
   const [paceRatios, setPaceRatios]             = useState(()=>load(SK_RATIOS,{}));
   const [planHistory, setPlanHistory]           = useState(()=>load(SK_HISTORY,[]));
   const [planFlowScreen, setPlanFlowScreen]     = useState(null); // null|"focus"|"hours"|"loading"|"review"
@@ -1858,15 +1841,14 @@ export default function App({ onSignOut }){
 
   useEffect(()=>{
     if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
+    // Clear stale notifications on every app load — only events from this session can push new ones
+    clearNotifs();
     const todayISO=getTodayISO();
     if(isSunday()){
       const doneSunday=load(SK_SUNDAY_DONE,null);
       if(doneSunday!==todayISO&&new Date().getHours()>=18){
         push("Time for your weekly review","Tap to reflect on your week and log your progress.",{label:"Open Review",type:"sundayReview"});
       }
-    }
-    if(isMonday()&&new Date().getHours()>=7&&!(weekPlan?.weekStart===getMonday())){
-      push("Plan Your Week","Monday — ready to set this week's study plan?",{label:"Plan Now",type:"planWeek"});
     }
   },[]);
 
@@ -2739,11 +2721,15 @@ Respond ONLY with valid JSON:
       {splashVisible&&<CinematicSplash onAppReady={()=>setAppReady(true)} onDone={()=>setSplashVisible(false)}/>}
 
 
+      {/* Mountain always rendered — outside the opacity gate so the splash veil reveals it */}
+      <MountainRange view={view}/>
+
       <div style={{
         background:"transparent",
         minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,
         paddingBottom:`calc(env(safe-area-inset-bottom) + 88px)`,
         opacity: appReady ? 1 : 0,
+        transition: appReady ? 'opacity 0.65s cubic-bezier(0.4,0,0.2,1)' : 'none',
       }}>
         <div style={{height:"env(safe-area-inset-top)"}}/>
 
@@ -2759,11 +2745,50 @@ Respond ONLY with valid JSON:
           {toast}
         </div>}
 
-        <MountainRange view={view}/>
-
         {/* ── HUD Progress Bar ── */}
         <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}
-          onOpenMenu={()=>setSideOpen(true)} editFocus={editFocus} onToggleEditFocus={()=>setEditFocus(e=>!e)} unreadCount={unreadCount} appReady={appReady}/>
+          onOpenMenu={()=>setSideOpen(true)} unreadCount={unreadCount} appReady={appReady}/>
+        {/* ── Focus Row: Edit Focus button + pills, sits just below HUD bar ── */}
+        <div style={{
+          position:'fixed',
+          top:'calc(env(safe-area-inset-top) + 68px)',
+          left:0,right:0,
+          zIndex:24,
+          pointerEvents:'none',
+          padding:'0 16px',
+          animation:appReady?'cinemaHudSlide 0.65s cubic-bezier(0.2,0,0,1) both 0.08s':'none',
+        }}>
+          <div style={{
+            background:'rgba(8,18,38,0.70)',
+            backdropFilter:'blur(22px) saturate(170%)',
+            WebkitBackdropFilter:'blur(22px) saturate(170%)',
+            border:'1px solid rgba(255,255,255,0.14)',
+            borderRadius:12,
+            boxShadow:'0 4px 22px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.08)',
+            pointerEvents:'auto',
+            padding:'7px 12px',
+            display:'flex',
+            alignItems:'center',
+            gap:8,
+            flexWrap:'wrap',
+            transform:'translateZ(0)',
+          }}>
+            <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
+              style={{flexShrink:0,
+                background:editFocus?'rgba(59,130,246,0.22)':'rgba(255,255,255,0.12)',
+                backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
+                border:`1px solid ${editFocus?'rgba(59,130,246,0.50)':'rgba(255,255,255,0.22)'}`,
+                color:editFocus?'rgba(255,255,255,1)':'rgba(255,255,255,0.80)',
+                borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:600,
+                cursor:'pointer',display:'inline-flex',alignItems:'center',
+                transition:'all 0.2s',whiteSpace:'nowrap'}}>
+              {editFocus?'Done':'Edit Focus'}
+            </button>
+            {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
+              <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
+            ))}
+          </div>
+        </div>
         {/* ── Notification banner — always on top of everything ── */}
         {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner} onAction={handleNotifAction}/>}
         <SidePanel
@@ -3033,16 +3058,7 @@ Respond ONLY with valid JSON:
         {/* ── Mountain spacer: pushes content below mountain fade ── */}
         <div style={{height:280}}/>
 
-        {/* ── Focus pills: below mountain fade ── */}
-        <div style={{padding:"0 16px 12px"}}>
-          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-            {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
-              <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
-            ))}
-          </div>
-        </div>
-
-        {editFocus&&<div style={{
+{editFocus&&<div style={{
           background:"rgba(13,27,42,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
           padding:"14px 16px",borderBottom:"1px solid rgba(255,255,255,0.08)",
           transform:"translateZ(0)",animation:"fadeUp 0.2s cubic-bezier(0.4,0,0.2,1) both"}}>
