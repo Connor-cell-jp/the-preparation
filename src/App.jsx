@@ -44,29 +44,30 @@ const targetPctAfterSession = (item, p, sessionRealH, s) => {
   const newContent = Math.min(contentDone + contentGain, item.hours || 1);
   return Math.floor((newContent / (item.hours || 1)) * 100);
 };
-// Front-load: Day 1 up to 1.5x avg, Day 2 up to 1.25x avg, rest share equally. All days capped at getDailyMax.
+// Even distribution: each day gets totalH/n rounded to nearest 0.5h.
+// Surplus/deficit from rounding is spread across one or two days (max +0.5h above avg per day).
+const snap50 = h => Math.round(h * 2) / 2;
 const distributeDays = (totalH, dayNames, weeklyTarget) => {
   const n = dayNames.length;
   if (n === 0) return [];
   const dailyMax = getDailyMax(weeklyTarget);
   const avg = totalH / n;
-  const budgets = [];
-  let allocated = 0;
-  for (let i = 0; i < n; i++) {
-    let h;
-    if (i === 0) h = Math.min(avg * 1.5, dailyMax);
-    else if (i === 1) h = Math.min(avg * 1.25, dailyMax);
-    else {
-      const remaining = totalH - allocated;
-      const daysLeft = n - i;
-      h = Math.min(remaining / daysLeft, dailyMax);
-    }
-    h = snap25(Math.max(0, Math.min(h, dailyMax, totalH - allocated)));
-    budgets.push(h);
-    allocated += h;
-    if (allocated >= totalH) {
-      while (budgets.length < n) budgets.push(0);
-      break;
+  const base = Math.min(snap50(avg), dailyMax);
+  const budgets = Array(n).fill(base);
+  let remainder = parseFloat((totalH - base * n).toFixed(2));
+  for (let i = 0; i < n && Math.abs(remainder) >= 0.24; i++) {
+    if (remainder > 0) {
+      const candidate = budgets[i] + 0.5;
+      if (candidate <= dailyMax && candidate <= avg + 0.5) {
+        budgets[i] = candidate;
+        remainder = parseFloat((remainder - 0.5).toFixed(2));
+      }
+    } else {
+      const candidate = budgets[i] - 0.5;
+      if (candidate >= 0) {
+        budgets[i] = candidate;
+        remainder = parseFloat((remainder + 0.5).toFixed(2));
+      }
     }
   }
   return budgets;
@@ -95,7 +96,7 @@ const scaleDayItems = (items, dayBudget, getCurrItem, getP, s) => {
   return scaled;
 };
 
-// ── Cognitive demand ranking (lower = schedule earlier / front-load more) ─────
+// ── Cognitive demand ranking (lower = scheduled first within each day) ────────
 const COURSE_DEMAND_MAP = {
   Physics:0, Biology:1, Chemistry:2, Mathematics:3,
   Meteorology:2, Science:2, Geology:3, Astronomy:4,
@@ -665,20 +666,21 @@ const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin:0; padding:0; background:#0d1b2a; overscroll-behavior-y:none; min-height:100dvh; }
   body { -webkit-overflow-scrolling: touch; }
-  @keyframes splashBloom {
-    0%   { opacity:0; transform:scale(0.6); }
-    60%  { opacity:1; transform:scale(1.05); }
-    100% { opacity:1; transform:scale(1); }
+  @keyframes cinemaHudSlide {
+    from { transform: translateY(-110%); opacity: 0; }
+    to   { transform: translateY(0);     opacity: 1; }
   }
-  @keyframes splashPulse { 0% { opacity:0.6; } 100% { opacity:1; } }
-  @keyframes splashOut { to { opacity:0; } }
-  @keyframes compassSpin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
+  @keyframes cinemaTabFade {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
-  @keyframes compassShrink {
-    from { transform: scale(1.786); }
-    to   { transform: scale(1); }
+  @keyframes cinemaContentFade {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes horizonDraw {
+    from { transform: scaleX(0); opacity: 0; }
+    to   { transform: scaleX(1); opacity: 1; }
   }
   @keyframes fadeUp {
     from { opacity:0; transform:translateY(8px); }
@@ -731,307 +733,101 @@ const GLOBAL_CSS = `
   * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 `;
 
-// ── Splash ────────────────────────────────────────────────────────────────────
-function SplashScreen({ onDone }) {
-  const [textVisible,    setTextVisible]    = useState(false);
-  const [compassVisible, setCompassVisible] = useState(false);
-  const [compassSpin,    setCompassSpin]    = useState(false);
-  const [exiting,        setExiting]        = useState(false);
-  const canvasRef    = useRef(null);
-  const rafRef       = useRef(null);
-  const rotStartRef  = useRef(null);
+// ── Cinematic splash ──────────────────────────────────────────────────────────
+function CinematicSplash({ onAppReady, onDone }) {
+  const [bgOpacity, setBgOpacity]           = useState(1);
+  const [bgTransition, setBgTransition]     = useState("none");
+  const [titleOpacity, setTitleOpacity]     = useState(0);
+  const [subtitleOpacity, setSubtitleOpacity] = useState(0);
+  const [titleTransDur, setTitleTransDur]   = useState("0.9s");
+  const [lineVisible, setLineVisible]       = useState(false);
+  const [lineFading, setLineFading]         = useState(false);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setTextVisible(true),    50);
-    const t2 = setTimeout(() => setCompassVisible(true), 300);
-    const t3 = setTimeout(() => setCompassSpin(true),    650);
-    const t4 = setTimeout(() => setExiting(true),        3150);
-    const t5 = setTimeout(() => onDone(),                3620);
-    return () => [t1,t2,t3,t4,t5].forEach(clearTimeout);
+    // t=50ms  — mountain dawn begins: overlay 1.0 → 0.10 over 1.6s
+    const t1 = setTimeout(() => {
+      setBgTransition("opacity 1.6s cubic-bezier(0.4,0,0.2,1)");
+      setBgOpacity(0.10);
+    }, 50);
+    // t=1700ms — title fades in
+    const t2 = setTimeout(() => setTitleOpacity(1), 1700);
+    // t=2200ms — subtitle fades in
+    const t3 = setTimeout(() => setSubtitleOpacity(1), 2200);
+    // t=2600ms — horizon line draws
+    const t4 = setTimeout(() => setLineVisible(true), 2600);
+    // t=3350ms — app elements reveal; title + line + overlay fade out
+    const t5 = setTimeout(() => {
+      onAppReady();
+      setTitleTransDur("0.55s");
+      setTitleOpacity(0);
+      setSubtitleOpacity(0);
+      setLineFading(true);
+      setBgTransition("opacity 0.65s cubic-bezier(0.4,0,0.2,1)");
+      setBgOpacity(0);
+    }, 3350);
+    // t=4020ms — unmount
+    const t6 = setTimeout(onDone, 4020);
+    return () => [t1,t2,t3,t4,t5,t6].forEach(clearTimeout);
   }, []);
 
-  // Canvas spark + arc trail + fairy lights
-  useEffect(() => {
-    if (!compassSpin) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx  = canvas.getContext("2d");
-    const dpr  = window.devicePixelRatio || 1;
-    const SIZE = 280;
-    canvas.width  = SIZE * dpr;
-    canvas.height = SIZE * dpr;
-    canvas.style.width  = SIZE + "px";
-    canvas.style.height = SIZE + "px";
-    ctx.scale(dpr, dpr);
-
-    const cx = SIZE / 2, cy = SIZE / 2;
-    const RING_R   = 130;
-    const DURATION = 2500;
-
-    // Sine ease-in-out: smooth start, peak at midpoint, smooth stop
-    const speedRamp = (t) => (1 - Math.cos(Math.PI * Math.max(0, Math.min(1, t)))) / 2;
-    const speedNow  = (t) => (Math.PI / 2) * Math.sin(Math.PI * Math.max(0, Math.min(1, t)));
-    const SPEED_PEAK = Math.PI / 2;
-
-    const count = 8 + Math.floor(Math.random() * 5);
-    const particles = Array.from({ length: count }, (_, i) => ({
-      phase:        (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.7,
-      radiusOffset: (Math.random() - 0.5) * 22,
-      orbitSpeed:   0.72 + Math.random() * 0.56,
-      size:         3 + Math.random() * 1.2,
-      baseOpacity:  0.55 + Math.random() * 0.45,
-      driftPhase:   Math.random() * Math.PI * 2,
-      driftSpeed:   700 + Math.random() * 500,
-    }));
-
-    const draw = (ts) => {
-      if (!rotStartRef.current) rotStartRef.current = ts;
-      const elapsed  = Math.min(ts - rotStartRef.current, DURATION);
-      ctx.clearRect(0, 0, SIZE, SIZE);
-
-      const progress = elapsed / DURATION;
-      const eased    = speedRamp(progress);
-      const angle    = eased * 2 * Math.PI - Math.PI / 2;
-      const normSpd  = Math.min(speedNow(progress) / SPEED_PEAK, 1);
-
-      const pFadeIn  = Math.min(elapsed / 450, 1);
-      const pFadeOut = progress > 0.82 ? Math.max(0, 1 - (progress - 0.82) / 0.18) : 1;
-      const pEnv     = pFadeIn * pFadeOut;
-
-      // ── Fairy lights ──
-      for (const p of particles) {
-        const pp     = Math.min(progress * p.orbitSpeed, 1);
-        const pAngle = p.phase + speedRamp(pp) * 2 * Math.PI;
-        const pR     = RING_R + p.radiusOffset
-                       + Math.sin(elapsed / p.driftSpeed + p.driftPhase) * 5;
-        const px = cx + pR * Math.cos(pAngle);
-        const py = cy + pR * Math.sin(pAngle);
-        const alpha = p.baseOpacity * pEnv;
-        if (alpha < 0.01) continue;
-        const glowR = p.size * 3.5;
-        const pg = ctx.createRadialGradient(px, py, 0, px, py, glowR);
-        pg.addColorStop(0,    `rgba(255,255,255,${alpha.toFixed(3)})`);
-        pg.addColorStop(0.38, `rgba(255,255,255,${(alpha * 0.28).toFixed(3)})`);
-        pg.addColorStop(1,    "rgba(255,255,255,0)");
-        ctx.beginPath();
-        ctx.arc(px, py, glowR, 0, Math.PI * 2);
-        ctx.fillStyle = pg;
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(px, py, p.size * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(3)})`;
-        ctx.fill();
-      }
-
-      // ── Arc trail ──
-      const TRAIL   = Math.PI / 2;
-      const SEG     = 64;
-      const arcPeak = 0.38 + 0.27 * normSpd;
-      for (let i = 0; i < SEG; i++) {
-        const t0 = i / SEG;
-        const t1 = (i + 1) / SEG;
-        ctx.beginPath();
-        ctx.arc(cx, cy, RING_R,
-          angle - TRAIL + t0 * TRAIL,
-          angle - TRAIL + t1 * TRAIL);
-        ctx.strokeStyle = `rgba(59,130,246,${(t0 * arcPeak).toFixed(3)})`;
-        ctx.lineWidth = 2.5;
-        ctx.lineCap   = "butt";
-        ctx.stroke();
-      }
-
-      // ── Spark ──
-      const sx = cx + RING_R * Math.cos(angle);
-      const sy = cy + RING_R * Math.sin(angle);
-      const grd = ctx.createRadialGradient(sx, sy, 0, sx, sy, 22);
-      grd.addColorStop(0,    "rgba(255,255,255,0.90)");
-      grd.addColorStop(0.22, "rgba(255,255,255,0.55)");
-      grd.addColorStop(0.50, "rgba(200,225,255,0.20)");
-      grd.addColorStop(1,    "rgba(255,255,255,0)");
-      ctx.beginPath();
-      ctx.arc(sx, sy, 22, 0, Math.PI * 2);
-      ctx.fillStyle = grd;
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(sx, sy, 4, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,255,255,1)";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(210,235,255,1)";
-      ctx.fill();
-
-      if (elapsed < DURATION) rafRef.current = requestAnimationFrame(draw);
-    };
-
-    rafRef.current = requestAnimationFrame(draw);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [compassSpin]);
-
   return (
-    <div style={{
-      position:"fixed", inset:0, zIndex:9999,
-      background:"linear-gradient(160deg, #0d1b2a 0%, #0f2240 55%, #0d1b2a 100%)",
-      pointerEvents:"none",
-      display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
-      paddingTop:"calc(env(safe-area-inset-top) + 16px)",
-      paddingBottom:"calc(env(safe-area-inset-bottom) + 16px)",
-      opacity:  exiting ? 0 : 1,
-      transition: exiting ? "opacity 0.47s cubic-bezier(0.4,0,0.2,1)" : "none",
-    }}>
-
-      {/* ── Title block ── */}
+    <>
+      {/* ── Dark veil — fades away to reveal the mountain ── */}
       <div style={{
-        textAlign:"center",
-        opacity:    textVisible ? 1 : 0,
-        transform:  `translateY(${textVisible ? 0 : 14}px)`,
-        transition: "opacity 0.65s cubic-bezier(0.4,0,0.2,1), transform 0.65s cubic-bezier(0.4,0,0.2,1)",
-        marginBottom: 34, flexShrink: 0, zIndex: 2,
+        position:"fixed", inset:0, zIndex:9997,
+        background:"#0d1b2a",
+        opacity: bgOpacity,
+        transition: bgTransition,
+        pointerEvents:"none",
+      }}/>
+
+      {/* ── Title + horizon line layer ── */}
+      <div style={{
+        position:"fixed", inset:0, zIndex:9998,
+        pointerEvents:"none",
+        display:"flex", flexDirection:"column",
+        alignItems:"center", justifyContent:"center",
+        paddingTop:"env(safe-area-inset-top)",
       }}>
+
+        {/* Title block */}
         <div style={{
-          fontSize: 26, fontWeight: 900, color: "#ffffff",
-          fontFamily: T.fontUI, letterSpacing: 5, lineHeight: 1,
-          textTransform: "uppercase",
+          textAlign:"center",
+          opacity: titleOpacity,
+          transition: `opacity ${titleTransDur} cubic-bezier(0.4,0,0.2,1)`,
         }}>
-          The Preparation
+          <div style={{
+            fontSize:30, fontWeight:900, color:"#ffffff",
+            fontFamily:T.fontUI, letterSpacing:7, lineHeight:1,
+            textTransform:"uppercase",
+            textShadow:"0 2px 32px rgba(0,0,0,0.9), 0 0 80px rgba(59,130,246,0.18)",
+          }}>The Preparation</div>
+          <div style={{
+            fontSize:11, color:"rgba(255,255,255,0.50)",
+            fontFamily:T.fontUI, marginTop:14, fontWeight:400, letterSpacing:5,
+            textTransform:"uppercase",
+            opacity: subtitleOpacity,
+            transition:`opacity 0.7s cubic-bezier(0.4,0,0.2,1)`,
+          }}>Learning Tracker</div>
         </div>
-        <div style={{
-          fontSize: 11.5, color: T.textMid,
-          fontFamily: T.fontUI, marginTop: 11, fontWeight: 400, letterSpacing: 3,
-          textTransform: "uppercase",
-        }}>
-          Learning Tracker
-        </div>
+
+        {/* Horizon line — draws left to right at mountain base */}
+        {lineVisible && (
+          <div style={{
+            position:"absolute",
+            top:"58%",
+            left:0, right:0,
+            height:1,
+            transformOrigin:"left center",
+            background:"linear-gradient(90deg, transparent 0%, #3b82f6 15%, #93c5fd 50%, #3b82f6 85%, transparent 100%)",
+            boxShadow:"0 0 10px rgba(59,130,246,0.9), 0 0 30px rgba(59,130,246,0.45)",
+            animation:"horizonDraw 0.7s cubic-bezier(0.2,0,0,1) both",
+            opacity: lineFading ? 0 : undefined,
+            transition: lineFading ? "opacity 0.5s cubic-bezier(0.4,0,1,1)" : "none",
+          }}/>
+        )}
       </div>
-
-      {/* ── Compass rose + canvas ── */}
-      <div style={{width:280, height:280, position:"relative", flexShrink:0}}>
-        <div style={{
-          width:280, height:280, position:"relative",
-          opacity:         compassVisible ? 1 : 0,
-          transition:      "opacity 0.45s cubic-bezier(0.4,0,0.2,1)",
-          transformOrigin: "center center",
-          transform:       "scale(1.786)",
-          animation:       compassSpin ? "compassShrink 2500ms cubic-bezier(0.25,0,0.1,1) forwards" : "none",
-        }}>
-          {/* Rotating vintage compass rose SVG */}
-          <svg viewBox="-140 -140 280 280" width="280" height="280"
-            style={{
-              position:"absolute", top:0, left:0,
-              transformOrigin:"center center",
-              animation: compassSpin ? "compassSpin 2500ms cubic-bezier(0.37,0,0.63,1) forwards" : "none",
-              overflow:"visible",
-            }}
-          >
-            {/* ── Outer bezel — double ring ── */}
-            <circle r="130" fill="none" stroke="rgba(59,130,246,0.18)" strokeWidth="0.8"/>
-            <circle r="127" fill="none" stroke="rgba(59,130,246,0.35)" strokeWidth="1.4"/>
-            <circle r="122" fill="none" stroke="rgba(59,130,246,0.16)" strokeWidth="0.5"/>
-
-            {/* ── Graduated inner rings ── */}
-            <circle r="110" fill="none" stroke="rgba(59,130,246,0.20)" strokeWidth="0.8"/>
-            <circle r="88"  fill="none" stroke="rgba(59,130,246,0.18)" strokeWidth="0.6"/>
-            <circle r="66"  fill="none" stroke="rgba(59,130,246,0.14)" strokeWidth="0.5"/>
-            <circle r="46"  fill="none" stroke="rgba(59,130,246,0.18)" strokeWidth="0.6"/>
-            <circle r="28"  fill="none" stroke="rgba(59,130,246,0.12)" strokeWidth="0.4"/>
-            <circle r="15"  fill="none" stroke="rgba(59,130,246,0.16)" strokeWidth="0.5"/>
-
-            {/* ── Degree tick marks — varied weight ── */}
-            {Array.from({length:72}, (_,i) => {
-              const deg = i * 5;
-              if (deg % 45 === 0) return null;
-              const rad = (deg * Math.PI) / 180;
-              const is15 = deg % 15 === 0;
-              const r1 = is15 ? 116 : 121;
-              const op = is15 ? 0.52 : 0.22;
-              const sw = is15 ? 1.0  : 0.5;
-              const s = Math.sin(rad), c = Math.cos(rad);
-              return (
-                <line key={i}
-                  x1={r1*s} y1={-r1*c} x2={127*s} y2={-127*c}
-                  stroke={`rgba(59,130,246,${op})`}
-                  strokeWidth={sw} strokeLinecap="round"/>
-              );
-            })}
-
-            {/* ── 8 tertiary points (22.5°) — thin needles, 16-point wind rose ── */}
-            {[22.5,67.5,112.5,157.5,202.5,247.5,292.5,337.5].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-52  4,-22  0,-7  -4,-22" fill="rgba(59,130,246,0.45)"/>
-              </g>
-            ))}
-
-            {/* ── 4 intercardinal points (NE/SE/SW/NW) ── */}
-            {[45,135,225,315].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-72  11,-34  0,-8  -11,-34" fill="rgba(148,196,255,0.50)"/>
-                <polygon points="0,-72  11,-34  0,-8" fill="rgba(0,20,60,0.12)"/>
-              </g>
-            ))}
-
-            {/* ── Cardinal points S/E/W ── */}
-            {[90,180,270].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="rgba(255,255,255,0.75)"/>
-                <polygon points="0,-104  0,-8  -15,-48" fill="rgba(0,10,40,0.20)"/>
-              </g>
-            ))}
-
-            {/* ── N cardinal point — theme blue with fleur-de-lis crown ── */}
-            {/* Needle body */}
-            <polygon points="0,-104  15,-48  0,-8  -15,-48" fill="#60a5fa"/>
-            <polygon points="0,-104  0,-8  -15,-48" fill="rgba(0,10,40,0.28)"/>
-            {/* Fleur-de-lis: horizontal base bar */}
-            <line x1="-10" y1="-106" x2="10" y2="-106"
-              stroke="#60a5fa" strokeWidth="1.2" opacity="0.75" strokeLinecap="round"/>
-            {/* Central lobe — tall narrow diamond */}
-            <polygon points="0,-104  2.8,-112  0,-124  -2.8,-112" fill="#60a5fa"/>
-            {/* Left petal */}
-            <polygon points="-1,-107  -8,-106  -7,-113  -1,-112" fill="#60a5fa" opacity="0.80"/>
-            {/* Right petal */}
-            <polygon points="1,-107  8,-106  7,-113  1,-112" fill="#60a5fa" opacity="0.80"/>
-            {/* Crown tip jewel */}
-            <circle cx="0" cy="-121" r="2.2" fill="#60a5fa"/>
-
-            {/* ── Directional labels ── */}
-            {[["N",0,"#ffffff",800],["E",90,"rgba(255,255,255,0.65)",700],
-              ["S",180,"rgba(255,255,255,0.65)",700],["W",270,"rgba(255,255,255,0.65)",700]
-            ].map(([lbl,deg,col,fw]) => {
-              const rad = (deg * Math.PI) / 180, r = 143;
-              return (
-                <text key={lbl}
-                  x={r * Math.sin(rad)} y={-r * Math.cos(rad) + 4}
-                  fill={col} fontSize="11" fontFamily="'DM Sans',sans-serif"
-                  fontWeight={fw} textAnchor="middle" letterSpacing="2">{lbl}</text>
-              );
-            })}
-
-            {/* ── Inner 8-point star ── */}
-            {[0,90,180,270].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-25  3,-11  0,-4  -3,-11" fill="rgba(96,165,250,0.65)" opacity="0.9"/>
-              </g>
-            ))}
-            {[45,135,225,315].map(deg => (
-              <g key={deg} transform={`rotate(${deg})`}>
-                <polygon points="0,-16  2,-7  0,-4  -2,-7" fill="rgba(255,255,255,0.30)" opacity="0.9"/>
-              </g>
-            ))}
-
-            {/* ── Center hub ── */}
-            <circle r="13"  fill="rgba(13,27,42,0.96)" stroke="rgba(59,130,246,0.65)" strokeWidth="1.6"/>
-            <circle r="8"   fill="rgba(13,27,42,0.96)" stroke="rgba(59,130,246,0.35)" strokeWidth="0.8"/>
-            <circle r="4.5" fill="#3b82f6"/>
-            <circle r="1.8" fill="#0d1b2a"/>
-          </svg>
-
-          {/* Canvas — spark + arc trail + fairy lights */}
-          <canvas ref={canvasRef}
-            style={{position:"absolute",top:0,left:0,width:280,height:280,pointerEvents:"none"}}/>
-        </div>
-      </div>
-
-    </div>
+    </>
   );
 }
 
@@ -1073,38 +869,49 @@ function useNotifications() {
 }
 
 // ── Apple-style drop-down notification banner ──────────────────────────────────
-function NotifBanner({ notif, onDismiss }) {
+function NotifBanner({ notif, onDismiss, onAction }) {
   const [hiding, setHiding] = useState(false);
   useEffect(() => {
-    const t1 = setTimeout(() => setHiding(true), 3000);
-    const t2 = setTimeout(onDismiss, 3480);
+    const t1 = setTimeout(() => setHiding(true), 3400);
+    const t2 = setTimeout(onDismiss, 3800);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
-  const doClose = () => { setHiding(true); setTimeout(onDismiss, 480); };
+  }, [notif.id]);
+  const doClose = () => { setHiding(true); setTimeout(onDismiss, 420); };
+  const doAction = () => { onAction && onAction(notif); doClose(); };
   return (
     <div style={{
       position:"fixed",
       top:`calc(env(safe-area-inset-top) + 8px)`,
       left:12,right:12,
-      zIndex:800,
-      background:"linear-gradient(135deg, rgba(13,27,42,0.95) 0%, rgba(15,34,64,0.95) 100%)",
+      zIndex:9998,
+      background:"linear-gradient(135deg, rgba(13,27,42,0.97) 0%, rgba(15,34,64,0.97) 100%)",
       backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
       borderRadius:16,
-      border:"1px solid rgba(255,255,255,0.08)",
+      border:"1px solid rgba(255,255,255,0.10)",
       borderLeft:"3px solid #3b82f6",
-      boxShadow:"0 8px 32px rgba(0,0,0,0.5)",
+      boxShadow:"0 8px 40px rgba(0,0,0,0.65), 0 0 0 1px rgba(59,130,246,0.15)",
       padding:"12px 14px",
       display:"flex",alignItems:"center",gap:12,
       pointerEvents:"all",
       transform:"translateZ(0)",willChange:"transform",
-      animation:hiding?"bannerOut 0.4s cubic-bezier(0.4,0,1,1) forwards":"bannerIn 0.35s cubic-bezier(0.2,0,0,1) both",
+      animation:hiding?"bannerOut 0.42s cubic-bezier(0.4,0,1,1) forwards":"bannerIn 0.35s cubic-bezier(0.2,0,0,1) both",
     }}>
+      <div style={{width:8,height:8,borderRadius:"50%",background:"#3b82f6",flexShrink:0,
+        boxShadow:"0 0 8px rgba(59,130,246,0.8)"}}/>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:13,fontWeight:700,color:"#ffffff",letterSpacing:-0.2,lineHeight:1.3}}>{notif.title}</div>
         {notif.body&&<div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2,lineHeight:1.4,
           overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",
           WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{notif.body}</div>}
       </div>
+      {notif.action?.label&&(
+        <button onClick={doAction} className="btn-press"
+          style={{background:"rgba(59,130,246,0.18)",border:"1px solid rgba(59,130,246,0.35)",
+            color:"#60a5fa",fontSize:11,fontWeight:700,cursor:"pointer",
+            padding:"5px 11px",borderRadius:99,flexShrink:0,letterSpacing:0.3,whiteSpace:"nowrap"}}>
+          {notif.action.label}
+        </button>
+      )}
       <button onClick={doClose} className="btn-press"
         style={{background:"none",border:"none",color:"rgba(255,255,255,0.35)",fontSize:16,cursor:"pointer",
           padding:4,flexShrink:0,minWidth:32,minHeight:32,
@@ -1376,19 +1183,9 @@ function MountainRange({ view }){
 }
 
 // ── HUD Progress Bar ───────────────────────────────────────────────────────────
-function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, editFocus, onToggleEditFocus, unreadCount, currentBanner, dismissBanner, onBannerAction }){
+function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, editFocus, onToggleEditFocus, unreadCount, appReady }){
   const progress = weeklyTarget > 0 ? Math.min(1, hoursLogged / weeklyTarget) : 0;
   const isComplete = hoursLogged >= weeklyTarget;
-  const [bannerHiding, setBannerHiding] = useState(false);
-  const bannerRef = useRef(null);
-  useEffect(()=>{
-    if(!currentBanner){ setBannerHiding(false); return; }
-    setBannerHiding(false);
-    const t1=setTimeout(()=>setBannerHiding(true), 3000);
-    const t2=setTimeout(()=>dismissBanner(), 3400);
-    return()=>{ clearTimeout(t1); clearTimeout(t2); };
-  },[currentBanner]);
-  const doCloseBanner=()=>{ setBannerHiding(true); setTimeout(()=>dismissBanner(),400); };
   return(
     <div style={{
       position:'fixed',
@@ -1396,14 +1193,15 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
       left:0,right:0,
       zIndex:25,pointerEvents:'none',
       padding:'8px 16px',
+      animation: appReady ? 'cinemaHudSlide 0.65s cubic-bezier(0.2,0,0,1) both' : 'none',
     }}>
       <div style={{
-        background:'rgba(8,18,38,0.58)',
+        background:'rgba(8,18,38,0.72)',
         backdropFilter:'blur(24px) saturate(180%)',
         WebkitBackdropFilter:'blur(24px) saturate(180%)',
-        border:'1px solid rgba(255,255,255,0.13)',
+        border:'1px solid rgba(255,255,255,0.16)',
         borderRadius:14,
-        boxShadow:'0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)',
+        boxShadow:'0 4px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10)',
         pointerEvents:'auto',
         transform:'translateZ(0)',
         overflow:'hidden',
@@ -1413,12 +1211,12 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
         {/* Hamburger button — far left */}
         <button onClick={onOpenMenu} className="btn-press"
           style={{position:'relative',flexShrink:0,
-            background:'transparent',border:'none',cursor:'pointer',
+            background:'rgba(255,255,255,0.10)',border:'1px solid rgba(255,255,255,0.14)',cursor:'pointer',
             display:'flex',flexDirection:'column',gap:5,
             width:36,height:36,justifyContent:'center',alignItems:'center',
-            borderRadius:8,padding:0}}>
+            borderRadius:9,padding:0}}>
           {[0,1,2].map(i=>(
-            <div key={i} style={{width:20,height:2,background:'rgba(255,255,255,0.80)',borderRadius:99}}/>
+            <div key={i} style={{width:18,height:2,background:'rgba(255,255,255,1)',borderRadius:99}}/>
           ))}
           {unreadCount>0&&<div style={{position:'absolute',top:2,right:2,
             background:T.blue,color:'#fff',borderRadius:'50%',
@@ -1475,47 +1273,17 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
         {/* Edit Focus pill — far right */}
         <button onClick={onToggleEditFocus} className="btn-press"
           style={{flexShrink:0,
-            background:'rgba(255,255,255,0.07)',
+            background:editFocus?'rgba(59,130,246,0.22)':'rgba(255,255,255,0.12)',
             backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
-            border:`1px solid ${editFocus?'rgba(255,255,255,0.22)':'rgba(255,255,255,0.10)'}`,
-            color:editFocus?'rgba(255,255,255,0.85)':'rgba(255,255,255,0.45)',
-            borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:500,
+            border:`1px solid ${editFocus?'rgba(59,130,246,0.50)':'rgba(255,255,255,0.22)'}`,
+            color:editFocus?'rgba(255,255,255,1)':'rgba(255,255,255,0.80)',
+            borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:600,
             cursor:'pointer',display:'inline-flex',alignItems:'center',
             transform:'translateZ(0)',
             transition:'all 0.2s',whiteSpace:'nowrap'}}>
           {editFocus?'Done':'Edit Focus'}
         </button>
       </div>
-      {/* ── Notification bubble expansion ── */}
-      {currentBanner&&<div
-        onClick={()=>{ onBannerAction&&onBannerAction(currentBanner); doCloseBanner(); }}
-        style={{
-          borderTop:'1px solid rgba(255,255,255,0.07)',
-          padding:'10px 14px 12px',
-          display:'flex',alignItems:'center',gap:12,
-          cursor:'pointer',
-          animation:bannerHiding
-            ?'notifCollapse 0.35s cubic-bezier(0.4,0,1,1) forwards'
-            :'notifExpand 0.32s cubic-bezier(0.2,0,0,1) both',
-        }}>
-        <div style={{width:6,height:6,borderRadius:'50%',background:T.blue,flexShrink:0,
-          boxShadow:`0 0 8px ${T.blue}`}}/>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:13,fontWeight:700,color:'#fff',letterSpacing:-0.2,lineHeight:1.3}}>
-            {currentBanner.title}
-          </div>
-          {currentBanner.body&&<div style={{fontSize:11,color:'rgba(255,255,255,0.55)',marginTop:2,lineHeight:1.4,
-            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-            {currentBanner.body}
-          </div>}
-        </div>
-        {currentBanner.action?.label&&<div style={{fontSize:11,fontWeight:700,color:T.blue,flexShrink:0,letterSpacing:0.3}}>
-          {currentBanner.action.label}
-        </div>}
-        <button onClick={e=>{e.stopPropagation();doCloseBanner();}} className="btn-press"
-          style={{background:'none',border:'none',color:'rgba(255,255,255,0.3)',fontSize:14,
-            cursor:'pointer',padding:4,flexShrink:0,lineHeight:1}}>✕</button>
-      </div>}
       </div>
     </div>
   );
@@ -1653,25 +1421,6 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
                     style={{...inputSt,resize:"none",height:52,lineHeight:1.5,fontSize:13,padding:"8px 10px"}}/>
                 </div>
               ))}
-              <div style={{marginBottom:12}}>
-                <label style={{fontSize:10,color:T.textDim,display:"block",marginBottom:8,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Study Style</label>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-                  {[["morning","Morning"],["evening","Evening"],["flexible","Flexible"]].map(([v,l])=>{
-                    const on=(structuredProfile.studyStyle?.timeOfDay||"flexible")===v;
-                    return <button key={v} onClick={()=>setStructuredProfile(sp=>({...sp,studyStyle:{...sp.studyStyle,timeOfDay:v}}))} className="btn-press"
-                      style={{background:on?"linear-gradient(135deg,#3b82f6,#2563eb)":"rgba(255,255,255,0.08)",border:`1px solid ${on?"transparent":"rgba(255,255,255,0.12)"}`,
-                        color:on?"#fff":T.textDim,borderRadius:10,padding:"7px 12px",fontSize:11,cursor:"pointer",fontWeight:on?700:400,minHeight:36}}>{l}</button>;
-                  })}
-                </div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {[["short","Short Sessions"],["mixed","Mixed"],["long","Long Sessions"]].map(([v,l])=>{
-                    const on=(structuredProfile.studyStyle?.sessionLength||"mixed")===v;
-                    return <button key={v} onClick={()=>setStructuredProfile(sp=>({...sp,studyStyle:{...sp.studyStyle,sessionLength:v}}))} className="btn-press"
-                      style={{background:on?"linear-gradient(135deg,#3b82f6,#2563eb)":"rgba(255,255,255,0.08)",border:`1px solid ${on?"transparent":"rgba(255,255,255,0.12)"}`,
-                        color:on?"#fff":T.textDim,borderRadius:10,padding:"7px 12px",fontSize:11,cursor:"pointer",fontWeight:on?700:400,minHeight:36}}>{l}</button>;
-                  })}
-                </div>
-              </div>
             </Card>
             {(structuredProfile.aiInsights?.length>0)&&<Card noBlur style={{padding:"13px 14px",marginBottom:6,borderLeft:`3px solid ${T.pink}`}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
@@ -1948,13 +1697,14 @@ export default function App({ onSignOut }){
   // 26–30h: 2 courses, 2 paired books, 2 free books → max 4 non-passage, passage books daily
   // 31–35h: 3 courses, 3 paired books, 1–2 free     → max 5 non-passage, passage books daily
   // 36–45h: 3 courses, 3 paired books, 2 free books → max 5 non-passage, passage books daily
-  // At every tier: most demanding course first in the day and front-loaded in the week. Below 15h: 1 course only.
+  // At every tier: most demanding course first in the day, hours distributed evenly across all days. Below 15h: 1 course only.
   // Passage books: 30 min/day every active day, exempt from all caps, never paired with a course.
   const MAX_COURSES = WEEKLY_TARGET >= 31 ? 3 : WEEKLY_TARGET >= 16 ? 2 : 1;
   const MAX_BOOKS   = WEEKLY_TARGET >= 31 ? 5 : WEEKLY_TARGET >= 21 ? 4 : WEEKLY_TARGET >= 16 ? 3 : 2;
 
   // ── 2. Core state ──
-  const [splash, setSplash]           = useState(true);
+  const [splashVisible, setSplashVisible] = useState(true);
+  const [appReady, setAppReady]           = useState(false);
   const [customItems, setCustomItems] = useState(()=>load(SK_CUSTOM,[]));
   const [hiddenIds, setHiddenIds]     = useState(()=>load(SK_HIDDEN,[]));
 
@@ -2117,7 +1867,6 @@ export default function App({ onSignOut }){
     }
     if(isMonday()&&new Date().getHours()>=7&&!(weekPlan?.weekStart===getMonday())){
       push("Plan Your Week","Monday — ready to set this week's study plan?",{label:"Plan Now",type:"planWeek"});
-      setTimeout(()=>runPlanWeek(true),1500);
     }
   },[]);
 
@@ -2364,8 +2113,8 @@ BOOK SESSIONS (fixed by mode field — no exceptions ever):
 
 ═══ COURSE SCHEDULING ═══
 - Daily session order: (1) Passage books — 0.5h each. (2) Most demanding course. (3) Paired book. (4) Free book.
-- Cognitive demand ranking (schedule first/front-load in week): Physics/Biology/Chemistry/Mathematics → History/Philosophy/Literature → Business/Sales/Marketing/Investing/Law
-- Most demanding course goes FIRST each day (after passage books) and is front-loaded earlier in the week
+- Cognitive demand ranking (within-day order only): Physics/Biology/Chemistry/Mathematics → History/Philosophy/Literature → Business/Sales/Marketing/Investing/Law
+- Most demanding course goes FIRST each day (after passage books); hours are distributed evenly across all days
 - Multiple courses MUST be interleaved — never the same course two days in a row
 - If only one course is active, it may appear daily
 - Below 15h/week: only 1 course, no exceptions
@@ -2987,14 +2736,14 @@ Respond ONLY with valid JSON:
   return(
     <>
       <style>{GLOBAL_CSS}</style>
-      {splash&&<SplashScreen onDone={()=>setSplash(false)}/>}
+      {splashVisible&&<CinematicSplash onAppReady={()=>setAppReady(true)} onDone={()=>setSplashVisible(false)}/>}
 
 
       <div style={{
         background:"transparent",
         minHeight:"100dvh",color:T.text,fontFamily:T.fontUI,
         paddingBottom:`calc(env(safe-area-inset-bottom) + 88px)`,
-        opacity:splash?0:1,transition:"opacity 0.4s ease 0.1s",
+        opacity: appReady ? 1 : 0,
       }}>
         <div style={{height:"env(safe-area-inset-top)"}}/>
 
@@ -3014,8 +2763,9 @@ Respond ONLY with valid JSON:
 
         {/* ── HUD Progress Bar ── */}
         <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}
-          onOpenMenu={()=>setSideOpen(true)} editFocus={editFocus} onToggleEditFocus={()=>setEditFocus(e=>!e)} unreadCount={unreadCount}
-          currentBanner={currentBanner} dismissBanner={dismissBanner} onBannerAction={handleNotifAction}/>
+          onOpenMenu={()=>setSideOpen(true)} editFocus={editFocus} onToggleEditFocus={()=>setEditFocus(e=>!e)} unreadCount={unreadCount} appReady={appReady}/>
+        {/* ── Notification banner — always on top of everything ── */}
+        {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner} onAction={handleNotifAction}/>}
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
@@ -3318,7 +3068,7 @@ Respond ONLY with valid JSON:
           ))}
         </div>}
 
-        <div style={{padding:"12px 14px",position:"relative",zIndex:1}}>
+        <div style={{padding:"12px 14px",position:"relative",zIndex:1,animation:appReady?"cinemaContentFade 0.75s cubic-bezier(0.4,0,0.2,1) both 0.08s":"none",opacity:appReady?undefined:0}}>
 
           {/* ══ TODAY ══ */}
           {view==="today"&&<div className="tab-content">
@@ -4000,7 +3750,7 @@ Respond ONLY with valid JSON:
       </div>
 
       {/* ── Bottom Navigation ── */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:appReady?undefined:0}}>
         {/* Background layer — absolutely fills the full area including safe zone */}
         <div style={{
           position:"absolute",inset:0,
