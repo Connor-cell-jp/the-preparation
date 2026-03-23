@@ -1311,7 +1311,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
         {/* Expanded focus editor */}
         <div style={{
           maxHeight: editFocus ? 520 : 0,
-          overflow:'hidden',
+          overflow: editFocus ? 'auto' : 'hidden',
           transition:'max-height 0.38s cubic-bezier(0.4,0,0.2,1)',
         }}>
           <div style={{
