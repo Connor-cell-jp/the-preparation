@@ -670,6 +670,14 @@ const GLOBAL_CSS = `
     from { transform: translateY(-110%); opacity: 0; }
     to   { transform: translateY(0);     opacity: 1; }
   }
+  @keyframes hudReveal {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes lineRiseOut {
+    from { transform: scaleX(1);        opacity: 1; }
+    to   { transform: scaleX(0.06) translateY(-52vh); opacity: 0; }
+  }
   @keyframes cinemaTabFade {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -739,38 +747,36 @@ function CinematicSplash({ onAppReady, onDone }) {
   const [veilTransition, setVeilTransition]   = useState("none");
   const [titleOpacity, setTitleOpacity]       = useState(0);
   const [subtitleOpacity, setSubtitleOpacity] = useState(0);
-  const [titleTransDur, setTitleTransDur]     = useState("0.9s");
   const [lineVisible, setLineVisible]         = useState(false);
-  const [lineFading, setLineFading]           = useState(false);
+  const [titleFlyUp, setTitleFlyUp]           = useState(false);
+  const [lineFlyUp, setLineFlyUp]             = useState(false);
 
   useEffect(() => {
-    // t=50ms — veil dissolves completely over 1.8s, mountain emerges from black
+    // t=50ms — veil dissolves over 1.8s, mountain emerges
     const t1 = setTimeout(() => {
       setVeilTransition("opacity 1.8s cubic-bezier(0.4,0,0.2,1)");
       setVeilOpacity(0);
     }, 50);
-    // t=1800ms — title fades in over the fully revealed mountain
+    // t=1800ms — title fades in
     const t2 = setTimeout(() => setTitleOpacity(1), 1800);
-    // t=2300ms — subtitle
+    // t=2300ms — subtitle fades in
     const t3 = setTimeout(() => setSubtitleOpacity(1), 2300);
-    // t=2700ms — horizon line draws
+    // t=2700ms — horizon line draws in
     const t4 = setTimeout(() => setLineVisible(true), 2700);
-    // t=3400ms — app UI reveals; title + horizon fade out (veil already gone — no jump)
+    // t=3400ms — title + line fly up into the HUD; HUD fades in simultaneously
     const t5 = setTimeout(() => {
       onAppReady();
-      setTitleTransDur("0.55s");
-      setTitleOpacity(0);
-      setSubtitleOpacity(0);
-      setLineFading(true);
+      setTitleFlyUp(true);
+      setLineFlyUp(true);
     }, 3400);
-    // t=4100ms — unmount splash text layer
-    const t6 = setTimeout(onDone, 4100);
+    // t=4200ms — unmount splash
+    const t6 = setTimeout(onDone, 4200);
     return () => [t1,t2,t3,t4,t5,t6].forEach(clearTimeout);
   }, []);
 
   return (
     <>
-      {/* ── Dark veil — dissolves to reveal the mountain (zIndex:0) behind it ── */}
+      {/* ── Dark veil — dissolves to reveal mountain ── */}
       <div style={{
         position:"fixed", inset:0, zIndex:9997,
         background:"#0d1b2a",
@@ -779,7 +785,7 @@ function CinematicSplash({ onAppReady, onDone }) {
         pointerEvents:"none",
       }}/>
 
-      {/* ── Title + horizon line — over the mountain once revealed ── */}
+      {/* ── Title + horizon line ── */}
       <div style={{
         position:"fixed", inset:0, zIndex:9998,
         pointerEvents:"none",
@@ -787,10 +793,15 @@ function CinematicSplash({ onAppReady, onDone }) {
         alignItems:"center", justifyContent:"center",
         paddingTop:"env(safe-area-inset-top)",
       }}>
+        {/* Title block — flies up into HUD on exit */}
         <div style={{
           textAlign:"center",
-          opacity: titleOpacity,
-          transition: `opacity ${titleTransDur} cubic-bezier(0.4,0,0.2,1)`,
+          opacity: titleFlyUp ? 0 : titleOpacity,
+          transform: titleFlyUp ? "translateY(-44vh) scale(0.37)" : "translateY(0) scale(1)",
+          transition: titleFlyUp
+            ? "opacity 0.55s cubic-bezier(0.4,0,1,1), transform 0.65s cubic-bezier(0.4,0,0.2,1)"
+            : "opacity 0.9s cubic-bezier(0.4,0,0.2,1)",
+          willChange:"transform,opacity",
         }}>
           <div style={{
             fontSize:30, fontWeight:900, color:"#ffffff",
@@ -803,23 +814,23 @@ function CinematicSplash({ onAppReady, onDone }) {
             fontFamily:T.fontUI, marginTop:14, fontWeight:400, letterSpacing:5,
             textTransform:"uppercase",
             opacity: subtitleOpacity,
-            transition:`opacity 0.7s cubic-bezier(0.4,0,0.2,1)`,
+            transition:"opacity 0.7s cubic-bezier(0.4,0,0.2,1)",
           }}>Learning Tracker</div>
         </div>
 
-        {/* Horizon line — draws left to right at mountain base */}
+        {/* Horizon line — draws in, then launches up into the HUD progress bar on exit */}
         {lineVisible && (
           <div style={{
             position:"absolute",
             top:"58%",
             left:0, right:0,
             height:1,
-            transformOrigin:"left center",
+            transformOrigin: lineFlyUp ? "center center" : "left center",
             background:"linear-gradient(90deg, transparent 0%, #3b82f6 15%, #93c5fd 50%, #3b82f6 85%, transparent 100%)",
             boxShadow:"0 0 10px rgba(59,130,246,0.9), 0 0 30px rgba(59,130,246,0.45)",
-            animation:"horizonDraw 0.7s cubic-bezier(0.2,0,0,1) both",
-            opacity: lineFading ? 0 : undefined,
-            transition: lineFading ? "opacity 0.5s cubic-bezier(0.4,0,1,1)" : "none",
+            animation: lineFlyUp
+              ? "lineRiseOut 0.65s cubic-bezier(0.4,0,0.2,1) both"
+              : "horizonDraw 0.7s cubic-bezier(0.2,0,0,1) both",
           }}/>
         )}
       </div>
@@ -864,7 +875,7 @@ function useNotifications() {
   return { notifs, push, markRead, clearAll, dismiss, unreadCount, currentBanner, dismissBanner };
 }
 
-// ── Apple-style drop-down notification banner ──────────────────────────────────
+// ── Notification banner ────────────────────────────────────────────────────────
 function NotifBanner({ notif, onDismiss, onAction }) {
   const [hiding, setHiding] = useState(false);
   useEffect(() => {
@@ -874,42 +885,46 @@ function NotifBanner({ notif, onDismiss, onAction }) {
   }, [notif.id]);
   const doClose = () => { setHiding(true); setTimeout(onDismiss, 420); };
   const doAction = () => { onAction && onAction(notif); doClose(); };
+  const type = notif.action?.type;
+  const accent = type==="viewCheckin" ? T.green : type==="sundayReview" ? T.yellow : T.blue;
+  const accentRgb = type==="viewCheckin" ? "34,197,94" : type==="sundayReview" ? "245,158,11" : "59,130,246";
   return (
     <div style={{
       position:"fixed",
       top:`calc(env(safe-area-inset-top) + 8px)`,
       left:12,right:12,
       zIndex:99999,
-      background:"linear-gradient(135deg, rgba(13,27,42,0.97) 0%, rgba(15,34,64,0.97) 100%)",
-      backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
-      borderRadius:16,
-      border:"1px solid rgba(255,255,255,0.10)",
-      borderLeft:"3px solid #3b82f6",
-      boxShadow:"0 8px 40px rgba(0,0,0,0.65), 0 0 0 1px rgba(59,130,246,0.15)",
-      padding:"12px 14px",
+      background:"linear-gradient(145deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.04) 100%)",
+      backdropFilter:"blur(28px) saturate(160%)",WebkitBackdropFilter:"blur(28px) saturate(160%)",
+      borderRadius:18,
+      border:`1px solid rgba(255,255,255,0.12)`,
+      borderTop:"1px solid rgba(255,255,255,0.18)",
+      borderLeft:`3px solid ${accent}`,
+      boxShadow:`0 12px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(${accentRgb},0.12)`,
+      padding:"13px 14px",
       display:"flex",alignItems:"center",gap:12,
       pointerEvents:"all",
       transform:"translateZ(0)",willChange:"transform",
       animation:hiding?"bannerOut 0.42s cubic-bezier(0.4,0,1,1) forwards":"bannerIn 0.35s cubic-bezier(0.2,0,0,1) both",
     }}>
-      <div style={{width:8,height:8,borderRadius:"50%",background:"#3b82f6",flexShrink:0,
-        boxShadow:"0 0 8px rgba(59,130,246,0.8)"}}/>
+      <div style={{width:8,height:8,borderRadius:"50%",background:accent,flexShrink:0,
+        boxShadow:`0 0 8px rgba(${accentRgb},0.7)`}}/>
       <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:13,fontWeight:700,color:"#ffffff",letterSpacing:-0.2,lineHeight:1.3}}>{notif.title}</div>
-        {notif.body&&<div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginTop:2,lineHeight:1.4,
+        <div style={{fontSize:13,fontWeight:700,color:T.text,letterSpacing:-0.2,lineHeight:1.3}}>{notif.title}</div>
+        {notif.body&&<div style={{fontSize:12,color:T.textMid,marginTop:2,lineHeight:1.4,
           overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",
           WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{notif.body}</div>}
       </div>
       {notif.action?.label&&(
         <button onClick={doAction} className="btn-press"
-          style={{background:"rgba(59,130,246,0.18)",border:"1px solid rgba(59,130,246,0.35)",
-            color:"#60a5fa",fontSize:11,fontWeight:700,cursor:"pointer",
+          style={{background:`rgba(${accentRgb},0.15)`,border:`1px solid rgba(${accentRgb},0.35)`,
+            color:accent,fontSize:11,fontWeight:700,cursor:"pointer",
             padding:"5px 11px",borderRadius:99,flexShrink:0,letterSpacing:0.3,whiteSpace:"nowrap"}}>
           {notif.action.label}
         </button>
       )}
       <button onClick={doClose} className="btn-press"
-        style={{background:"none",border:"none",color:"rgba(255,255,255,0.35)",fontSize:16,cursor:"pointer",
+        style={{background:"none",border:"none",color:T.textFaint,fontSize:16,cursor:"pointer",
           padding:4,flexShrink:0,minWidth:32,minHeight:32,
           display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
     </div>
@@ -1189,7 +1204,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
       left:0,right:0,
       zIndex:25,pointerEvents:'none',
       padding:'8px 16px',
-      animation: appReady ? 'cinemaHudSlide 0.65s cubic-bezier(0.2,0,0,1) both' : 'none',
+      animation: appReady ? 'hudReveal 0.65s ease both' : 'none',
     }}>
       <div style={{
         background:'rgba(8,18,38,0.72)',
@@ -1593,17 +1608,23 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             {notifs.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.textDim,fontSize:13}}>
               No notifications yet
             </div>}
-            {notifs.map((n,i)=>(
+            {notifs.map((n,i)=>{
+              const nType=n.action?.type;
+              const nAccent=nType==="viewCheckin"?T.green:nType==="sundayReview"?T.yellow:T.blue;
+              const nRgb=nType==="viewCheckin"?"34,197,94":nType==="sundayReview"?"245,158,11":"59,130,246";
+              return(
               <div key={n.id} style={{
-                background:n.read?"rgba(255,255,255,0.03)":"rgba(59,130,246,0.08)",
-                border:`1px solid ${n.read?"rgba(255,255,255,0.06)":"rgba(59,130,246,0.25)"}`,
+                background:n.read?"rgba(255,255,255,0.03)":`rgba(${nRgb},0.07)`,
+                border:`1px solid ${n.read?"rgba(255,255,255,0.06)":`rgba(${nRgb},0.22)`}`,
+                borderLeft:`2px solid ${n.read?"rgba(255,255,255,0.08)":nAccent}`,
                 borderRadius:14,padding:"12px 14px",marginBottom:8,
                 animation:`fadeUp 0.15s ease ${i*0.04}s both`,
               }}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                   <div style={{flex:1,minWidth:0}}>
-                    {!n.read&&<div style={{width:6,height:6,borderRadius:"50%",background:T.blue,
-                      display:"inline-block",marginRight:6,marginBottom:2,verticalAlign:"middle"}}/>}
+                    {!n.read&&<div style={{width:6,height:6,borderRadius:"50%",background:nAccent,
+                      display:"inline-block",marginRight:6,marginBottom:2,verticalAlign:"middle",
+                      boxShadow:`0 0 6px rgba(${nRgb},0.6)`}}/>}
                     <span style={{fontSize:12,fontWeight:700,color:n.read?T.textMid:T.text}}>{n.title}</span>
                     <div style={{fontSize:11,color:T.textDim,marginTop:3,lineHeight:1.4}}>{n.body}</div>
                     <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>
@@ -1615,14 +1636,15 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
                       cursor:"pointer",padding:"0 2px",flexShrink:0,minWidth:32,minHeight:32}}>✕</button>
                 </div>
                 {n.action&&<button onClick={()=>{onNotifAction(n);onMarkRead(n.id);onNotifClose();}} className="btn-press"
-                  style={{width:"100%",marginTop:10,background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",
-                    color:"#fff",borderRadius:10,padding:"9px 0",fontSize:11,fontWeight:700,cursor:"pointer",minHeight:44}}>
+                  style={{width:"100%",marginTop:10,background:`rgba(${nRgb},0.15)`,
+                    border:`1px solid rgba(${nRgb},0.3)`,
+                    color:nAccent,borderRadius:10,padding:"9px 0",fontSize:11,fontWeight:700,cursor:"pointer",minHeight:44}}>
                   {n.action.label}</button>}
                 {!n.read&&<button onClick={()=>onMarkRead(n.id)} className="btn-press"
                   style={{background:"none",border:"none",color:T.textDim,fontSize:10,
                     cursor:"pointer",marginTop:6,padding:0}}>Mark read</button>}
               </div>
-            ))}
+            );})}
           </div>}
 
           {section==="history"&&<div style={{animation:"fadeUp 0.2s ease both"}}>
@@ -1763,10 +1785,8 @@ export default function App({ onSignOut }){
   const [planGuidance, setPlanGuidance]         = useState("");
   const [aiResult, setAiResult]                 = useState(null);
   const [editFocus, setEditFocus]               = useState(false);
-  const [completionBanner, setCompletionBanner] = useState([]);
   const [editSession, setEditSession]           = useState(null);
   const [editSessionForm, setEditSessionForm]   = useState({hours:"",courseHours:"",note:""});
-  const [missedDayBanner, setMissedDayBanner]   = useState(false);
   const [offlineQueue, setOfflineQueue]         = useState(()=>loadQueue());
   const [isOnline, setIsOnline]                 = useState(navigator.onLine);
   const [bonusItems, setBonusItems]             = useState(()=>load("tp_bonus1",[]));
@@ -1864,7 +1884,7 @@ export default function App({ onSignOut }){
     const yDate=new Date();yDate.setDate(yDate.getDate()-1);
     const yStr=yDate.toLocaleDateString();
     const logged=Object.values(progress).some(p=>(p.sessions||[]).some(s=>s.date===yStr));
-    if(!logged) setMissedDayBanner(true);
+    if(!logged) push("Missed session yesterday","You had a session planned but nothing logged — log your hours to stay on track.",null);
   },[]);
 
   useEffect(()=>{
@@ -1873,7 +1893,6 @@ export default function App({ onSignOut }){
       .filter(([id,p])=>p.percentComplete>=100&&(!prev[id]||prev[id].percentComplete<100))
       .map(([id])=>id);
     if(newlyDone.length>0){
-      setCompletionBanner(b=>[...new Set([...b,...newlyDone])]);
       newlyDone.forEach(id=>{
         const item=CURRICULUM.find(i=>i.id===id);
         if(item){
@@ -2653,7 +2672,7 @@ Respond ONLY with valid JSON:
     setPaceRatios({});setPlanHistory([]);setPlanFlowFocusText("");
     setBonusItems([]);setOfflineQueue([]);setCustomItems([]);
     setSettings(DEFAULT_SETTINGS);setHiddenIds([]);
-    setCompletionBanner([]);setAiResult(null);
+    setAiResult(null);
     clearNotifs();
     // Immediately persist default focus so no stale state can be re-hydrated
     save(SK_F,defaultFocus);
@@ -2748,7 +2767,7 @@ Respond ONLY with valid JSON:
         {/* ── HUD Progress Bar ── */}
         <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}
           onOpenMenu={()=>setSideOpen(true)} unreadCount={unreadCount} appReady={appReady}/>
-        {/* ── Focus Row: Edit Focus button + pills, sits just below HUD bar ── */}
+        {/* ── Focus Row + Focus Editor — unified glass panel below HUD ── */}
         <div style={{
           position:'fixed',
           top:'calc(env(safe-area-inset-top) + 68px)',
@@ -2756,37 +2775,72 @@ Respond ONLY with valid JSON:
           zIndex:24,
           pointerEvents:'none',
           padding:'0 16px',
-          animation:appReady?'cinemaHudSlide 0.65s cubic-bezier(0.2,0,0,1) both 0.08s':'none',
+          animation:appReady?'hudReveal 0.75s ease both 0.15s':'none',
         }}>
           <div style={{
-            background:'rgba(8,18,38,0.70)',
-            backdropFilter:'blur(22px) saturate(170%)',
-            WebkitBackdropFilter:'blur(22px) saturate(170%)',
+            background:'rgba(8,18,38,0.72)',
+            backdropFilter:'blur(24px) saturate(180%)',
+            WebkitBackdropFilter:'blur(24px) saturate(180%)',
             border:'1px solid rgba(255,255,255,0.14)',
-            borderRadius:12,
-            boxShadow:'0 4px 22px rgba(0,0,0,0.50), inset 0 1px 0 rgba(255,255,255,0.08)',
+            borderTop:'1px solid rgba(255,255,255,0.18)',
+            borderRadius:14,
+            boxShadow:'0 4px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10)',
             pointerEvents:'auto',
-            padding:'7px 12px',
-            display:'flex',
-            alignItems:'center',
-            gap:8,
-            flexWrap:'wrap',
             transform:'translateZ(0)',
+            overflow:'hidden',
           }}>
-            <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
-              style={{flexShrink:0,
-                background:editFocus?'rgba(59,130,246,0.22)':'rgba(255,255,255,0.12)',
-                backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
-                border:`1px solid ${editFocus?'rgba(59,130,246,0.50)':'rgba(255,255,255,0.22)'}`,
-                color:editFocus?'rgba(255,255,255,1)':'rgba(255,255,255,0.80)',
-                borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:600,
-                cursor:'pointer',display:'inline-flex',alignItems:'center',
-                transition:'all 0.2s',whiteSpace:'nowrap'}}>
-              {editFocus?'Done':'Edit Focus'}
-            </button>
-            {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
-              <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
-            ))}
+            {/* Pill row */}
+            <div style={{
+              padding:'7px 12px',
+              display:'flex',
+              alignItems:'center',
+              gap:8,
+              flexWrap:'wrap',
+            }}>
+              <button onClick={()=>setEditFocus(e=>!e)} className="btn-press"
+                style={{flexShrink:0,
+                  background:editFocus?'rgba(59,130,246,0.22)':'rgba(255,255,255,0.10)',
+                  border:`1px solid ${editFocus?'rgba(59,130,246,0.45)':'rgba(255,255,255,0.16)'}`,
+                  color:editFocus?'rgba(255,255,255,1)':'rgba(255,255,255,0.70)',
+                  borderRadius:99,padding:'5px 12px',fontSize:10,letterSpacing:0.5,fontWeight:600,
+                  cursor:'pointer',display:'inline-flex',alignItems:'center',
+                  transition:'all 0.2s',whiteSpace:'nowrap'}}>
+                {editFocus?'Done':'Edit Focus'}
+              </button>
+              {focusItems.filter(i=>getP(i.id).percentComplete<100).map(i=>(
+                <Pill key={i.id} color={gc(i.genre)} label={i.id}/>
+              ))}
+            </div>
+
+            {/* Expanded focus editor — smooth reveal */}
+            <div style={{
+              maxHeight: editFocus ? 520 : 0,
+              overflow:'hidden',
+              transition:'max-height 0.38s cubic-bezier(0.4,0,0.2,1)',
+            }}>
+              <div style={{
+                borderTop:'1px solid rgba(255,255,255,0.08)',
+                padding:'10px 12px 12px',
+              }}>
+                {[["Courses","courses","course"],["Books","books","book"]].map(([label,key,type])=>(
+                  <div key={key} style={{marginBottom:10}}>
+                    <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:6,fontWeight:600}}>{label}</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                      {CURRICULUM.filter(i=>i.type===type&&getP(i.id).percentComplete<100).map(i=>{
+                        const on=(focus[key]||[]).includes(i.id),c=gc(i.genre);
+                        return <button key={i.id} className="btn-press"
+                          onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
+                          style={{background:on?c:"rgba(255,255,255,0.08)",border:`1px solid ${on?"transparent":"rgba(255,255,255,0.12)"}`,
+                            color:on?"#fff":T.textDim,borderRadius:20,padding:"7px 13px",fontSize:11,
+                            cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:36}}>
+                          {i.id}{i.custom?" *":""}
+                        </button>;
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
         {/* ── Notification banner — always on top of everything ── */}
@@ -3020,69 +3074,9 @@ Respond ONLY with valid JSON:
           </div>}
         </div>}
 
-        {completionBanner.length>0&&<div style={{
-          background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
-          borderBottom:`1px solid rgba(255,255,255,0.08)`,borderLeft:`3px solid ${T.green}`,
-          padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
-          transform:"translateZ(0)",animation:"fadeUp 0.25s ease both"}}>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:T.green,letterSpacing:0.5}}>
-              {completionBanner.length} item{completionBanner.length>1?"s":""} completed
-            </div>
-            <div style={{fontSize:10,color:T.textMid,marginTop:2}}>
-              {completionBanner.map(id=>CURRICULUM.find(i=>i.id===id)?.name||id).join(", ")}
-            </div>
-          </div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={()=>setCompletionBanner([])} className="btn-press"
-              style={{background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,color:T.textDim,
-                borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",minHeight:36}}>✕</button>
-            <button onClick={()=>{setView("ai");setCompletionBanner([]);}} className="btn-press"
-              style={{background:T.green,border:"none",color:"#fff",borderRadius:8,padding:"7px 14px",
-                fontSize:11,fontWeight:800,cursor:"pointer",minHeight:36}}>Check-In →</button>
-          </div>
-        </div>}
-
-
-        {missedDayBanner&&<div style={{
-          background:"rgba(13,27,42,0.9)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",
-          borderBottom:`1px solid rgba(255,255,255,0.08)`,borderLeft:`3px solid ${T.yellow}`,
-          padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",
-          transform:"translateZ(0)",animation:"fadeUp 0.25s ease both"}}>
-          <div style={{fontSize:11,fontWeight:700,color:T.yellow,letterSpacing:0.5}}>Missed session yesterday</div>
-          <button onClick={()=>setMissedDayBanner(false)} className="btn-press"
-            style={{background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,color:T.textDim,
-              borderRadius:8,padding:"5px 12px",fontSize:10,cursor:"pointer",minHeight:44}}>Dismiss</button>
-        </div>}
-
         {/* ── Mountain spacer: pushes content below mountain fade ── */}
         <div style={{height:280}}/>
 
-{editFocus&&<div style={{
-          background:"rgba(13,27,42,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-          padding:"14px 16px",borderBottom:"1px solid rgba(255,255,255,0.08)",
-          transform:"translateZ(0)",animation:"fadeUp 0.2s cubic-bezier(0.4,0,0.2,1) both"}}>
-          <div style={{fontSize:10,fontWeight:700,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:12}}>
-            Manual Focus Override
-          </div>
-          {[["COURSES","courses","course"],["BOOKS","books","book"]].map(([label,key,type])=>(
-            <div key={key} style={{marginBottom:12}}>
-              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:7}}>{label}</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {CURRICULUM.filter(i=>i.type===type&&getP(i.id).percentComplete<100).map(i=>{
-                  const on=(focus[key]||[]).includes(i.id),c=gc(i.genre);
-                  return <button key={i.id} className="btn-press"
-                    onClick={()=>setFocus(f=>({...f,[key]:on?(f[key]||[]).filter(x=>x!==i.id):[...(f[key]||[]),i.id],manual:true}))}
-                    style={{background:on?c:"rgba(255,255,255,0.08)",border:`1px solid ${on?"transparent":"rgba(255,255,255,0.12)"}`,
-                      color:on?"#fff":T.textDim,borderRadius:20,padding:"8px 14px",fontSize:11,
-                      cursor:"pointer",fontWeight:on?700:400,transition:"all 0.18s",minHeight:44}}>
-                    {i.id}{i.custom?" *":""}
-                  </button>;
-                })}
-              </div>
-            </div>
-          ))}
-        </div>}
 
         <div style={{padding:"12px 14px",position:"relative",zIndex:1,animation:appReady?"cinemaContentFade 0.75s cubic-bezier(0.4,0,0.2,1) both 0.08s":"none",opacity:appReady?undefined:0}}>
 
@@ -3564,7 +3558,6 @@ Respond ONLY with valid JSON:
                 onReset={item=>{
                   if(!window.confirm(`Reset "${item.name}" to 0%?`)) return;
                   setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});
-                  setCompletionBanner(b=>b.filter(id=>id!==item.id));
                 }}
               />
             ))}
