@@ -590,6 +590,8 @@ const SK_NOTIFS="tp_notifs1";
 const SK_HIDDEN="tp_hidden1";
 const SK_SNAPSHOT="tp_snapshot1";
 const SK_RATIOS="tp_ratios1",SK_HISTORY="tp_history1",SK_FOCUS_INPUT="tp_focus_input1";
+// ── Photo Notes storage key ──
+const SK_NOTES="tp_notes1";
 const MAX_REVIEWS=20;
 const NOTIF_TTL_MS = 3*24*60*60*1000;
 
@@ -752,31 +754,24 @@ function CinematicSplash({ onAppReady, onDone }) {
   const [lineFlyUp, setLineFlyUp]             = useState(false);
 
   useEffect(() => {
-    // t=50ms — veil dissolves over 1.8s, mountain emerges
     const t1 = setTimeout(() => {
       setVeilTransition("opacity 1.8s cubic-bezier(0.4,0,0.2,1)");
       setVeilOpacity(0);
     }, 50);
-    // t=1800ms — title fades in
     const t2 = setTimeout(() => setTitleOpacity(1), 1800);
-    // t=2300ms — subtitle fades in
     const t3 = setTimeout(() => setSubtitleOpacity(1), 2300);
-    // t=2700ms — horizon line draws in
     const t4 = setTimeout(() => setLineVisible(true), 2700);
-    // t=3400ms — title + line fly up into the HUD; HUD fades in simultaneously
     const t5 = setTimeout(() => {
       onAppReady();
       setTitleFlyUp(true);
       setLineFlyUp(true);
     }, 3400);
-    // t=4200ms — unmount splash
     const t6 = setTimeout(onDone, 4200);
     return () => [t1,t2,t3,t4,t5,t6].forEach(clearTimeout);
   }, []);
 
   return (
     <>
-      {/* ── Dark veil — dissolves to reveal mountain ── */}
       <div style={{
         position:"fixed", inset:0, zIndex:9997,
         background:"#0d1b2a",
@@ -785,7 +780,6 @@ function CinematicSplash({ onAppReady, onDone }) {
         pointerEvents:"none",
       }}/>
 
-      {/* ── Title + horizon line ── */}
       <div style={{
         position:"fixed", inset:0, zIndex:9998,
         pointerEvents:"none",
@@ -793,7 +787,6 @@ function CinematicSplash({ onAppReady, onDone }) {
         alignItems:"center", justifyContent:"center",
         paddingTop:"env(safe-area-inset-top)",
       }}>
-        {/* Title block — flies up into HUD on exit */}
         <div style={{
           textAlign:"center",
           opacity: titleFlyUp ? 0 : titleOpacity,
@@ -818,7 +811,6 @@ function CinematicSplash({ onAppReady, onDone }) {
           }}>Learning Tracker</div>
         </div>
 
-        {/* Horizon line — draws in, then launches up into the HUD progress bar on exit */}
         {lineVisible && (
           <div style={{
             position:"absolute",
@@ -850,7 +842,6 @@ function useNotifications() {
 
   useEffect(() => { save(SK_NOTIFS, notifs); }, [notifs]);
 
-  // Drain banner queue one at a time
   useEffect(() => {
     if (!currentBanner && bannerQueue.length > 0) {
       setCurrentBanner(bannerQueue[0]);
@@ -1006,7 +997,7 @@ function SessionHistory({item,sessions,onEdit}){
   </div>;
 }
 
-function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
+function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings,notes,onOpenNotes}){
   const [open,setOpen]=useState(false);
   const done=sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
   const active=sec.items.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length;
@@ -1041,6 +1032,7 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
           const c=gc(item.genre);
           const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
           const realLeft=contentToReal(item,contentLeft,settings);
+          const noteCount=(notes&&notes[item.id]?.length)||0;
           return <div key={item.id}
             style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
               borderBottom:`1px solid rgba(255,255,255,0.06)`}}>
@@ -1060,6 +1052,13 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
               </div>
             </div>
             <div style={{flexShrink:0,textAlign:"right",display:"flex",alignItems:"center",gap:6}}>
+              {/* Notes indicator */}
+              {noteCount>0&&<button onClick={e=>{e.stopPropagation();onOpenNotes&&onOpenNotes(item);}} className="btn-press"
+                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
+                  color:T.textDim,borderRadius:20,padding:"3px 7px",fontSize:9,cursor:"pointer",
+                  display:"flex",alignItems:"center",gap:3,minHeight:28,whiteSpace:"nowrap"}}>
+                <span>📷</span><span style={{fontWeight:700}}>{noteCount}</span>
+              </button>}
               {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c}}>{p.percentComplete}%</div>}
               {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
               {isDone&&<button onClick={()=>onReset(item)} className="btn-press"
@@ -1068,6 +1067,10 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
               {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
                 style={{background:"rgba(59,130,246,0.12)",border:`1px solid rgba(59,130,246,0.25)`,color:T.blue,
                   borderRadius:8,padding:"7px 14px",fontSize:11,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>}
+              <button onClick={()=>onOpenNotes&&onOpenNotes(item)} className="btn-press"
+                style={{background:"none",border:`1px solid rgba(255,255,255,0.1)`,color:T.textFaint,
+                  borderRadius:8,padding:"7px 8px",fontSize:10,cursor:"pointer",minHeight:44,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>📷</button>
               <button onClick={()=>onDelete(item)} className="btn-press"
                 style={{background:"none",border:`1px solid rgba(239,68,68,0.2)`,color:T.red,
                   borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:0.7,minHeight:44}}>✕</button>
@@ -1116,7 +1119,7 @@ function reconcileWeekHours(progress){
   let total=0;
   Object.values(progress).forEach(p=>{
     (p.sessions||[]).forEach(s=>{
-      if(s.isBonus) return; // bonus sessions don't count toward weekly target
+      if(s.isBonus) return;
       const d=new Date(s.date);
       if(d>=mon&&d<=sun) total+=s.studyHours||0;
     });
@@ -1150,7 +1153,6 @@ function MountainRange({ view }){
       maskImage:'linear-gradient(to bottom, black 0%, black 40%, transparent 100%)',
       WebkitMaskImage:'linear-gradient(to bottom, black 0%, black 40%, transparent 100%)',
     }}>
-      {/* Stars — fixed SVG layer behind mountain image */}
       <svg style={{position:'absolute',top:0,left:0,width:'100%',height:'35%',zIndex:1,display:'block'}}
         viewBox="0 0 3200 380" preserveAspectRatio="xMidYMid slice">
         <defs>
@@ -1165,7 +1167,6 @@ function MountainRange({ view }){
         ))}
       </svg>
 
-      {/* Mountain image — vertical pan via object-position per tab */}
       <img src="/mountain.png" alt=""
         style={{
           position:'absolute',top:0,left:0,
@@ -1180,7 +1181,6 @@ function MountainRange({ view }){
           display:'block',
         }}
       />
-      {/* Dark overlay — gives backdrop-filter a flat surface to blur instead of the complex image */}
       <div style={{
         position:'absolute',top:0,left:0,
         width:'100%',height:'100%',
@@ -1220,7 +1220,6 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
         transition:'box-shadow 0.3s ease',
       }}>
       <div style={{padding:'10px 14px 11px',display:'flex',alignItems:'center',gap:10}}>
-        {/* Hamburger button — far left */}
         <button onClick={onOpenMenu} className="btn-press"
           style={{position:'relative',flexShrink:0,
             background:'rgba(255,255,255,0.10)',border:'1px solid rgba(255,255,255,0.14)',cursor:'pointer',
@@ -1236,9 +1235,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
             display:'flex',alignItems:'center',justifyContent:'center'}}>{unreadCount>9?'9+':unreadCount}</div>}
         </button>
 
-        {/* Center: title + hours + progress bar */}
         <div style={{flex:1,minWidth:0}}>
-          {/* Label row */}
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:7}}>
             <div style={{display:'flex',alignItems:'baseline',gap:7}}>
               <span style={{fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.88)',
@@ -1259,7 +1256,6 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
               </span>
             </div>
           </div>
-          {/* Progress track */}
           <div style={{
             height:4,borderRadius:3,
             background:'rgba(255,255,255,0.07)',
@@ -1284,7 +1280,6 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
 
       </div>
 
-      {/* ── Focus Row — divider + pills + edit button ── */}
       <div style={{borderTop:'1px solid rgba(255,255,255,0.08)'}}>
         <div style={{
           padding:'7px 12px',
@@ -1308,7 +1303,6 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
           ))}
         </div>
 
-        {/* Expanded focus editor */}
         <div style={{
           maxHeight: editFocus ? 520 : 0,
           overflow: editFocus ? 'auto' : 'hidden',
@@ -1371,7 +1365,6 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
 
   return (
     <>
-      {/* Overlay */}
       <div onClick={onClose} style={{
         position:"fixed",inset:0,zIndex:200,
         background:"rgba(4,9,22,0.65)",
@@ -1380,7 +1373,6 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
         transition:"opacity 0.32s cubic-bezier(0.4,0,0.2,1)",touchAction:open?"none":"auto",
       }}/>
 
-      {/* Panel */}
       <div style={{
         position:"fixed",top:0,left:0,bottom:0,width:"min(86vw,340px)",
         background:"linear-gradient(180deg, rgba(6,13,30,0.97) 0%, rgba(9,19,44,0.96) 60%, rgba(8,16,38,0.97) 100%)",
@@ -1395,7 +1387,6 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
         willChange:"transform",
         overflow:"hidden",
       }}>
-        {/* Header */}
         <div style={{padding:`calc(env(safe-area-inset-top) + 22px) 20px 0`,flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22}}>
             <div>
@@ -1417,7 +1408,6 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
               }}>✕</button>
           </div>
 
-          {/* Pill tab switcher */}
           <div style={{
             display:"flex",gap:3,
             background:"rgba(255,255,255,0.04)",
@@ -1449,7 +1439,6 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             ))}
           </div>
 
-          {/* Divider */}
           <div style={{height:1,background:"linear-gradient(90deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 80%, transparent 100%)",marginBottom:4}}/>
         </div>
 
@@ -1601,134 +1590,87 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
                 <div>
                   <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Section</label>
                   <div style={{display:"flex",gap:6}}>
-                    {["Core","Optional"].map(sec=>(
-                      <button key={sec} onClick={()=>setNewItem(n=>({...n,section:sec}))} className="btn-press"
-                        style={{flex:1,background:newItem.section===sec?T.green:"rgba(255,255,255,0.08)",
-                          border:`1px solid ${newItem.section===sec?"transparent":"rgba(255,255,255,0.12)"}`,
-                          color:newItem.section===sec?"#fff":T.textDim,
+                    {["Core","Optional"].map(s=>(
+                      <button key={s} onClick={()=>setNewItem(n=>({...n,section:s}))} className="btn-press"
+                        style={{flex:1,background:newItem.section===s?"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)":"rgba(255,255,255,0.08)",
+                          border:`1px solid ${newItem.section===s?"transparent":"rgba(255,255,255,0.12)"}`,
+                          color:newItem.section===s?"#fff":T.textDim,
                           borderRadius:8,padding:"9px 0",fontSize:11,cursor:"pointer",fontWeight:700,
-                          transition:"all 0.18s",minHeight:44}}>{sec}</button>
+                          transition:"all 0.18s",minHeight:44}}>{s}</button>
                     ))}
                   </div>
                 </div>
               </div>
-              {newItem.type==="course"&&newItem.hours&&<div style={{fontSize:11,color:T.blue,marginBottom:10}}>
-                = {(parseFloat(newItem.hours||0)*2).toFixed(1)}h real study time
-              </div>}
               <button onClick={addCustomItem} className="btn-press"
                 style={{width:"100%",background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",
-                  borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:800,cursor:"pointer",minHeight:44}}>
-                Add to Curriculum</button>
+                  borderRadius:12,padding:"12px 0",fontSize:12,fontWeight:800,cursor:"pointer",minHeight:44}}>
+                Add to Curriculum
+              </button>
             </Card>
 
             {customItems.length>0&&<>
-              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>
-                Custom Items ({customItems.length})
-              </div>
-              {customItems.map(item=>{
-                const p=getP(item.id),c=gc(item.genre);
-                return <Card noBlur key={item.id} accent={c} style={{padding:"10px 14px",marginBottom:8}}>
+              <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Custom Items</div>
+              {customItems.map(item=>(
+                <Card key={item.id} noBlur style={{padding:"10px 14px",marginBottom:8,borderLeft:`3px solid ${gc(item.genre)}`}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div style={{flex:1,minWidth:0,paddingRight:10}}>
-                      <div style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        <span style={{color:T.textDim,marginRight:5}}>{item.id}</span>{item.name}
-                      </div>
-                      <div style={{fontSize:9,color:T.textDim,marginTop:3}}>
-                        {item.type} · {item.section} · {item.genre} · {item.hours}h · {p.percentComplete}%
-                      </div>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:700,color:T.text}}>{item.id} · {item.name}</div>
+                      <div style={{fontSize:10,color:T.textDim,marginTop:2}}>{item.hours}h · {item.genre} · {item.type} · {item.section}</div>
                     </div>
                     <button onClick={()=>removeCustomItem(item.id)} className="btn-press"
-                      style={{background:"none",border:`1px solid ${T.red}20`,color:T.red,
-                        borderRadius:7,padding:"4px 10px",fontSize:10,cursor:"pointer",fontWeight:600,flexShrink:0}}>
-                      Remove</button>
+                      style={{background:"rgba(239,68,68,0.1)",border:`1px solid rgba(239,68,68,0.3)`,color:T.red,
+                        borderRadius:8,padding:"6px 10px",fontSize:10,cursor:"pointer",fontWeight:600,minHeight:36}}>Remove</button>
                   </div>
-                  {p.percentComplete>0&&<Bar pct={p.percentComplete} color={c} height={2} style={{marginTop:8}}/>}
-                </Card>;
-              })}
+                </Card>
+              ))}
             </>}
           </div>}
 
-          {section==="notifs"&&<div style={{animation:"fadeUp 0.2s ease both"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div style={{fontSize:11,color:T.textDim}}>{notifs.length} notification{notifs.length!==1?"s":""} · 3-day history</div>
-              {notifs.length>0&&<button onClick={onClearNotifs} className="btn-press"
-                style={{background:"none",border:`1px solid rgba(255,255,255,0.12)`,color:T.textDim,
-                  borderRadius:8,padding:"6px 12px",fontSize:10,cursor:"pointer",minHeight:36,minWidth:44}}>Clear all</button>}
-            </div>
-            {typeof Notification!=="undefined"&&Notification.permission!=="granted"&&<button
-              onClick={()=>requestNotificationPermission()} className="btn-press"
-              style={{width:"100%",background:"rgba(59,130,246,0.12)",border:`1px solid rgba(59,130,246,0.3)`,
-                color:T.blue,borderRadius:10,padding:"10px 14px",fontSize:12,cursor:"pointer",
-                fontWeight:700,marginBottom:12,minHeight:40}}>
-              Enable Notifications
-            </button>}
-            {notifs.length===0&&<div style={{textAlign:"center",padding:"48px 0",color:T.textDim,fontSize:13}}>
-              No notifications yet
+          {section==="history"&&<div style={{animation:"fadeUp 0.28s ease both"}}>
+            {reviews.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:T.textDim,fontSize:13}}>
+              No reviews yet. Complete a week and review on Sunday.
             </div>}
-            {notifs.map((n,i)=>{
-              const nType=n.action?.type;
-              const nAccent=nType==="viewCheckin"?T.green:nType==="sundayReview"?T.yellow:T.blue;
-              const nRgb=nType==="viewCheckin"?"34,197,94":nType==="sundayReview"?"245,158,11":"59,130,246";
-              return(
-              <div key={n.id} style={{
-                background:n.read?"rgba(255,255,255,0.03)":`rgba(${nRgb},0.07)`,
-                border:`1px solid ${n.read?"rgba(255,255,255,0.06)":`rgba(${nRgb},0.22)`}`,
-                borderLeft:`2px solid ${n.read?"rgba(255,255,255,0.08)":nAccent}`,
-                borderRadius:14,padding:"12px 14px",marginBottom:8,
-                animation:`fadeUp 0.15s ease ${i*0.04}s both`,
-              }}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-                  <div style={{flex:1,minWidth:0}}>
-                    {!n.read&&<div style={{width:6,height:6,borderRadius:"50%",background:nAccent,
-                      display:"inline-block",marginRight:6,marginBottom:2,verticalAlign:"middle",
-                      boxShadow:`0 0 6px rgba(${nRgb},0.6)`}}/>}
-                    <span style={{fontSize:12,fontWeight:700,color:n.read?T.textMid:T.text}}>{n.title}</span>
-                    <div style={{fontSize:11,color:T.textDim,marginTop:3,lineHeight:1.4}}>{n.body}</div>
-                    <div style={{fontSize:10,color:T.textFaint,marginTop:4}}>
-                      {new Date(n.ts).toLocaleDateString()} {new Date(n.ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}
-                    </div>
+            {reviews.map((r,i)=>(
+              <Card key={i} noBlur style={{padding:"13px 14px",marginBottom:8,borderLeft:`3px solid ${T.yellow}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <div style={{fontSize:11,fontWeight:700,color:T.text}}>{r.date}</div>
+                  <div style={{display:"flex",gap:2}}>
+                    {[1,2,3,4,5].map(s=><span key={s} style={{fontSize:14,color:s<=(r.stars||0)?T.yellow:"rgba(255,255,255,0.15)"}}>★</span>)}
                   </div>
-                  <button onClick={()=>onDismissNotif(n.id)} className="btn-press"
-                    style={{background:"none",border:"none",color:T.textFaint,fontSize:14,
-                      cursor:"pointer",padding:"0 2px",flexShrink:0,minWidth:32,minHeight:32}}>✕</button>
                 </div>
-                {n.action&&<button onClick={()=>{onNotifAction(n);onMarkRead(n.id);onNotifClose();}} className="btn-press"
-                  style={{width:"100%",marginTop:10,background:`rgba(${nRgb},0.15)`,
-                    border:`1px solid rgba(${nRgb},0.3)`,
-                    color:nAccent,borderRadius:10,padding:"9px 0",fontSize:11,fontWeight:700,cursor:"pointer",minHeight:44}}>
-                  {n.action.label}</button>}
-                {!n.read&&<button onClick={()=>onMarkRead(n.id)} className="btn-press"
-                  style={{background:"none",border:"none",color:T.textDim,fontSize:10,
-                    cursor:"pointer",marginTop:6,padding:0}}>Mark read</button>}
-              </div>
-            );})}
+                <div style={{fontSize:10,color:T.textDim,marginBottom:6}}>{r.hoursLogged?.toFixed(1)||0}h logged</div>
+                {r.summary&&<div style={{fontSize:11,color:T.textMid,lineHeight:1.6,fontStyle:"italic"}}>"{r.summary}"</div>}
+              </Card>
+            ))}
           </div>}
 
-          {section==="history"&&<div style={{animation:"fadeUp 0.2s ease both"}}>
-            {reviews.length===0
-              ?<div style={{textAlign:"center",padding:"40px 0",color:T.textDim,fontSize:13}}>
-                No reviews yet — write your first Sunday review.
-              </div>
-              :reviews.map((r,i)=>(
-                <Card noBlur key={i} style={{padding:"14px 16px",marginBottom:10,animation:`fadeUp 0.18s ease ${i*0.06}s both`}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:700,color:T.text}}>{r.date}</div>
-                      <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-                        {(r.hoursLogged||0).toFixed(1)}h logged
-                        {r.completedCount>0?` · ${r.completedCount} completed`:""}
-                      </div>
-                    </div>
-                    <div style={{fontSize:13,color:T.yellow}}>
-                      {"★".repeat(r.stars||0)}{"☆".repeat(5-(r.stars||0))}
-                    </div>
+          {section==="notifs"&&<div style={{animation:"fadeUp 0.28s ease both"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.textMid}}>{notifs.length} notification{notifs.length!==1?"s":""}</div>
+              {notifs.length>0&&<button onClick={onClearNotifs} className="btn-press"
+                style={{background:"none",border:"none",color:T.textDim,fontSize:10,cursor:"pointer",minHeight:28}}>Clear all</button>}
+            </div>
+            {notifs.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:T.textDim,fontSize:13}}>No notifications</div>}
+            {notifs.map(n=>(
+              <div key={n.id} onClick={()=>{onMarkRead(n.id);if(n.action)onNotifAction(n);}}
+                style={{
+                  background:n.read?"rgba(255,255,255,0.03)":"rgba(59,130,246,0.06)",
+                  border:`1px solid ${n.read?"rgba(255,255,255,0.06)":"rgba(59,130,246,0.2)"}`,
+                  borderRadius:14,padding:"10px 12px",marginBottom:8,cursor:"pointer",
+                  animation:"notifExpand 0.25s cubic-bezier(0.4,0,0.2,1) both",
+                }}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:n.read?600:800,color:n.read?T.textMid:T.text,lineHeight:1.3,marginBottom:3}}>{n.title}</div>
+                    {n.body&&<div style={{fontSize:11,color:T.textDim,lineHeight:1.5,overflow:"hidden",textOverflow:"ellipsis",
+                      display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{n.body}</div>}
                   </div>
-                  {r.summary&&<div style={{fontSize:12,color:T.textMid,lineHeight:1.6,
-                    background:"rgba(255,255,255,0.04)",borderRadius:10,padding:"10px 12px",
-                    borderLeft:`2px solid rgba(59,130,246,0.4)`}}>{r.summary}</div>}
-                  {r.rawNote&&<div style={{fontSize:10,color:T.textDim,marginTop:8,fontStyle:"italic"}}>"{r.rawNote}"</div>}
-                </Card>
-              ))}
+                  <button onClick={e=>{e.stopPropagation();onDismissNotif(n.id);}} className="btn-press"
+                    style={{background:"none",border:"none",color:T.textFaint,fontSize:14,cursor:"pointer",
+                      padding:2,flexShrink:0,minWidth:28,minHeight:28,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                </div>
+              </div>
+            ))}
           </div>}
         </div>
       </div>
@@ -1736,31 +1678,234 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Main App
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Photo compression utility ─────────────────────────────────────────────────
+const compressImage = (file, maxDim=600, quality=0.65) => new Promise((resolve, reject) => {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    let w = img.naturalWidth, h = img.naturalHeight;
+    if (w > maxDim || h > maxDim) {
+      if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+      else { w = Math.round(w * maxDim / h); h = maxDim; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    resolve(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+  img.src = url;
+});
+
+// ── Photo Notes Modal ─────────────────────────────────────────────────────────
+function PhotoNotesModal({ item, notes, onClose, onAdd, onDelete }) {
+  const [expanded, setExpanded] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const fileInputRef = useRef(null);
+  const itemNotes = (notes && notes[item.id]) || [];
+  const c = gc(item.genre);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAdding(true);
+    try {
+      const imageData = await compressImage(file);
+      onAdd(item.id, {
+        id: Date.now(),
+        imageData,
+        date: new Date().toLocaleDateString(),
+        createdAt: new Date().toISOString(),
+      });
+    } catch (_) {}
+    setAdding(false);
+    if (e.target) e.target.value = '';
+  };
+
+  // ── Expanded single-image viewer ──
+  if (expanded !== null && itemNotes[expanded]) {
+    const note = itemNotes[expanded];
+    return (
+      <div style={{
+        position:'fixed', inset:0, zIndex:500,
+        background:'#000',
+        display:'flex', flexDirection:'column',
+        paddingTop:'env(safe-area-inset-top)',
+        animation:'fadeIn 0.18s ease both',
+      }}>
+        <div style={{
+          display:'flex', justifyContent:'space-between', alignItems:'center',
+          padding:'12px 16px', flexShrink:0,
+        }}>
+          <button onClick={() => setExpanded(null)} className="btn-press"
+            style={{background:'none', border:'none', color:'rgba(255,255,255,0.7)', fontSize:13,
+              cursor:'pointer', padding:'8px 0', minHeight:44,
+              display:'flex', alignItems:'center', gap:6}}>
+            ← Back
+          </button>
+          <button onClick={() => { onDelete(item.id, note.id); setExpanded(null); }} className="btn-press"
+            style={{background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)',
+              color:T.red, fontSize:12, cursor:'pointer', borderRadius:10,
+              padding:'7px 14px', fontWeight:700, minHeight:44}}>
+            Delete
+          </button>
+        </div>
+        <div style={{
+          flex:1, display:'flex', alignItems:'center', justifyContent:'center',
+          overflow:'hidden', padding:'0 8px',
+        }}>
+          <img src={note.imageData} alt=""
+            style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:12}}/>
+        </div>
+        <div style={{
+          padding:'16px 20px',
+          paddingBottom:'calc(env(safe-area-inset-bottom) + 16px)',
+          flexShrink:0,
+          background:'rgba(0,0,0,0.6)',
+          backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
+        }}>
+          <div style={{fontSize:11, color:'rgba(255,255,255,0.5)'}}>{note.date}</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Grid view ──
+  return (
+    <div style={{
+      position:'fixed', inset:0, zIndex:400,
+      background:'linear-gradient(180deg,rgba(13,27,42,0.99) 0%,rgba(15,34,64,0.99) 100%)',
+      backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+      display:'flex', flexDirection:'column',
+      paddingTop:'env(safe-area-inset-top)',
+      animation:'fadeIn 0.22s ease both',
+    }}>
+      {/* Header */}
+      <div style={{
+        padding:'14px 16px 12px', flexShrink:0,
+        borderBottom:'1px solid rgba(255,255,255,0.08)',
+      }}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
+          <button onClick={onClose} className="btn-press"
+            style={{background:'none', border:'none', color:T.textDim, fontSize:13,
+              cursor:'pointer', padding:'8px 0', minHeight:44,
+              display:'flex', alignItems:'center', gap:6}}>
+            ← Back
+          </button>
+          <button onClick={() => fileInputRef.current?.click()} disabled={adding} className="btn-press"
+            style={{
+              background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`,
+              border:'none', color:'#fff',
+              borderRadius:12, padding:'9px 16px', fontSize:12, fontWeight:700,
+              cursor:'pointer', minHeight:44,
+              display:'flex', alignItems:'center', gap:6,
+              opacity:adding ? 0.55 : 1,
+              boxShadow:`0 4px 16px ${c}40`,
+            }}>
+            {adding ? '...' : '+ Add Photo'}
+          </button>
+        </div>
+        <div style={{fontSize:9, color:c, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:4}}>
+          Photo Notes
+        </div>
+        <div style={{fontSize:15, fontWeight:800, color:T.text, lineHeight:1.2, letterSpacing:-0.2}}>{item.name}</div>
+        <div style={{fontSize:10, color:T.textDim, marginTop:3}}>
+          {item.id} · {itemNotes.length} note{itemNotes.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{display:'none'}}
+        onChange={handleFileChange}
+      />
+
+      {/* Content */}
+      <div style={{flex:1, overflowY:'auto', padding:12, WebkitOverflowScrolling:'touch'}}>
+        {itemNotes.length === 0 ? (
+          <div style={{
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            padding:'60px 24px', textAlign:'center',
+          }}>
+            <div style={{fontSize:44, marginBottom:16, opacity:0.3}}>📷</div>
+            <div style={{fontSize:15, fontWeight:700, color:T.text, marginBottom:8}}>No photo notes yet</div>
+            <div style={{fontSize:13, color:T.textDim, marginBottom:28, lineHeight:1.6}}>
+              Take or upload a photo to save a visual note tied to this item.
+            </div>
+            <button onClick={() => fileInputRef.current?.click()} className="btn-press"
+              style={{
+                background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`,
+                border:'none', color:'#fff',
+                borderRadius:14, padding:'13px 28px', fontSize:13, fontWeight:800,
+                cursor:'pointer', minHeight:44,
+                boxShadow:`0 4px 20px ${c}40`,
+              }}>
+              Add First Photo
+            </button>
+          </div>
+        ) : (
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6}}>
+            {itemNotes.map((note, idx) => (
+              <div key={note.id} onClick={() => setExpanded(idx)} className="btn-press"
+                style={{
+                  position:'relative', aspectRatio:'1 / 1',
+                  borderRadius:12, overflow:'hidden',
+                  cursor:'pointer',
+                  border:'1px solid rgba(255,255,255,0.08)',
+                  animation:`fadeIn 0.18s ease ${Math.min(idx*0.04, 0.3)}s both`,
+                }}>
+                <img src={note.imageData} alt=""
+                  style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}}/>
+                <div style={{
+                  position:'absolute', bottom:0, left:0, right:0,
+                  padding:'14px 6px 4px',
+                  background:'linear-gradient(transparent, rgba(0,0,0,0.65))',
+                  fontSize:9, color:'rgba(255,255,255,0.65)', fontWeight:500,
+                }}>
+                  {note.date}
+                </div>
+              </div>
+            ))}
+            {/* Add more tile */}
+            <button onClick={() => fileInputRef.current?.click()} className="btn-press"
+              style={{
+                aspectRatio:'1 / 1', borderRadius:12,
+                background:'rgba(255,255,255,0.04)',
+                border:'1px dashed rgba(255,255,255,0.15)',
+                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                gap:6, cursor:'pointer', color:T.textFaint,
+              }}>
+              <span style={{fontSize:22, opacity:0.5}}>+</span>
+              <span style={{fontSize:9, letterSpacing:0.5, textTransform:'uppercase', fontWeight:600}}>Add</span>
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Mountain Range ──
+const MOUNTAIN_STARS_2=(()=>{
+  let seed=42;
+  const r=()=>{seed=(seed*1664525+1013904223)&0xffffffff;return(seed>>>0)/4294967295;};
+  return null;
+})();
+
 export default function App({ onSignOut }){
   // ── 1. Settings ──
   const [settings, setSettings] = useState(() => {
     const saved = load(SK_SETTINGS, {});
-    // Strip removed keys so stale values never bleed into auto-computed logic
     const { courseMaxSession: _cms, bookMaxSession: _bms, _courseMaxRaw: _cmr, _bookMaxRaw: _bmr, courseRatio: _cr, bookRatio: _br, ...cleanSaved } = saved;
     return { ...DEFAULT_SETTINGS, ...cleanSaved };
   });
   const WEEKLY_TARGET = Math.max(5, Math.min(45, settings.weeklyTarget ?? 20));
   const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
 
-  // ── Course/book caps based on weekly hour target ──
-  // Book slots = paired books (1 per active course, subject-matched) + free books (genre-contrasting) + passage books (daily, exempt)
-  // 5–10h:  1 course, 1 paired book, 0–1 free books → max 2 non-passage, passage books daily
-  // 11–15h: 1 course, 1 paired book, 1 free book   → max 2 non-passage, passage books daily
-  // 16–20h: 2 courses, 2 paired books, 1 free book  → max 3 non-passage, passage books daily
-  // 21–25h: 2 courses, 2 paired books, 1–2 free     → max 4 non-passage, passage books daily
-  // 26–30h: 2 courses, 2 paired books, 2 free books → max 4 non-passage, passage books daily
-  // 31–35h: 3 courses, 3 paired books, 1–2 free     → max 5 non-passage, passage books daily
-  // 36–45h: 3 courses, 3 paired books, 2 free books → max 5 non-passage, passage books daily
-  // At every tier: most demanding course first in the day, hours distributed evenly across all days. Below 15h: 1 course only.
-  // Passage books: 30 min/day every active day, exempt from all caps, never paired with a course.
   const MAX_COURSES = WEEKLY_TARGET >= 31 ? 3 : WEEKLY_TARGET >= 16 ? 2 : 1;
   const MAX_BOOKS   = WEEKLY_TARGET >= 31 ? 5 : WEEKLY_TARGET >= 21 ? 4 : WEEKLY_TARGET >= 16 ? 3 : 2;
 
@@ -1798,13 +1943,16 @@ export default function App({ onSignOut }){
       const p=JSON.parse(raw);
       if(p&&typeof p==="object"&&!Array.isArray(p)&&('goals' in p||'subjectsLove' in p||'studyStyle' in p))
         return {...DEFAULT_STRUCTURED_PROFILE,...p};
-      // Legacy plain-text profile — migrate to lifeContext
       return {...DEFAULT_STRUCTURED_PROFILE,lifeContext:typeof p==="string"?p:""};
     }catch{return{...DEFAULT_STRUCTURED_PROFILE,lifeContext:raw.slice(0,500)};}
   });
   const profile = buildProfileText(structuredProfile);
 
-  // ── 3. Derived values (before any functions) ──
+  // ── Photo notes state ──
+  const [notes, setNotes] = useState(()=>load(SK_NOTES,{}));
+  const [notesItem, setNotesItem] = useState(null);
+
+  // ── 3. Derived values ──
   const getP = id => progress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
 
   const totalSpentRealH = CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
@@ -1856,10 +2004,10 @@ export default function App({ onSignOut }){
   const prevProgressRef = useRef(progress);
   const [paceRatios, setPaceRatios]             = useState(()=>load(SK_RATIOS,{}));
   const [planHistory, setPlanHistory]           = useState(()=>load(SK_HISTORY,[]));
-  const [planFlowScreen, setPlanFlowScreen]     = useState(null); // null|"focus"|"hours"|"loading"|"review"
+  const [planFlowScreen, setPlanFlowScreen]     = useState(null);
   const [planFlowFocusText, setPlanFlowFocusText] = useState(()=>localStorage.getItem(SK_FOCUS_INPUT)||"");
-  const [planFlowSettings, setPlanFlowSettings] = useState(null); // temp {weeklyTarget, activeDays}
-  const [planFlowResult, setPlanFlowResult]     = useState(null); // {plan, aiResult, isReducedPlan, planTarget, effectiveDLeft}
+  const [planFlowSettings, setPlanFlowSettings] = useState(null);
+  const [planFlowResult, setPlanFlowResult]     = useState(null);
   const [planLoadingMsg, setPlanLoadingMsg]     = useState("");
 
   const { notifs, push, markRead, clearAll: clearNotifs, dismiss: dismissNotif, unreadCount, currentBanner, dismissBanner } = useNotifications();
@@ -1886,6 +2034,8 @@ export default function App({ onSignOut }){
   useEffect(()=>save(SK_RATIOS,paceRatios),[paceRatios]);
   useEffect(()=>save(SK_HISTORY,planHistory),[planHistory]);
   useEffect(()=>{try{localStorage.setItem(SK_FOCUS_INPUT,planFlowFocusText);}catch{}upsertUserDataRaw(SK_FOCUS_INPUT,planFlowFocusText);},[planFlowFocusText]);
+  // Photo notes persistence
+  useEffect(()=>save(SK_NOTES,notes),[notes]);
 
   // ── 7. Effects ──
   useEffect(()=>{
@@ -1897,7 +2047,6 @@ export default function App({ onSignOut }){
       return w;
     });
   },[progress]);
-
 
   useEffect(()=>{
     const up=()=>{setIsOnline(true);processQueue();};
@@ -1918,7 +2067,6 @@ export default function App({ onSignOut }){
 
   useEffect(()=>{
     if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
-    // Clear stale notifications on every app load — only events from this session can push new ones
     clearNotifs();
     const todayISO=getTodayISO();
     if(isSunday()){
@@ -1980,13 +2128,25 @@ export default function App({ onSignOut }){
   const longestStreak = (()=>{let max=0,cur=0;[...weeklyHours].reverse().forEach(w=>{if(w.realH>=WEEKLY_TARGET){cur++;max=Math.max(max,cur);}else cur=0;});return max;})();
   const genreBalance = (()=>{const map={};CURRICULUM.forEach(i=>{const p=getP(i.id);if(p.hoursSpent>0)map[i.genre]=(map[i.genre]||0)+(p.hoursSpent||0);});return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);})();
 
+  // ── Photo notes handlers ──
+  const addNote = (itemId, note) => {
+    setNotes(prev => ({
+      ...prev,
+      [itemId]: [...(prev[itemId] || []), note],
+    }));
+  };
+  const deleteNote = (itemId, noteId) => {
+    setNotes(prev => ({
+      ...prev,
+      [itemId]: (prev[itemId] || []).filter(n => n.id !== noteId),
+    }));
+  };
+
   // ── 9. AI context builder ──
   const buildAIContext = () => {
-    // Merge snapshot (Sunday baseline) with live progress — live always wins, snapshot fills gaps
     const snapshot = load(SK_SNAPSHOT, null);
     const snapshotProgress = snapshot?.progress || {};
     const mergedProgress = { ...snapshotProgress, ...progress };
-    // Any item the snapshot recorded as complete stays complete even if live data says otherwise
     Object.keys(snapshotProgress).forEach(id => {
       if ((snapshotProgress[id]?.percentComplete || 0) >= 100) {
         if (!mergedProgress[id]) mergedProgress[id] = snapshotProgress[id];
@@ -2035,7 +2195,6 @@ export default function App({ onSignOut }){
       :"insufficient data";
     const avgH=recentWeeks.length>0?(recentWeeks.reduce((s,w)=>s+(w.realH||0),0)/recentWeeks.length).toFixed(1):"—";
 
-    // Separate course and book indexes for better AI guidance matching
     const courseIndex = CURRICULUM
       .filter(i=>i.type==="course")
       .map(i=>`${i.id}:"${i.name}"(course,${i.genre},${i.section})`)
@@ -2045,14 +2204,12 @@ export default function App({ onSignOut }){
       .map(i=>`${i.id}:"${i.name}"(book,${i.genre},${i.section},mode=${i.mode||"normal"})`)
       .join("|");
 
-    // Use merged (snapshot-aware) progress so completed items are never rescheduled
     const getMP = id => mergedProgress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
     const completedItems=CURRICULUM
       .filter(i=>getMP(i.id).percentComplete>=100)
       .map(i=>`${i.id} "${i.name}" (${i.genre}): COMPLETE`)
       .join("|");
 
-    // Pace ratios — personal measured ratios per item
     const ratioLines=Object.entries(paceRatios)
       .filter(([,r])=>r.sessions>=2)
       .map(([id,r])=>`${id}:${(r.ratio||2.0).toFixed(2)}(${r.sessions}s)`)
@@ -2061,7 +2218,6 @@ export default function App({ onSignOut }){
       Object.entries(paceRatios).filter(([,r])=>r.sessions>=1).map(([id,r])=>[id,r.ratio||2.0])
     );
 
-    // Plan history — last 4 weeks for pattern detection
     const historyLines=planHistory.slice(0,4).map((h,i)=>{
       const rate=h.completionRate||0;
       const trend=rate>=0.85?"on-track":rate>=0.5?"partial":"struggled";
@@ -2073,7 +2229,6 @@ export default function App({ onSignOut }){
 
   // ── 10. Today items ──
   const todayItems = () => {
-    // Only show today items if there's a plan for this week
     if(!weekPlan||weekPlan.weekStart!==getMonday()) return [];
     if(weekH>=WEEKLY_TARGET) return [];
     const todayName=getDayName();
@@ -2195,7 +2350,7 @@ BOOK SESSIONS (fixed by mode field — no exceptions ever):
 Each active course gets exactly 1 PAIRED book. Use ONLY the IDs listed for each domain:
 - Biology, Medicine, Science courses → B1, B2, B22, B48, B52, B56, B101
 - History, World History, American History courses → B5, B7, B11, B12, B20, B21, B26, B33, B37, B40, B42, B44, B45, B46, B47, B50, B58, B80, B81, B82, B90, B91, B111, B123, B124, B126, B127, B128, B129, B130, B131, B132, B133, B134, B135, B137, B138, B139, B142, B143, B144, B151, B152, B153, B154, B173, B174
-- Philosophy, Logic, Ethics courses → B9, B10, B13, B16, B17, B18, B30, B31, B38, B60, B61, B95, B100, B116, B146, B149, B150, B155
+- Philosophy, Logic, Ethics courses → B9, B10, B13, B16, B17, B18, B30, B31, B38, B60, B61, B95, B100, B116, B146, B149, B150
 - Investing, Economics, Accounting, Finance courses → B58, B62, B63, B64, B65, B66, B68, B69, B70, B71, B72, B73, B74, B75, B76, B77, B78, B79, B80, B81, B82, B83, B84, B85, B86, B87, B88, B89, B90, B91, B92, B93, B94, B136, B158, B159, B160, B161, B162, B163, B164, B165, B166, B167, B168, B169, B170, B171, B172
 - Marketing, Sales, Entrepreneur courses → B23, B25, B27, B28, B29, B62, B63, B64, B65, B66, B68, B69, B70, B71, B72, B73, B74, B75, B76, B175, B176, B177, B180, B181, B182, B183
 - Physics, Astronomy courses → B3, B4, B48, B101
@@ -2243,7 +2398,7 @@ ${profile}
 
 JOURNEY: Week ~${weekNum}. ARC: ${arcPosition}
 VELOCITY: ${velocityTrend}. 4-week avg: ${avgH}h/wk.
-${focusText?`\nGUIDANCE FROM LEARNER: "${focusText}"\nFor courses: search COURSE INDEX by genre/title. For books: search BOOK INDEX by title and genre. Map to real IDs only. Example: "philosophy books" → B9, B16, B30, B34, B95, B99, B100 etc.`:""}
+${planFlowFocusText?`\nGUIDANCE FROM LEARNER: "${planFlowFocusText}"\nFor courses: search COURSE INDEX by genre/title. For books: search BOOK INDEX by title and genre. Map to real IDs only. Example: "philosophy books" → B9, B16, B30, B34, B95, B99, B100 etc.`:""}
 
 COMPLETED (do NOT reschedule — context only):
 ${completedItems||"None yet."}
@@ -2285,10 +2440,8 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
         if(!jsonMatch) throw new Error("No JSON in response");
         const parsed=JSON.parse(jsonMatch[0]);
 
-        // Normalize new schema → internal format (handles both old .items and new .sessions)
         const normalizedDays = normalizeParsedDays(parsed.days, remainingDayNames);
 
-        // Strip completed items, apply scaleDayItems
         const validatedDays=normalizedDays.map((day,i)=>{
           const budget=dayBudgets[i]??dayBudgets[dayBudgets.length-1]??snap25(planTarget/effectiveDLeft);
           const filteredItems=day.items.filter(it=>{
@@ -2296,12 +2449,10 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
             return CURRICULUM.find(c=>c.id===it.id)&&(p.percentComplete||0)<100;
           });
           const scaledItems=scaleDayItems(filteredItems,budget,id=>CURRICULUM.find(c=>c.id===id),id=>getP(id),settings);
-          // Lock session order: passage → courses by demand → books
           const sortedItems=sortDaySessions(scaledItems,CURRICULUM);
           return{...day,totalDayRealH:budget,items:sortedItems};
         });
 
-        // Budget drift correction on last day
         const grandTotal=parseFloat(validatedDays.reduce((s,d)=>s+(d.totalDayRealH||0),0).toFixed(2));
         const drift=parseFloat((planTarget-grandTotal).toFixed(2));
         if(Math.abs(drift)>=0.05&&validatedDays.length>0){
@@ -2311,12 +2462,11 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
           validatedDays[validatedDays.length-1]={...last,totalDayRealH:newDayH,items:sortDaySessions(rescaled,CURRICULUM)};
         }
 
-        // JS validation layer — reject and retry if hard rules broken
         const errs=validatePlanRules(validatedDays,CURRICULUM,mergedProgress||progress,focusIds,maxC,maxB,wt);
         if(errs.length>0){
           console.warn(`Plan validation failed (attempt ${attempt+1}):`,errs);
           lastErr=`Validation: ${errs[0]}`;
-          continue; // retry
+          continue;
         }
 
         const keptDays=(weekPlan?.days||[]).filter(d=>{
@@ -2449,11 +2599,8 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
     setReviews(prev=>[entry,...prev.filter(r=>r.weekStart!==getMonday())].slice(0,MAX_REVIEWS));
     updateWeeklyHours(weekH);
     save(SK_SUNDAY_DONE,getTodayISO());
-    // 1. Save full progress snapshot
     save(SK_SNAPSHOT,{progress,focus,weekStart:getMonday(),savedAt:new Date().toISOString()});
-    // 2. Archive current week plan to history
     archivePlanToHistory(weekPlan);
-    // 3. AI enrichment observations → append to structuredProfile.aiInsights
     if(navigator.onLine){
       try{
         const enrichPrompt=`Based on this learner's week, generate 1-2 short observations (each under 20 words) about their learning patterns, energy, or momentum. These will be stored in their AI learning profile.
@@ -2483,7 +2630,6 @@ Respond ONLY with a JSON array of strings: ["observation 1","observation 2"]`;
     setBonusLoading(true);
     const{touchedAndFocus,nextCore,courseIndex,bookIndex}=buildAIContext();
     const bonusCourseMax = getCourseMaxSession(WEEKLY_TARGET);
-    // Compute genres studied this week
     const weekGenres=new Set(CURRICULUM.filter(i=>{
       const mon=new Date(getMonday());
       return (getP(i.id).sessions||[]).some(s=>new Date(s.date)>=mon);
@@ -2531,7 +2677,6 @@ Respond ONLY with valid JSON:
         const items = [...(day.items || [])];
         const completedIdx = items.findIndex(it => it.id === completedId);
         if(completedIdx < 0) return day;
-        // Find next uncompleted session in the day
         const nextIdx = items.slice(completedIdx + 1).findIndex(it => (progress[it.id]?.percentComplete||0) < 100);
         const absNextIdx = nextIdx >= 0 ? completedIdx + 1 + nextIdx : -1;
         if(absNextIdx >= 0) {
@@ -2546,7 +2691,6 @@ Respond ONLY with valid JSON:
             }
           }
         } else if(leftoverH >= 0.5) {
-          // No extendable next session — add free book from focus
           const inTodayIds = new Set(items.map(it => it.id));
           const freeBook = (focus.books || [])
             .map(bid => CURRICULUM.find(c => c.id === bid))
@@ -2585,7 +2729,6 @@ Respond ONLY with valid JSON:
       sessions:[...(p[id]?.sessions||[]),
         {date:dateStr,studyHours:studyH,courseHours:parseFloat(contentH.toFixed(3)),...(isBonus?{isBonus:true}:{})}]
     }}));
-    // Update personal pace ratios for this item
     if(studyH>0&&contentH>0){
       const measuredRatio=parseFloat((studyH/contentH).toFixed(4));
       setPaceRatios(prev=>{
@@ -2678,7 +2821,7 @@ Respond ONLY with valid JSON:
   };
 
   const doExport=()=>{
-    const data={progress,week,focus,reviews,structuredProfile,weekPlan,weeklyHours,customItems,settings,hiddenIds,paceRatios,planHistory};
+    const data={progress,week,focus,reviews,structuredProfile,weekPlan,weeklyHours,customItems,settings,hiddenIds,paceRatios,planHistory,notes};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");a.href=url;
@@ -2699,7 +2842,6 @@ Respond ONLY with valid JSON:
           if(d.reviews) setReviews(d.reviews);
           if(d.structuredProfile) setStructuredProfile(d.structuredProfile);
           else if(d.profile){
-            // legacy import — migrate to structured
             try{const p=JSON.parse(d.profile);setStructuredProfile(typeof p==="object"&&p!==null?{...DEFAULT_STRUCTURED_PROFILE,...p}:{...DEFAULT_STRUCTURED_PROFILE,lifeContext:String(d.profile).slice(0,500)});}
             catch{setStructuredProfile({...DEFAULT_STRUCTURED_PROFILE,lifeContext:String(d.profile).slice(0,500)});}
           }
@@ -2710,6 +2852,7 @@ Respond ONLY with valid JSON:
           if(d.hiddenIds) setHiddenIds(d.hiddenIds);
           if(d.paceRatios) setPaceRatios(d.paceRatios);
           if(d.planHistory) setPlanHistory(d.planHistory);
+          if(d.notes) setNotes(d.notes);
           toast_("Imported");
         }catch{toast_("Import failed");}
       };
@@ -2720,7 +2863,7 @@ Respond ONLY with valid JSON:
   const doClearAll=()=>{
     if(!window.confirm("Clear ALL data? Export first.")) return;
     if(!window.confirm("Are you sure? Cannot be undone.")) return;
-    [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export",SK_SETTINGS,SK_NOTIFS,SK_HIDDEN,SK_RATIOS,SK_HISTORY,SK_FOCUS_INPUT,SK_SNAPSHOT]
+    [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export",SK_SETTINGS,SK_NOTIFS,SK_HIDDEN,SK_RATIOS,SK_HISTORY,SK_FOCUS_INPUT,SK_SNAPSHOT,SK_NOTES]
       .forEach(k=>localStorage.removeItem(k));
     const defaultFocus={courses:["A1"],books:["B99","B34"],manual:false};
     setProgress({});setWeek({weekStart:getMonday(),hoursLogged:0});
@@ -2729,9 +2872,9 @@ Respond ONLY with valid JSON:
     setPaceRatios({});setPlanHistory([]);setPlanFlowFocusText("");
     setBonusItems([]);setOfflineQueue([]);setCustomItems([]);
     setSettings(DEFAULT_SETTINGS);setHiddenIds([]);
+    setNotes({});
     setAiResult(null);
     clearNotifs();
-    // Immediately persist default focus so no stale state can be re-hydrated
     save(SK_F,defaultFocus);
     toast_("All data cleared");
   };
@@ -2796,8 +2939,6 @@ Respond ONLY with valid JSON:
       <style>{GLOBAL_CSS}</style>
       {splashVisible&&<CinematicSplash onAppReady={()=>setAppReady(true)} onDone={()=>setSplashVisible(false)}/>}
 
-
-      {/* Mountain always rendered — outside the opacity gate so the splash veil reveals it */}
       <MountainRange view={view}/>
 
       <div style={{
@@ -2821,13 +2962,11 @@ Respond ONLY with valid JSON:
           {toast}
         </div>}
 
-        {/* ── HUD Progress Bar + Focus Row — unified glass panel ── */}
         <HUDProgressBar hoursLogged={weekH} weeklyTarget={WEEKLY_TARGET} dayName={getDayName()} weekNum={weekNum}
           onOpenMenu={()=>setSideOpen(true)} unreadCount={unreadCount} appReady={appReady}
           editFocus={editFocus} setEditFocus={setEditFocus}
           focusItems={focusItems} getP={getP} focus={focus} setFocus={setFocus}
           curriculum={CURRICULUM}/>
-        {/* ── Notification banner — always on top of everything ── */}
         {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner} onAction={handleNotifAction}/>}
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
@@ -2890,7 +3029,6 @@ Respond ONLY with valid JSON:
           animation:"fadeIn 0.22s ease both",
         }}>
 
-          {/* ─ Screen 1: Focus Input ─ */}
           {planFlowScreen==="focus"&&<div style={{flex:1,display:"flex",flexDirection:"column",padding:"32px 20px 20px"}}>
             <button onClick={()=>setPlanFlowScreen(null)} className="btn-press"
               style={{background:"none",border:"none",color:T.textDim,fontSize:13,cursor:"pointer",
@@ -2922,7 +3060,6 @@ Respond ONLY with valid JSON:
             </button>
           </div>}
 
-          {/* ─ Screen 2: Hours & Days ─ */}
           {planFlowScreen==="hours"&&<div style={{flex:1,display:"flex",flexDirection:"column",padding:"32px 20px 20px"}}>
             <button onClick={()=>setPlanFlowScreen("focus")} className="btn-press"
               style={{background:"none",border:"none",color:T.textDim,fontSize:13,cursor:"pointer",
@@ -2982,7 +3119,6 @@ Respond ONLY with valid JSON:
             </button>
           </div>}
 
-          {/* ─ Loading Screen ─ */}
           {planFlowScreen==="loading"&&<div style={{flex:1,display:"flex",flexDirection:"column",
             alignItems:"center",justifyContent:"center",padding:"40px 24px",textAlign:"center"}}>
             <div style={{
@@ -2998,7 +3134,6 @@ Respond ONLY with valid JSON:
             </div>
           </div>}
 
-          {/* ─ Screen 3: Plan Review ─ */}
           {planFlowScreen==="review"&&planFlowResult&&<div style={{display:"flex",flexDirection:"column",padding:"28px 20px 20px"}}>
             <div style={{fontSize:9,color:T.green,letterSpacing:2,textTransform:"uppercase",fontWeight:700,marginBottom:12}}>
               Your Week Plan
@@ -3058,7 +3193,7 @@ Respond ONLY with valid JSON:
           </div>}
         </div>}
 
-        {/* ── Mountain spacer: pushes content below mountain fade ── */}
+        {/* ── Mountain spacer ── */}
         <div style={{height:280}}/>
 
 
@@ -3067,7 +3202,6 @@ Respond ONLY with valid JSON:
           {/* ══ TODAY ══ */}
           {view==="today"&&<div className="tab-content">
 
-            {/* No plan state */}
             {!planIsFromThisWeek&&<Card style={{padding:"28px 20px",textAlign:"center",marginBottom:16,animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
               <div style={{fontSize:32,marginBottom:14}}>📋</div>
               <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:8}}>No plan for this week yet</div>
@@ -3083,7 +3217,6 @@ Respond ONLY with valid JSON:
             </Card>}
 
             {planIsFromThisWeek&&<>
-              {/* ── Week Complete Card ── */}
               {allWeekSessionsDone&&<Card style={{padding:"22px 20px",marginBottom:16,borderLeft:`3px solid ${T.green}`,
                 animation:"fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both"}} accent={T.green} glow>
                 <div style={{fontSize:9,color:T.green,textTransform:"uppercase",letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
@@ -3151,6 +3284,7 @@ Respond ONLY with valid JSON:
                 const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
                 const sessionDoneToday=loggedTodayH>0;
                 const isComplete=isDone||(sessionDoneToday&&remainingH===0);
+                const noteCount=(notes[item.id]||[]).length;
                 return <Card key={item.id} accent={isComplete?T.green:c} glow
                   style={{marginBottom:10,padding:16,opacity:isComplete?0.55:1,
                     animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${idx*0.03}s both`,transition:"opacity 0.3s"}}>
@@ -3162,7 +3296,17 @@ Respond ONLY with valid JSON:
                         {isComplete&&<span style={{marginLeft:8,color:T.green}}>· Complete</span>}
                       </div>
                       <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
-                      <div style={{marginTop:7}}><Pill color={isComplete?T.green:c} label={item.genre||item.id}/></div>
+                      <div style={{marginTop:7,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <Pill color={isComplete?T.green:c} label={item.genre||item.id}/>
+                        {/* Notes indicator */}
+                        {noteCount>0&&<button onClick={()=>setNotesItem(item)} className="btn-press"
+                          style={{display:"inline-flex",alignItems:"center",gap:3,
+                            background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",
+                            borderRadius:20,padding:"2px 8px",fontSize:9,color:T.textMid,cursor:"pointer",
+                            fontWeight:700,minHeight:24}}>
+                          📷 {noteCount}
+                        </button>}
+                      </div>
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
                       {isComplete
@@ -3187,14 +3331,26 @@ Respond ONLY with valid JSON:
                       {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700}}>→ {item.targetPct}%</span>}
                     </div>
                   </div>
-                  {!isComplete&&<div style={{marginBottom:8}}>
-                    <button onClick={()=>setLogging(item)} className="btn-press"
-                      style={{width:"100%",background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    {!isComplete&&<button onClick={()=>setLogging(item)} className="btn-press"
+                      style={{flex:1,background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",
                         color:"#fff",borderRadius:14,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44,
                         boxShadow:"0 4px 16px rgba(59,130,246,0.35)"}}>
                       {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
+                    </button>}
+                    {/* Photo Notes button */}
+                    <button onClick={()=>setNotesItem(item)} className="btn-press"
+                      style={{
+                        background:noteCount>0?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.05)",
+                        border:`1px solid ${noteCount>0?"rgba(255,255,255,0.14)":"rgba(255,255,255,0.08)"}`,
+                        color:noteCount>0?T.textMid:T.textFaint,
+                        borderRadius:14,padding:"12px 14px",fontSize:12,cursor:"pointer",
+                        fontWeight:600,minHeight:44,flexShrink:0,
+                        display:"flex",alignItems:"center",gap:5,
+                      }}>
+                      📷{noteCount>0&&<span style={{fontWeight:700}}>{noteCount}</span>}
                     </button>
-                  </div>}
+                  </div>
                 </Card>;
               })}
 
@@ -3336,6 +3492,7 @@ Respond ONLY with valid JSON:
                     const remainingH=Math.max(0,parseFloat((it.realHours-loggedOnDay).toFixed(2)));
                     const isComplete=isDone||(isPast&&wasLogged)||(isToday&&wasLogged&&remainingH===0);
                     const liveTargetPct=f?targetPctAfterSession(f,p,it.realHours,settings):it.targetPct;
+                    const noteCount=(notes[it.id]||[]).length;
                     return <div key={it.id} style={{background:isToday&&!isComplete?"rgba(59,130,246,0.08)":"rgba(255,255,255,0.04)",borderRadius:12,
                       padding:"8px 12px",marginBottom:5,
                       borderLeft:`2px solid ${isComplete?T.green:wasLogged&&!isComplete?T.yellow:c}`,
@@ -3345,7 +3502,13 @@ Respond ONLY with valid JSON:
                           color:isComplete?T.green:T.text}}>
                           {isComplete&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
                         </div>
-                        <div style={{flexShrink:0,textAlign:"right"}}>
+                        <div style={{flexShrink:0,textAlign:"right",display:"flex",alignItems:"center",gap:6}}>
+                          {noteCount>0&&<button onClick={()=>f&&setNotesItem(f)} className="btn-press"
+                            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+                              color:T.textFaint,borderRadius:8,padding:"3px 6px",fontSize:9,cursor:"pointer",
+                              display:"flex",alignItems:"center",gap:2,minHeight:24}}>
+                            📷<span style={{fontWeight:700}}>{noteCount}</span>
+                          </button>}
                           {!isComplete&&<div style={{fontSize:13,fontWeight:800,color:wasLogged?T.yellow:T.blue}}>
                             {wasLogged?`${remainingH.toFixed(2)}h`:it.realHours.toFixed(2)+"h"}
                           </div>}
@@ -3368,6 +3531,7 @@ Respond ONLY with valid JSON:
               const p=getP(item.id),sessions=p.sessions||[],c=gc(item.genre);
               const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
               const realLeft=contentToReal(item,contentLeft,settings);
+              const noteCount=(notes[item.id]||[]).length;
               return <Card key={item.id} accent={c} style={{marginBottom:10,padding:"13px 14px",
                 animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${idx*0.03}s both`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -3380,13 +3544,23 @@ Respond ONLY with valid JSON:
                       {item.id} · {(p.courseHoursComplete||0).toFixed(2)}h/{item.hours}h · {realLeft.toFixed(2)}h real left
                     </div>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                    {noteCount>0&&<button onClick={()=>setNotesItem(item)} className="btn-press"
+                      style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",
+                        color:T.textDim,borderRadius:20,padding:"4px 8px",fontSize:9,cursor:"pointer",
+                        display:"flex",alignItems:"center",gap:3,minHeight:28,fontWeight:700}}>
+                      📷 {noteCount}
+                    </button>}
                     <div style={{textAlign:"right"}}>
                       <div style={{fontSize:15,fontWeight:800,color:c}}>{p.percentComplete}%</div>
                     </div>
                     <button onClick={()=>setLogging(item)} className="btn-press"
                       style={{background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",
                         borderRadius:10,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>
+                    <button onClick={()=>setNotesItem(item)} className="btn-press"
+                      style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+                        color:T.textFaint,borderRadius:10,padding:"10px 10px",fontSize:12,cursor:"pointer",minHeight:44,
+                        display:"flex",alignItems:"center",justifyContent:"center"}}>📷</button>
                   </div>
                 </div>
                 <Bar pct={p.percentComplete} color={c} glow/>
@@ -3538,6 +3712,8 @@ Respond ONLY with valid JSON:
             {SECTIONS.map(sec=>(
               <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP}
                 setLogging={setLogging} settings={settings}
+                notes={notes}
+                onOpenNotes={item=>setNotesItem(item)}
                 onDelete={deleteItem}
                 onReset={item=>{
                   if(!window.confirm(`Reset "${item.name}" to 0%?`)) return;
@@ -3594,8 +3770,6 @@ Respond ONLY with valid JSON:
             </div>
           </div>
         </div>}
-
-        {/* ══ MARK COMPLETE ══ */}
 
         {/* ══ EDIT SESSION ══ */}
         {editSession&&(()=>{
@@ -3675,15 +3849,24 @@ Respond ONLY with valid JSON:
               transform:"translateZ(0)",willChange:"transform",
               animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
             }}>
-              {/* Date row at top so native calendar picker has room above */}
+              {/* Header row */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <div style={{fontSize:15,fontWeight:800,color:T.text,flex:1,paddingRight:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{logging.name}</div>
-                <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
-                  style={{background:"none",border:"none",color:logForm.showDate?T.blue:T.textDim,fontSize:11,
-                    cursor:"pointer",padding:"2px 0",flexShrink:0,
-                    textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
-                  {logForm.showDate?"Today":"Different day"}
-                </button>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                  {/* Photo notes quick access from log modal */}
+                  <button onClick={()=>{setLogging(null);setLogForm({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});setNotesItem(logging);}} className="btn-press"
+                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+                      color:T.textFaint,borderRadius:9,padding:"5px 10px",fontSize:11,cursor:"pointer",
+                      display:"flex",alignItems:"center",gap:4,minHeight:36}}>
+                    📷{(notes[logging.id]||[]).length>0&&<span style={{fontWeight:700,color:T.textDim}}>{(notes[logging.id]||[]).length}</span>}
+                  </button>
+                  <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
+                    style={{background:"none",border:"none",color:logForm.showDate?T.blue:T.textDim,fontSize:11,
+                      cursor:"pointer",padding:"2px 0",flexShrink:0,
+                      textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
+                    {logForm.showDate?"Today":"Different day"}
+                  </button>
+                </div>
               </div>
               {logForm.showDate&&<div style={{marginBottom:14,padding:"10px 12px",background:"rgba(255,255,255,0.04)",
                 borderRadius:10,border:"1px solid rgba(255,255,255,0.08)"}}>
@@ -3740,11 +3923,20 @@ Respond ONLY with valid JSON:
             </div>
           </div>;
         })()}
+
+        {/* ══ PHOTO NOTES MODAL ══ */}
+        {notesItem&&<PhotoNotesModal
+          item={notesItem}
+          notes={notes}
+          onClose={()=>setNotesItem(null)}
+          onAdd={addNote}
+          onDelete={deleteNote}
+        />}
+
       </div>
 
       {/* ── Bottom Navigation ── */}
       <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:appReady?undefined:0}}>
-        {/* Background layer — absolutely fills the full area including safe zone */}
         <div style={{
           position:"absolute",inset:0,
           background:"rgba(13,27,42,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
@@ -3752,7 +3944,6 @@ Respond ONLY with valid JSON:
           boxShadow:"0 -4px 24px rgba(0,0,0,0.4)",
           transform:"translateZ(0)",
         }}/>
-        {/* Button row */}
         <div style={{display:"flex",position:"relative"}}>
           {[
             ["today","Today","☀"],
@@ -3782,7 +3973,6 @@ Respond ONLY with valid JSON:
             </button>
           ))}
         </div>
-        {/* Safe area filler — solid background, no blur needed */}
         <div style={{height:"env(safe-area-inset-bottom)",background:"#0d1b2a",position:"relative"}}/>
       </div>
     </>
