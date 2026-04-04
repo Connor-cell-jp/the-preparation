@@ -1,1 +1,1 @@
-curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_sqtPDr8UXnUiViDTPccgR8qrUZiT/by1Aj0TYmS"
+curl -X POST "https://api.vercel.com/v1/integrations/deploy/prj_BQ1CYu6xUf6zuTVL1YlAgtivRX3a/iTNXJbDhfy"
