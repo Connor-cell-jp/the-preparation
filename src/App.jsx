@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
+import { supabase, upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
 
 // ── Settings-aware pure helpers ───────────────────────────────────────────────
 const snap25 = h => Math.round(h * 4) / 4;
@@ -685,8 +685,8 @@ const GLOBAL_CSS = `
     to   { opacity: 1; transform: translateY(0); }
   }
   @keyframes cinemaContentFade {
-    from { opacity: 0; transform: translateY(18px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
   @keyframes horizonDraw {
     from { transform: scaleX(0); opacity: 0; }
@@ -1335,7 +1335,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
 }
 
 // ── Side Panel ────────────────────────────────────────────────────────────────
-function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredProfile, onExport, onImport, onClearAll,
+function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredProfile, onExport, onImport, onClearAll, exporting,
   customItems, newItem, setNewItem, addCustomItem, removeCustomItem, getP,
   settings, onSaveSettings, notifs, unreadCount, onMarkRead, onDismissNotif, onClearNotifs,
   onNotifAction, onNotifClose, onSignOut }) {
@@ -1534,9 +1534,10 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
             <div style={{fontSize:9,color:T.textDim,letterSpacing:1.5,textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data Backup</div>
             <Card noBlur style={{padding:"13px 14px",marginBottom:20}}>
               <div style={{display:"flex",gap:8,marginBottom:8}}>
-                <button onClick={onExport} className="btn-press"
+                <button onClick={onExport} disabled={exporting} className="btn-press"
                   style={{flex:1,background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,
-                    color:T.textMid,borderRadius:12,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>Export JSON</button>
+                    color:T.textMid,borderRadius:12,padding:"12px 0",fontSize:12,fontWeight:700,cursor:exporting?"default":"pointer",minHeight:44,opacity:exporting?0.6:1}}>
+                  {exporting?"Exporting…":"Export JSON"}</button>
                 <button onClick={onImport} className="btn-press"
                   style={{flex:1,background:"rgba(255,255,255,0.08)",border:`1px solid rgba(255,255,255,0.12)`,
                     color:T.textMid,borderRadius:12,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44}}>Import JSON</button>
@@ -2476,27 +2477,6 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
             ))}
           </div>}
 
-          {/* ── Courses with photos ── */}
-          <div>
-            <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
-              {coursesWithNotes.length>0?'All Photos':''}
-            </div>
-            {coursesWithNotes.length===0 ? (
-              <div style={{padding:'40px 24px',textAlign:'center',
-                background:'linear-gradient(145deg,rgba(255,255,255,0.04) 0%,rgba(255,255,255,0.01) 100%)',
-                borderRadius:20,border:'1px solid rgba(255,255,255,0.06)'}}>
-                <div style={{fontSize:36,marginBottom:12,opacity:0.25}}>📷</div>
-                <div style={{fontSize:13,fontWeight:600,color:T.textMid,marginBottom:6}}>No photos yet</div>
-                <div style={{fontSize:11,color:T.textDim,lineHeight:1.6,maxWidth:240,margin:'0 auto'}}>
-                  Tap a course above to add your first photo note. Capture diagrams, notes, and key concepts.
-                </div>
-              </div>
-            ) : coursesWithNotes
-                .filter(({id})=>!(activeFocusItems.some(f=>f.id===id)))
-                .map(({id,item,noteArr})=>(
-                  <CourseRow key={id} id={id} item={item} noteArr={noteArr}/>
-                ))}
-          </div>
         </>
       )}
     </div>
@@ -2596,6 +2576,7 @@ export default function App({ onSignOut }){
   // ── 4. UI state ──
   const [view, setView]                         = useState("today");
   const [sideOpen, setSideOpen]                 = useState(false);
+  const [exporting, setExporting]               = useState(false);
   const [notifOpen, setNotifOpen]               = useState(false);
   const [logging, setLogging]                   = useState(null);
   const [logForm, setLogForm]                   = useState({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});
@@ -3449,20 +3430,36 @@ Respond ONLY with valid JSON:
     toast_(`${item.id} removed from curriculum`);
   };
 
-  const doExport=()=>{
-    const data={progress,week,focus,reviews,structuredProfile,weekPlan,weeklyHours,customItems,settings,hiddenIds,paceRatios,planHistory,notes};
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;
-    a.download=`the-preparation-${getTodayISO()}.json`;a.click();URL.revokeObjectURL(url);
-    localStorage.setItem("tp_last_export",String(Date.now()));toast_("Exported");
+  const doExport=async()=>{
+    setExporting(true);
+    try{
+      const notesWithPhotos={};
+      for(const [courseId,noteArr] of Object.entries(notes)){
+        notesWithPhotos[courseId]=await Promise.all(noteArr.map(async note=>{
+          if(!note.storageKey) return note;
+          try{
+            const{data:blob}=await supabase.storage.from("notes-photos").download(note.storageKey);
+            if(!blob) return note;
+            const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(blob);});
+            return{...note,imageData:b64,imageMime:blob.type||"image/jpeg"};
+          }catch{return note;}
+        }));
+      }
+      const data={progress,week,focus,reviews,structuredProfile,weekPlan,weeklyHours,customItems,settings,hiddenIds,paceRatios,planHistory,notes:notesWithPhotos};
+      const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");a.href=url;
+      a.download=`the-preparation-${getTodayISO()}.json`;a.click();URL.revokeObjectURL(url);
+      localStorage.setItem("tp_last_export",String(Date.now()));toast_("Exported");
+    }catch{toast_("Export failed");}
+    finally{setExporting(false);}
   };
   const doImport=()=>{
     const inp=document.createElement("input");inp.type="file";inp.accept=".json";
     inp.onchange=e=>{
       const file=e.target.files[0];if(!file) return;
       const reader=new FileReader();
-      reader.onload=ev=>{
+      reader.onload=async ev=>{
         try{
           const d=JSON.parse(ev.target.result);
           if(d.progress) setProgress(d.progress);
@@ -3481,7 +3478,27 @@ Respond ONLY with valid JSON:
           if(d.hiddenIds) setHiddenIds(d.hiddenIds);
           if(d.paceRatios) setPaceRatios(d.paceRatios);
           if(d.planHistory) setPlanHistory(d.planHistory);
-          if(d.notes) setNotes(d.notes);
+          if(d.notes){
+            const importedNotes={};
+            for(const [courseId,noteArr] of Object.entries(d.notes)){
+              importedNotes[courseId]=await Promise.all(noteArr.map(async note=>{
+                if(!note.imageData) return note;
+                try{
+                  const res=await fetch(note.imageData);
+                  const blob=await res.blob();
+                  const ext=(note.imageMime||"image/jpeg").split("/")[1]||"jpg";
+                  const f=new File([blob],`import_${Date.now()}.${ext}`,{type:note.imageMime||"image/jpeg"});
+                  const{url,storageKey}=await uploadNotePhoto(f);
+                  const{imageData:_,imageMime:__,...rest}=note;
+                  return{...rest,url,storageKey};
+                }catch{
+                  const{imageData:_,imageMime:__,...rest}=note;
+                  return rest;
+                }
+              }));
+            }
+            setNotes(importedNotes);
+          }
           toast_("Imported");
         }catch{toast_("Import failed");}
       };
@@ -3600,7 +3617,7 @@ Respond ONLY with valid JSON:
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
           reviews={reviews} structuredProfile={structuredProfile} setStructuredProfile={setStructuredProfile}
-          onExport={doExport} onImport={doImport} onClearAll={doClearAll}
+          onExport={doExport} onImport={doImport} onClearAll={doClearAll} exporting={exporting}
           customItems={customItems} newItem={newItem} setNewItem={setNewItem}
           addCustomItem={addCustomItem} removeCustomItem={removeCustomItem} getP={getP}
           settings={settings}
