@@ -1730,12 +1730,14 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
   const [selectedItem, setSelectedItem] = useState(null);
   // uploaded holds { url, storageKey } after a successful upload
   const [uploaded, setUploaded] = useState(null);
-  const [caption, setCaption] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingScan, setPendingScan] = useState(null); // { file }
   const fileInputRef = useRef(null);
+
+  // Pre-warm OpenCV as soon as the modal opens so it's ready when a photo is picked
+  useEffect(() => { loadScanLibs(); }, []);
 
   const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
   const planCourseIds = weekPlan
@@ -1792,7 +1794,6 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
       id: Date.now(),
       url: uploaded.url,
       storageKey: uploaded.storageKey,
-      ...(caption.trim() ? { caption: caption.trim() } : {}),
       date: new Date().toLocaleDateString(),
       createdAt: new Date().toISOString(),
     });
@@ -1941,7 +1942,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
       <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
       <div style={{padding:'14px 16px 12px', flexShrink:0, borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
-          <button onClick={()=>{handleRetake();setStep('pick');setCaption('');}} className="btn-press"
+          <button onClick={()=>{handleRetake();setStep('pick');}} className="btn-press"
             style={{background:'none', border:'none', color:T.textDim, fontSize:13,
               cursor:'pointer', padding:'8px 0', minHeight:44,
               display:'flex', alignItems:'center', gap:6}}>
@@ -2030,23 +2031,6 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
                 Retake
               </button>
             </div>
-            <div style={{marginBottom:8}}>
-              <div style={{fontSize:11, color:T.textMid, marginBottom:6, fontWeight:600}}>
-                Caption <span style={{color:T.textDim, fontWeight:400}}>(optional)</span>
-              </div>
-              <textarea
-                value={caption}
-                onChange={e=>setCaption(e.target.value)}
-                placeholder="Key concept, diagram, page reference..."
-                style={{
-                  width:'100%', background:'rgba(255,255,255,0.06)',
-                  border:'1px solid rgba(255,255,255,0.12)',
-                  borderRadius:12, padding:'11px 13px', color:T.text, fontSize:13,
-                  lineHeight:1.5, resize:'none', height:72,
-                  fontFamily:'inherit', boxSizing:'border-box', outline:'none',
-                }}
-              />
-            </div>
           </div>
         )}
       </div>
@@ -2079,7 +2063,11 @@ let _scanLibsPromise = null;
 function loadScanLibs() {
   if (_scanLibsPromise) return _scanLibsPromise;
   _scanLibsPromise = new Promise((resolve) => {
-    if (window.jscanify) { resolve(true); return; }
+    // Always resolve within 20 s so the UI never hangs on a white screen
+    const timeout = setTimeout(() => resolve(false), 20000);
+    const done = (val) => { clearTimeout(timeout); resolve(val); };
+
+    if (window.jscanify) { done(true); return; }
     const existingInit = (window.Module||{}).onRuntimeInitialized;
     window.Module = {
       ...(window.Module||{}),
@@ -2087,14 +2075,14 @@ function loadScanLibs() {
         if (existingInit) existingInit.call(this);
         const jsScript = document.createElement('script');
         jsScript.src = 'https://cdn.jsdelivr.net/gh/ColonelParrot/jscanify@master/src/jscanify.min.js';
-        jsScript.onload = () => resolve(true);
-        jsScript.onerror = () => resolve(false);
+        jsScript.onload = () => done(true);
+        jsScript.onerror = () => done(false);
         document.head.appendChild(jsScript);
       }
     };
     const cvScript = document.createElement('script');
     cvScript.src = 'https://docs.opencv.org/4.7.0/opencv.js';
-    cvScript.onerror = () => resolve(false);
+    cvScript.onerror = () => done(false);
     document.head.appendChild(cvScript);
   });
   return _scanLibsPromise;
@@ -2266,13 +2254,14 @@ function ScanPreviewModal({ file, courseColor, onConfirm, onRetake }) {
   );
 }
 
-function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange }) {
+function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, weekPlan, onDetailOpenChange }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   useEffect(() => { onDetailOpenChange?.(!!selectedCourseId); }, [selectedCourseId]);
+  // Guarantee the HUD is restored if PhotoLibrary unmounts while a detail is open
+  // (e.g. user switches tabs before tapping Back)
+  useEffect(() => { return () => { onDetailOpenChange?.(false); }; }, []);
   const [expandedNote, setExpandedNote] = useState(null); // { courseId, noteIdx }
-  const [editingCaption, setEditingCaption] = useState(null); // { courseId, noteId }
-  const [captionDraft, setCaptionDraft] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { courseId, noteId, storageKey }
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadingFor, setUploadingFor] = useState(null);
@@ -2281,6 +2270,9 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
   const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
   const fileInputRef = useRef(null);
   const addingToRef = useRef(null);
+
+  // Pre-warm OpenCV as soon as the library opens so it's ready when a photo is picked
+  useEffect(() => { loadScanLibs(); }, []);
 
   const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
 
@@ -2383,9 +2375,8 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
     if (!note) { setExpandedNote(null); return null; }
     const hasPrev = noteIdx > 0;
     const hasNext = noteIdx < noteArr.length - 1;
-    const isEditing = editingCaption?.courseId===courseId && editingCaption?.noteId===note.id;
     const col = gc(item?.genre);
-    const closeExpanded = () => { setExpandedNote(null); setEditingCaption(null); setDeleteConfirm(null); };
+    const closeExpanded = () => { setExpandedNote(null); setDeleteConfirm(null); };
     return (
       <div style={{position:'fixed',inset:0,zIndex:510,background:'#000',display:'flex',flexDirection:'column',
         paddingTop:'env(safe-area-inset-top)',animation:'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both'}}>
@@ -2406,64 +2397,26 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
             </div>
             <div style={{fontSize:10,color:'rgba(255,255,255,0.22)',marginTop:2}}>{noteIdx+1} of {noteArr.length}</div>
           </div>
-          <button onClick={()=>{
-              if(!isEditing){ setEditingCaption({courseId,noteId:note.id}); setCaptionDraft(note.caption||''); }
-              else { setEditingCaption(null); }
-            }} className="btn-press"
-            style={{background:isEditing?'rgba(59,130,246,0.18)':'rgba(255,255,255,0.08)',
-              border:`1px solid ${isEditing?'rgba(59,130,246,0.4)':'rgba(255,255,255,0.12)'}`,
-              color:isEditing?T.blue:T.textDim,fontSize:12,cursor:'pointer',
-              padding:'7px 14px',borderRadius:99,minHeight:40,fontWeight:600}}>
-            {isEditing?'Cancel':'✎ Edit'}
-          </button>
+          <div style={{width:72}}/>
         </div>
         {/* Photo */}
         <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
           overflow:'hidden',padding:'0 8px',position:'relative'}}>
           <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
             style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain',borderRadius:10}}/>
-          {hasPrev&&<button onClick={()=>{setExpandedNote({courseId,noteIdx:noteIdx-1});setEditingCaption(null);setDeleteConfirm(null);}} className="btn-press"
+          {hasPrev&&<button onClick={()=>{setExpandedNote({courseId,noteIdx:noteIdx-1});setDeleteConfirm(null);}} className="btn-press"
             style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',
               background:'rgba(0,0,0,0.50)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)',
               border:'1px solid rgba(255,255,255,0.14)',borderRadius:99,
               width:42,height:42,display:'flex',alignItems:'center',justifyContent:'center',
               color:'#fff',fontSize:22,cursor:'pointer',flexShrink:0}}>‹</button>}
-          {hasNext&&<button onClick={()=>{setExpandedNote({courseId,noteIdx:noteIdx+1});setEditingCaption(null);setDeleteConfirm(null);}} className="btn-press"
+          {hasNext&&<button onClick={()=>{setExpandedNote({courseId,noteIdx:noteIdx+1});setDeleteConfirm(null);}} className="btn-press"
             style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
               background:'rgba(0,0,0,0.50)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)',
               border:'1px solid rgba(255,255,255,0.14)',borderRadius:99,
               width:42,height:42,display:'flex',alignItems:'center',justifyContent:'center',
               color:'#fff',fontSize:22,cursor:'pointer',flexShrink:0}}>›</button>}
         </div>
-        {/* Caption edit area */}
-        {isEditing&&(
-          <div style={{padding:'12px 16px',flexShrink:0,
-            background:'rgba(0,0,0,0.72)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
-            borderTop:'1px solid rgba(255,255,255,0.07)'}}>
-            <textarea value={captionDraft} onChange={e=>setCaptionDraft(e.target.value)}
-              placeholder="Add a caption…" rows={2}
-              style={{width:'100%',background:'rgba(255,255,255,0.08)',
-                border:'1px solid rgba(255,255,255,0.14)',borderRadius:12,
-                padding:'10px 12px',color:T.text,fontSize:14,resize:'none',
-                fontFamily:'inherit',outline:'none',boxSizing:'border-box',marginBottom:10}}/>
-            <button onClick={()=>{
-                onEditNote(courseId,note.id,{caption:captionDraft.trim()||undefined});
-                setEditingCaption(null);
-              }} className="btn-press"
-              style={{width:'100%',background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
-                border:'none',color:'#fff',borderRadius:14,padding:'13px',fontSize:14,fontWeight:800,
-                cursor:'pointer',minHeight:48,boxShadow:`0 4px 20px ${col}40`}}>
-              Save Caption
-            </button>
-          </div>
-        )}
-        {!isEditing&&note.caption&&(
-          <div style={{padding:'10px 20px 4px',fontSize:13,color:'rgba(255,255,255,0.72)',
-            fontStyle:'italic',lineHeight:1.5,textAlign:'center',flexShrink:0,
-            background:'rgba(0,0,0,0.4)'}}>
-            {note.caption}
-          </div>
-        )}
         {/* Footer */}
         <div style={{
           padding:'10px 16px',paddingBottom:'calc(env(safe-area-inset-bottom) + 10px)',
@@ -2598,10 +2551,6 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
                   <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'18px 8px 6px',
                     background:'linear-gradient(transparent,rgba(0,0,0,0.72))',
                     fontSize:8,color:'rgba(255,255,255,0.60)',fontWeight:500}}>{note.date}</div>
-                  {note.caption&&<div style={{position:'absolute',top:6,right:6,
-                    background:'rgba(59,130,246,0.85)',borderRadius:99,
-                    width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',
-                    fontSize:10,color:'#fff',fontWeight:700}}>✎</div>}
                 </div>
               ))}
               {isUploading&&<div style={{aspectRatio:'1 / 1',borderRadius:14,
@@ -4675,7 +4624,6 @@ Respond ONLY with valid JSON:
               curriculum={CURRICULUM}
               onDeleteNote={deleteNote}
               onAddNote={addNote}
-              onEditNote={editNote}
               focusItems={focusItems}
               weekPlan={weekPlan}
               onDetailOpenChange={setPhotoDetailOpen}
