@@ -1007,11 +1007,19 @@ function SessionHistory({item,sessions,onEdit}){
 
 function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
   const [open,setOpen]=useState(false);
+  const [sectionSearch,setSectionSearch]=useState('');
   const done=sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
   const active=sec.items.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length;
   const totalContentH=sec.items.reduce((s,i)=>s+(i.hours||0),0);
   const doneContentH=sec.items.reduce((s,i)=>s+(getP(i.id).courseHoursComplete||0),0);
   const pct=totalContentH>0?Math.round((doneContentH/totalContentH)*100):0;
+  const filteredItems=sectionSearch.trim()
+    ? sec.items.filter(i=>
+        i.name.toLowerCase().includes(sectionSearch.toLowerCase())||
+        i.id.toLowerCase().includes(sectionSearch.toLowerCase())||
+        (i.genre||'').toLowerCase().includes(sectionSearch.toLowerCase())
+      )
+    : sec.items;
   return <div style={{
     background:"linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
     backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
@@ -1034,7 +1042,27 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
     <Bar pct={pct} color={T.blue} style={{margin:"0 16px 10px",height:3}} glow={pct>0}/>
     <div style={{overflow:"hidden",maxHeight:open?"9999px":"0",transition:"max-height 0.35s cubic-bezier(0.4,0,0.2,1)"}}>
       <div style={{padding:"0 12px 12px"}}>
-        {sec.items.map(item=>{
+        {/* Per-section search */}
+        <div style={{position:'relative',marginBottom:10}} onClick={e=>e.stopPropagation()}>
+          <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',
+            fontSize:12,color:T.textFaint,pointerEvents:'none'}}>🔍</span>
+          <input
+            value={sectionSearch}
+            onChange={e=>setSectionSearch(e.target.value)}
+            placeholder={`Filter ${sec.label.toLowerCase()}…`}
+            style={{width:'100%',background:'rgba(255,255,255,0.06)',
+              border:'1px solid rgba(255,255,255,0.10)',borderRadius:10,
+              padding:'8px 32px 8px 28px',color:T.text,fontSize:12,
+              boxSizing:'border-box',fontFamily:'inherit',outline:'none'}}
+          />
+          {sectionSearch&&<button
+            onClick={e=>{e.stopPropagation();setSectionSearch('');}}
+            className="btn-press"
+            style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',
+              background:'none',border:'none',color:T.textDim,fontSize:15,cursor:'pointer',
+              padding:2,minHeight:28,lineHeight:1}}>×</button>}
+        </div>
+        {filteredItems.map((item,idx)=>{
           const p=getP(item.id),inFocus=focusIds.includes(item.id);
           const isDone=p.percentComplete>=100,isTouched=p.percentComplete>0&&!isDone;
           const c=gc(item.genre);
@@ -1042,7 +1070,8 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
           const realLeft=contentToReal(item,contentLeft,settings);
           return <div key={item.id}
             style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
-              borderBottom:`1px solid rgba(255,255,255,0.06)`}}>
+              borderBottom:`1px solid rgba(255,255,255,0.06)`,
+              animation:`fadeUp 0.18s cubic-bezier(0.4,0,0.2,1) ${idx*0.02}s both`}}>
             <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
               background:isDone?T.green:isTouched?c:inFocus?T.pink:"rgba(255,255,255,0.15)"}}/>
             <div style={{flex:1,minWidth:0}}>
@@ -1073,6 +1102,11 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
             </div>
           </div>;
         })}
+        {sectionSearch.trim()&&filteredItems.length===0&&(
+          <div style={{padding:'16px 0',textAlign:'center',color:T.textDim,fontSize:12}}>
+            No results in {sec.label.toLowerCase()}
+          </div>
+        )}
       </div>
     </div>
   </div>;
@@ -1212,7 +1246,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
         border:'1px solid rgba(255,255,255,0.16)',
         borderRadius:14,
         boxShadow:'0 4px 28px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.10)',
-        pointerEvents:'auto',
+        pointerEvents: photoDetailOpen ? 'none' : 'auto',
         transform:'translateZ(0)',
         overflow:'hidden',
         transition:'box-shadow 0.3s ease',
@@ -2016,6 +2050,198 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 }
 
 // ── Photo Library ──────────────────────────────────────────────────────────────
+// ── Document scanning libs (lazy-loaded) ──
+let _scanLibsPromise = null;
+function loadScanLibs() {
+  if (_scanLibsPromise) return _scanLibsPromise;
+  _scanLibsPromise = new Promise((resolve) => {
+    if (window.jscanify) { resolve(true); return; }
+    const existingInit = (window.Module||{}).onRuntimeInitialized;
+    window.Module = {
+      ...(window.Module||{}),
+      onRuntimeInitialized() {
+        if (existingInit) existingInit.call(this);
+        const jsScript = document.createElement('script');
+        jsScript.src = 'https://cdn.jsdelivr.net/gh/ColonelParrot/jscanify@master/src/jscanify.min.js';
+        jsScript.onload = () => resolve(true);
+        jsScript.onerror = () => resolve(false);
+        document.head.appendChild(jsScript);
+      }
+    };
+    const cvScript = document.createElement('script');
+    cvScript.src = 'https://docs.opencv.org/4.7.0/opencv.js';
+    cvScript.onerror = () => resolve(false);
+    document.head.appendChild(cvScript);
+  });
+  return _scanLibsPromise;
+}
+
+function ScanPreviewModal({ file, courseColor, onConfirm, onRetake }) {
+  const [scanState, setScanState] = React.useState('loading'); // 'loading'|'scanned'|'original'
+  const [originalUrl, setOriginalUrl] = React.useState(null);
+  const [scannedUrl, setScannedUrl] = React.useState(null);
+  const scannedCanvasRef = React.useRef(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      if (cancelled) return;
+      const dataUrl = e.target.result;
+      setOriginalUrl(dataUrl);
+      try {
+        const ready = await loadScanLibs();
+        if (cancelled) return;
+        if (!ready || !window.jscanify) { setScanState('original'); return; }
+        const img = new Image();
+        img.onload = () => {
+          if (cancelled) return;
+          try {
+            const scanner = new window.jscanify();
+            const resultCanvas = scanner.extractPaper(img, img.naturalWidth, img.naturalHeight);
+            if (resultCanvas && resultCanvas.width > 10 && resultCanvas.height > 10) {
+              scannedCanvasRef.current = resultCanvas;
+              setScannedUrl(resultCanvas.toDataURL('image/jpeg', 0.92));
+              setScanState('scanned');
+            } else {
+              setScanState('original');
+            }
+          } catch { setScanState('original'); }
+        };
+        img.onerror = () => { if (!cancelled) setScanState('original'); };
+        img.src = dataUrl;
+      } catch { if (!cancelled) setScanState('original'); }
+    };
+    reader.onerror = () => setScanState('original');
+    reader.readAsDataURL(file);
+    return () => { cancelled = true; };
+  }, [file]);
+
+  const col = courseColor || T.blue;
+
+  const handleConfirm = () => {
+    if (scanState === 'scanned' && scannedCanvasRef.current) {
+      scannedCanvasRef.current.toBlob(blob => onConfirm(blob, 'image/jpeg'), 'image/jpeg', 0.92);
+    } else if (originalUrl) {
+      fetch(originalUrl).then(r => r.blob()).then(blob => onConfirm(blob, blob.type || file.type));
+    }
+  };
+
+  return (
+    <div style={{
+      position:'fixed',inset:0,zIndex:600,background:'#000',
+      display:'flex',flexDirection:'column',
+      paddingTop:'env(safe-area-inset-top)',
+      animation:'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both',
+    }}>
+      {/* Header */}
+      <div style={{
+        display:'flex',justifyContent:'space-between',alignItems:'center',
+        padding:'12px 16px',flexShrink:0,
+        background:'rgba(0,0,0,0.70)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+        borderBottom:'1px solid rgba(255,255,255,0.07)',
+      }}>
+        <button onClick={onRetake} className="btn-press"
+          style={{background:'rgba(255,255,255,0.10)',border:'none',color:T.text,
+            fontSize:12,fontWeight:600,cursor:'pointer',padding:'7px 14px',
+            borderRadius:99,minHeight:40,display:'flex',alignItems:'center',gap:5}}>
+          ← Retake
+        </button>
+        <div style={{textAlign:'center',flex:1,padding:'0 8px'}}>
+          <div style={{fontSize:13,fontWeight:700,color:T.text,animation:'fadeIn 0.2s ease both'}}>
+            {scanState==='loading' ? 'Processing…' : scanState==='scanned' ? 'Document Scan' : 'Review Photo'}
+          </div>
+          <div style={{fontSize:10,color:T.textDim,marginTop:2,animation:'fadeIn 0.3s ease 0.1s both'}}>
+            {scanState==='scanned' ? 'Edges detected & corrected' : scanState==='original' ? 'Original photo · edges not detected' : 'Detecting document edges…'}
+          </div>
+        </div>
+        <button onClick={handleConfirm} disabled={scanState==='loading'} className="btn-press"
+          style={{
+            background:scanState!=='loading'?`linear-gradient(135deg,${col} 0%,${col}cc 100%)`:'rgba(255,255,255,0.08)',
+            border:'none',color:'#fff',fontSize:12,fontWeight:700,
+            cursor:scanState!=='loading'?'pointer':'default',
+            padding:'7px 18px',borderRadius:99,minHeight:40,
+            opacity:scanState==='loading'?0.4:1,
+            transition:'opacity 0.2s ease,background 0.2s ease',
+            boxShadow:scanState!=='loading'?`0 4px 18px ${col}50`:'none',
+          }}>
+          Save
+        </button>
+      </div>
+
+      {/* Preview area */}
+      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
+        padding:'16px',background:'#000',position:'relative',overflow:'hidden'}}>
+        {scanState==='loading' && (
+          <div style={{textAlign:'center',animation:'fadeIn 0.2s ease both'}}>
+            <div style={{
+              width:44,height:44,borderRadius:'50%',
+              border:`3px solid rgba(255,255,255,0.08)`,borderTopColor:col,
+              animation:'spin 0.9s linear infinite',margin:'0 auto 14px',
+            }}/>
+            <div style={{fontSize:13,color:T.textDim,fontWeight:500}}>Detecting document edges…</div>
+            <div style={{fontSize:11,color:T.textFaint,marginTop:4}}>This may take a moment</div>
+          </div>
+        )}
+        {scanState==='scanned' && scannedUrl && (
+          <div style={{maxWidth:'100%',maxHeight:'100%',position:'relative',animation:'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) both'}}>
+            <div style={{
+              position:'absolute',top:-8,right:-8,
+              background:T.green,borderRadius:99,
+              padding:'3px 10px',fontSize:10,fontWeight:700,color:'#fff',
+              boxShadow:`0 2px 10px ${T.green}60`,
+              animation:'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) 0.1s both',
+            }}>✓ Scan</div>
+            <img src={scannedUrl} alt="Scanned document"
+              style={{maxWidth:'100%',maxHeight:'calc(100vh - 280px)',objectFit:'contain',
+                borderRadius:14,boxShadow:'0 12px 50px rgba(0,0,0,0.85)',display:'block'}}/>
+          </div>
+        )}
+        {scanState==='original' && originalUrl && (
+          <div style={{maxWidth:'100%',maxHeight:'100%',position:'relative',animation:'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) both'}}>
+            <div style={{
+              position:'absolute',top:-8,right:-8,
+              background:'rgba(255,255,255,0.18)',borderRadius:99,
+              padding:'3px 10px',fontSize:10,fontWeight:600,color:T.textMid,
+              animation:'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) 0.1s both',
+            }}>Original</div>
+            <img src={originalUrl} alt="Original photo"
+              style={{maxWidth:'100%',maxHeight:'calc(100vh - 280px)',objectFit:'contain',
+                borderRadius:14,boxShadow:'0 12px 50px rgba(0,0,0,0.85)',display:'block'}}/>
+          </div>
+        )}
+      </div>
+
+      {/* Footer buttons */}
+      {scanState!=='loading' && (
+        <div style={{
+          padding:'12px 16px',paddingBottom:'calc(env(safe-area-inset-bottom) + 12px)',
+          flexShrink:0,background:'rgba(0,0,0,0.75)',
+          backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+          borderTop:'1px solid rgba(255,255,255,0.07)',
+          display:'flex',gap:10,
+          animation:'fadeUp 0.28s cubic-bezier(0.16,1,0.3,1) both',
+        }}>
+          <button onClick={onRetake} className="btn-press"
+            style={{flex:1,background:'rgba(255,255,255,0.08)',
+              border:'1px solid rgba(255,255,255,0.12)',color:T.text,
+              borderRadius:16,padding:'14px',fontSize:14,fontWeight:600,
+              cursor:'pointer',minHeight:52}}>
+            Retake
+          </button>
+          <button onClick={handleConfirm} className="btn-press"
+            style={{flex:2,background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
+              border:'none',color:'#fff',borderRadius:16,padding:'14px',
+              fontSize:14,fontWeight:800,cursor:'pointer',minHeight:52,
+              boxShadow:`0 6px 28px ${col}45`}}>
+            {scanState==='scanned' ? '✓ Use Scan' : 'Save Photo'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
@@ -2028,6 +2254,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
   const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadError, setUploadError] = useState('');
   const [aiStudyOpen, setAiStudyOpen] = useState(false);
+  const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
   const fileInputRef = useRef(null);
   const addingToRef = useRef(null);
 
@@ -2063,13 +2290,16 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
     ? planCourseIds.map(id=>coursesOnly.find(i=>i.id===id)).filter(Boolean).map(item=>({id:item.id,item,noteArr:notes[item.id]||[]}))
     : (focusItems||[]).filter(item=>item.type==="course").map(item=>({id:item.id,item,noteArr:notes[item.id]||[]}));
 
-  const handleFileChange = async (e) => {
-    const file = e.target.files?.[0];
-    const courseId = addingToRef.current;
-    if (!file || !courseId) return;
+  // Called after scan preview is confirmed — uploads the (possibly scanned) blob
+  const handleScanConfirm = async (blob, mimeType) => {
+    const courseId = pendingScan?.courseId;
+    setPendingScan(null);
+    if (!blob || !courseId) return;
     setUploadingFor(courseId);
     setUploadError('');
     try {
+      const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+      const file = new File([blob], `scan.${ext}`, { type: mimeType || 'image/jpeg' });
       const { url, storageKey } = await uploadNotePhoto(file);
       onAddNote(courseId, {
         id: Date.now(), url, storageKey,
@@ -2080,8 +2310,16 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
       setUploadError(err?.message || 'Upload failed');
     }
     setUploadingFor(null);
-    addingToRef.current = null;
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    const courseId = addingToRef.current;
     if (e.target) e.target.value = '';
+    if (!file || !courseId) return;
+    // Show scan preview before uploading
+    setPendingScan({ file, courseId });
+    addingToRef.current = null;
   };
 
   const triggerAdd = (courseId) => {
@@ -2089,6 +2327,28 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
     setUploadError('');
     setTimeout(()=>fileInputRef.current?.click(), 50);
   };
+
+  // ── Scan preview modal ──
+  if (pendingScan) {
+    const courseItem = coursesOnly.find(i=>i.id===pendingScan.courseId);
+    const col = gc(courseItem?.genre);
+    return (
+      <ScanPreviewModal
+        file={pendingScan.file}
+        courseColor={col}
+        onConfirm={handleScanConfirm}
+        onRetake={() => {
+          setPendingScan(null);
+          // Re-trigger the file picker so user can pick a different photo
+          setTimeout(() => {
+            addingToRef.current = pendingScan.courseId;
+            setUploadError('');
+            fileInputRef.current?.click();
+          }, 100);
+        }}
+      />
+    );
+  }
 
   // ── Expanded note full-screen view ──
   if (expandedNote) {
@@ -2368,7 +2628,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
 
   return (
     <div style={{padding:'0 16px',paddingBottom:24}}>
-      <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
+      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFileChange}/>
 
       {/* ── Header stats ── */}
       <div style={{
@@ -2377,6 +2637,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
         border:'1px solid rgba(255,255,255,0.08)',borderRadius:20,
         padding:'18px 18px 16px',marginBottom:16,boxShadow:shadow.card,
         display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,
+        animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both',
       }}>
         <div>
           <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
@@ -2400,7 +2661,8 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
           border:'1px solid rgba(59,130,246,0.22)',borderRadius:20,
           padding:'16px 18px',marginBottom:16,boxShadow:shadow.card,
           textAlign:'left',cursor:'pointer',
-          display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+          display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,
+          animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.05s both'}}>
         <div>
           <div style={{fontSize:9,color:T.blue,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
             AI Study ✦
@@ -2420,7 +2682,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
         background:'linear-gradient(145deg,rgba(59,130,246,0.07) 0%,rgba(59,130,246,0.02) 100%)',
         border:'1px solid rgba(59,130,246,0.15)',borderRadius:20,
         padding:'20px 18px',marginTop:-8,marginBottom:16,
-        animation:'fadeIn 0.18s ease both',
+        animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both',
       }}>
         <div style={{fontSize:32,marginBottom:12,textAlign:'center',opacity:0.4}}>✦</div>
         <div style={{fontSize:13,fontWeight:700,color:T.textMid,textAlign:'center',marginBottom:8}}>
@@ -2431,8 +2693,14 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
         </div>
       </div>}
 
+      {uploadError&&<div style={{
+        background:'rgba(239,68,68,0.10)',border:'1px solid rgba(239,68,68,0.28)',
+        borderRadius:12,padding:'10px 14px',fontSize:12,color:T.red,
+        marginBottom:12,animation:'fadeUp 0.2s ease both',
+      }}>{uploadError}</div>}
+
       {/* ── Search bar ── */}
-      <div style={{position:'relative',marginBottom:16}}>
+      <div style={{position:'relative',marginBottom:16,animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.09s both'}}>
         <span style={{position:'absolute',left:13,top:'50%',transform:'translateY(-50%)',
           fontSize:14,color:T.textFaint,pointerEvents:'none'}}>🔍</span>
         <input
@@ -2454,7 +2722,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
 
       {searchQuery.trim() ? (
         // ── Search results ──
-        <div>
+        <div style={{animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both'}}>
           <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
             Results for "{searchQuery}"
           </div>
@@ -2464,22 +2732,50 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
               border:'1px solid rgba(255,255,255,0.06)'}}>
               <div style={{fontSize:13,color:T.textDim}}>No courses found</div>
             </div>
-          ) : displayCourses.map(({id,item,noteArr})=>(
-            <CourseRow key={id} id={id} item={item} noteArr={noteArr}/>
+          ) : displayCourses.map(({id,item,noteArr},idx)=>(
+            <div key={id} style={{animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${idx*0.04}s both`}}>
+              <CourseRow id={id} item={item} noteArr={noteArr}/>
+            </div>
           ))}
         </div>
       ) : (
         <>
           {/* ── Current Courses (from focus) ── */}
-          {activeFocusItems.length>0&&<div style={{marginBottom:20}}>
+          {activeFocusItems.length>0&&<div style={{marginBottom:20,animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.12s both'}}>
             <div style={{fontSize:9,color:T.blue,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
               {planCourseIds.length>0?'This Week':'Current Focus'}
             </div>
-            {activeFocusItems.map(({id,item,noteArr})=>(
-              <CourseRow key={id} id={id} item={item} noteArr={noteArr}/>
+            {activeFocusItems.map(({id,item,noteArr},idx)=>(
+              <div key={id} style={{animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${0.14+idx*0.04}s both`}}>
+                <CourseRow id={id} item={item} noteArr={noteArr}/>
+              </div>
             ))}
           </div>}
 
+          {/* ── All courses with photos ── */}
+          {coursesWithNotes.length>0&&!activeFocusItems.length&&<div style={{animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.12s both'}}>
+            <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
+              All Photos
+            </div>
+            {coursesWithNotes.map(({id,item,noteArr},idx)=>(
+              <div key={id} style={{animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${0.14+idx*0.04}s both`}}>
+                <CourseRow id={id} item={item} noteArr={noteArr}/>
+              </div>
+            ))}
+          </div>}
+
+          {totalPhotos===0&&<div style={{
+            padding:'48px 24px',textAlign:'center',
+            background:'rgba(255,255,255,0.02)',borderRadius:20,
+            border:'1px dashed rgba(255,255,255,0.08)',
+            animation:'fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) 0.14s both',
+          }}>
+            <div style={{fontSize:52,marginBottom:16,opacity:0.15}}>📷</div>
+            <div style={{fontSize:15,fontWeight:700,color:T.textMid,marginBottom:6}}>No photos yet</div>
+            <div style={{fontSize:12,color:T.textDim,lineHeight:1.65,maxWidth:240,margin:'0 auto'}}>
+              Open any course in your focus to start capturing notes and diagrams.
+            </div>
+          </div>}
         </>
       )}
     </div>
@@ -4332,101 +4628,20 @@ Respond ONLY with valid JSON:
                 </div>
               </div>
             </Card>
-            {/* Course Search */}
-            <div style={{
-              background:"linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)",
-              backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-              border:"1px solid rgba(255,255,255,0.08)",borderTop:"1px solid rgba(255,255,255,0.12)",
-              borderRadius:20,marginBottom:8,overflow:"hidden",boxShadow:shadow.card,
-            }}>
-              <div style={{padding:"14px 16px",display:"flex",alignItems:"center",gap:10}}>
-                {arcSearchActive ? (
-                  <input
-                    autoFocus
-                    value={arcSearchQuery}
-                    onChange={e=>setArcSearchQuery(e.target.value)}
-                    placeholder="Search courses & books…"
-                    style={{
-                      flex:1,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.15)",
-                      borderRadius:10,padding:"9px 12px",fontSize:13,color:T.text,outline:"none",
-                      fontFamily:T.fontUI,
-                    }}
-                  />
-                ) : (
-                  <div style={{flex:1,fontSize:13,fontWeight:700,color:T.text}}>Find a Course</div>
-                )}
-                <button
-                  onClick={()=>{setArcSearchActive(a=>!a);setArcSearchQuery("");}}
-                  className="btn-press"
-                  style={{
-                    background:arcSearchActive?"rgba(239,68,68,0.12)":"rgba(59,130,246,0.12)",
-                    border:`1px solid ${arcSearchActive?"rgba(239,68,68,0.3)":"rgba(59,130,246,0.25)"}`,
-                    color:arcSearchActive?T.red:T.blue,borderRadius:10,
-                    width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",
-                    fontSize:17,cursor:"pointer",flexShrink:0,
-                  }}>
-                  {arcSearchActive?"✕":"🔍"}
-                </button>
+            {/* Curriculum Sections */}
+            {SECTIONS.map((sec,i)=>(
+              <div key={sec.label} style={{animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${0.04+i*0.06}s both`}}>
+                <SectionBlock
+                  sec={sec}
+                  focusIds={focusIds}
+                  getP={getP}
+                  setLogging={setLogging}
+                  onReset={item=>{if(!window.confirm(`Reset "${item.name}" to 0%?`))return;setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});}}
+                  onDelete={deleteItem}
+                  settings={settings}
+                />
               </div>
-              {arcSearchActive&&(
-                <div style={{padding:"0 12px 12px"}}>
-                  {(arcSearchQuery.trim()
-                    ? CURRICULUM.filter(i=>
-                        i.name.toLowerCase().includes(arcSearchQuery.toLowerCase())||
-                        i.id.toLowerCase().includes(arcSearchQuery.toLowerCase())||
-                        (i.genre||"").toLowerCase().includes(arcSearchQuery.toLowerCase())
-                      )
-                    : CURRICULUM
-                  ).slice(0,20).map(item=>{
-                    const p=getP(item.id);
-                    const inFocus=focusIds.includes(item.id);
-                    const isDone=p.percentComplete>=100;
-                    const isTouched=p.percentComplete>0&&!isDone;
-                    const c=gc(item.genre);
-                    const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
-                    const realLeft=contentToReal(item,contentLeft,settings);
-                    return <div key={item.id}
-                      style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
-                        borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
-                      <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
-                        background:isDone?T.green:isTouched?c:inFocus?T.pink:"rgba(255,255,255,0.15)"}}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontSize:11,fontWeight:isDone||isTouched?600:400,
-                          color:isDone?T.green:isTouched?T.text:T.textDim,
-                          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                          <span style={{color:T.textDim,marginRight:5}}>{item.id}</span>{item.name}
-                        </div>
-                        <div style={{fontSize:9,color:T.textFaint,marginTop:2}}>
-                          {item.hours}h{item.genre?` · ${item.genre}`:""}
-                          {!isDone&&isTouched?` · ${realLeft.toFixed(1)}h left`:""}
-                          {inFocus?" · focus":""}
-                        </div>
-                      </div>
-                      <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
-                        {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c}}>{p.percentComplete}%</div>}
-                        {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
-                        {isDone&&<button onClick={()=>{if(!window.confirm(`Reset "${item.name}" to 0%?`))return;setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});}} className="btn-press"
-                          style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",color:T.red,
-                            borderRadius:8,padding:"7px 12px",fontSize:10,cursor:"pointer",fontWeight:600,minHeight:44}}>Reset</button>}
-                        {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
-                          style={{background:"rgba(59,130,246,0.12)",border:"1px solid rgba(59,130,246,0.25)",color:T.blue,
-                            borderRadius:8,padding:"7px 14px",fontSize:11,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>}
-                        <button onClick={()=>deleteItem(item)} className="btn-press"
-                          style={{background:"none",border:"1px solid rgba(239,68,68,0.2)",color:T.red,
-                            borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:0.7,minHeight:44}}>✕</button>
-                      </div>
-                    </div>;
-                  })}
-                  {arcSearchQuery.trim()&&CURRICULUM.filter(i=>
-                    i.name.toLowerCase().includes(arcSearchQuery.toLowerCase())||
-                    i.id.toLowerCase().includes(arcSearchQuery.toLowerCase())||
-                    (i.genre||"").toLowerCase().includes(arcSearchQuery.toLowerCase())
-                  ).length===0&&(
-                    <div style={{padding:"20px 0",textAlign:"center",color:T.textDim,fontSize:12}}>No courses found</div>
-                  )}
-                </div>
-              )}
-            </div>
+            ))}
           </div>}
 
           {/* ══ NOTES (Photo Library) ══ */}
