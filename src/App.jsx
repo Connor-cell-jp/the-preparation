@@ -1008,6 +1008,7 @@ function SessionHistory({item,sessions,onEdit}){
 function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
   const [open,setOpen]=useState(false);
   const [sectionSearch,setSectionSearch]=useState('');
+  const [deleteConfirmId,setDeleteConfirmId]=useState(null);
   const done=sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
   const active=sec.items.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length;
   const totalContentH=sec.items.reduce((s,i)=>s+(i.hours||0),0);
@@ -1096,9 +1097,25 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
               {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
                 style={{background:"rgba(59,130,246,0.12)",border:`1px solid rgba(59,130,246,0.25)`,color:T.blue,
                   borderRadius:8,padding:"7px 14px",fontSize:11,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>}
-              <button onClick={()=>onDelete(item)} className="btn-press"
-                style={{background:"none",border:`1px solid rgba(239,68,68,0.2)`,color:T.red,
-                  borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:0.7,minHeight:44}}>✕</button>
+              {deleteConfirmId===item.id ? (
+                <>
+                  <button onClick={()=>setDeleteConfirmId(null)} className="btn-press"
+                    style={{background:'rgba(255,255,255,0.08)',border:'none',color:T.textDim,
+                      borderRadius:8,padding:"7px 10px",fontSize:10,cursor:"pointer",fontWeight:600,minHeight:44}}>Cancel</button>
+                  <button onClick={()=>{onDelete(item);setDeleteConfirmId(null);}} className="btn-press"
+                    style={{background:"rgba(239,68,68,0.22)",border:`1px solid rgba(239,68,68,0.45)`,color:T.red,
+                      borderRadius:8,padding:"7px 12px",fontSize:10,cursor:"pointer",fontWeight:700,minHeight:44}}>Delete</button>
+                </>
+              ) : (
+                <button onClick={()=>setDeleteConfirmId(item.id)} className="btn-press"
+                  style={{background:"none",border:`1px solid rgba(239,68,68,0.2)`,color:T.red,
+                    borderRadius:8,padding:"7px 10px",fontSize:13,cursor:"pointer",opacity:0.7,minHeight:44,
+                    display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                  </svg>
+                </button>
+              )}
             </div>
           </div>;
         })}
@@ -2456,18 +2473,40 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
                       background:'linear-gradient(transparent,rgba(0,0,0,0.72))',
                       fontSize:8,color:'rgba(255,255,255,0.60)',fontWeight:500}}>{note.date}</div>
                   </div>
-                  <button
-                    onClick={e=>{e.stopPropagation();onDeleteNote(selectedCourseId,note.id,note.storageKey);}}
-                    className="btn-press"
-                    style={{position:'absolute',top:5,right:5,
-                      width:26,height:26,borderRadius:99,
-                      background:'rgba(0,0,0,0.65)',backdropFilter:'blur(6px)',
-                      border:'1px solid rgba(255,255,255,0.18)',
-                      color:'rgba(255,255,255,0.85)',fontSize:12,fontWeight:700,
-                      cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-                      lineHeight:1,padding:0}}>
-                    ×
-                  </button>
+                  {deleteConfirm?.noteId===note.id && !expandedNote ? (
+                    <div style={{position:'absolute',inset:0,borderRadius:14,
+                      background:'rgba(0,0,0,0.80)',backdropFilter:'blur(4px)',
+                      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
+                      <div style={{fontSize:10,color:'rgba(255,255,255,0.85)',fontWeight:600,textAlign:'center',padding:'0 6px'}}>Delete?</div>
+                      <div style={{display:'flex',gap:6}}>
+                        <button onClick={e=>{e.stopPropagation();setDeleteConfirm(null);}} className="btn-press"
+                          style={{background:'rgba(255,255,255,0.12)',border:'none',color:'rgba(255,255,255,0.70)',
+                            fontSize:10,cursor:'pointer',borderRadius:8,padding:'5px 10px',fontWeight:600,minHeight:30}}>
+                          Cancel
+                        </button>
+                        <button onClick={e=>{e.stopPropagation();onDeleteNote(selectedCourseId,note.id,note.storageKey);setDeleteConfirm(null);}} className="btn-press"
+                          style={{background:'rgba(239,68,68,0.30)',border:'1px solid rgba(239,68,68,0.55)',color:T.red,
+                            fontSize:10,cursor:'pointer',borderRadius:8,padding:'5px 10px',fontWeight:700,minHeight:30}}>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={e=>{e.stopPropagation();setDeleteConfirm({courseId:selectedCourseId,noteId:note.id,storageKey:note.storageKey});}}
+                      className="btn-press"
+                      style={{position:'absolute',top:5,right:5,
+                        width:26,height:26,borderRadius:99,
+                        background:'rgba(180,0,0,0.70)',backdropFilter:'blur(6px)',
+                        border:'1px solid rgba(239,68,68,0.45)',
+                        color:'rgba(255,255,255,0.90)',
+                        cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+                        padding:0}}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  )}
                 </div>
               ))}
               {isUploading&&<div style={{aspectRatio:'1 / 1',borderRadius:14,
