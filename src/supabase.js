@@ -31,3 +31,28 @@ export async function upsertUserDataRaw(key, rawValue) {
       );
   } catch {}
 }
+
+// Upload a photo file to the notes-photos Storage bucket.
+// Returns { url, storageKey } on success, throws on error.
+export async function uploadNotePhoto(file) {
+  if (!_activeUserId) throw new Error('Not authenticated');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const storageKey = `${_activeUserId}/${Date.now()}.${ext || 'jpg'}`;
+  const { error } = await supabase.storage
+    .from('notes-photos')
+    .upload(storageKey, file, { upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage
+    .from('notes-photos')
+    .getPublicUrl(storageKey);
+  return { url: data.publicUrl, storageKey };
+}
+
+// Delete a photo from the notes-photos Storage bucket.
+// Fire-and-forget safe — never throws.
+export async function deleteNotePhoto(storageKey) {
+  if (!storageKey) return;
+  try {
+    await supabase.storage.from('notes-photos').remove([storageKey]);
+  } catch {}
+}

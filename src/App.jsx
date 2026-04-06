@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { upsertUserDataRaw } from "./supabase";
+import { upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto } from "./supabase";
 
 // ── Settings-aware pure helpers ───────────────────────────────────────────────
 const snap25 = h => Math.round(h * 4) / 4;
@@ -997,7 +997,7 @@ function SessionHistory({item,sessions,onEdit}){
   </div>;
 }
 
-function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings,notes,onOpenNotes}){
+function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
   const [open,setOpen]=useState(false);
   const done=sec.items.filter(i=>getP(i.id).percentComplete>=100).length;
   const active=sec.items.filter(i=>getP(i.id).percentComplete>0&&getP(i.id).percentComplete<100).length;
@@ -1032,7 +1032,6 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings,no
           const c=gc(item.genre);
           const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
           const realLeft=contentToReal(item,contentLeft,settings);
-          const noteCount=(notes&&notes[item.id]?.length)||0;
           return <div key={item.id}
             style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
               borderBottom:`1px solid rgba(255,255,255,0.06)`}}>
@@ -1052,13 +1051,6 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings,no
               </div>
             </div>
             <div style={{flexShrink:0,textAlign:"right",display:"flex",alignItems:"center",gap:6}}>
-              {/* Notes indicator */}
-              {noteCount>0&&<button onClick={e=>{e.stopPropagation();onOpenNotes&&onOpenNotes(item);}} className="btn-press"
-                style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
-                  color:T.textDim,borderRadius:20,padding:"3px 7px",fontSize:9,cursor:"pointer",
-                  display:"flex",alignItems:"center",gap:3,minHeight:28,whiteSpace:"nowrap"}}>
-                <span>📷</span><span style={{fontWeight:700}}>{noteCount}</span>
-              </button>}
               {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c}}>{p.percentComplete}%</div>}
               {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
               {isDone&&<button onClick={()=>onReset(item)} className="btn-press"
@@ -1067,10 +1059,6 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings,no
               {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
                 style={{background:"rgba(59,130,246,0.12)",border:`1px solid rgba(59,130,246,0.25)`,color:T.blue,
                   borderRadius:8,padding:"7px 14px",fontSize:11,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>}
-              <button onClick={()=>onOpenNotes&&onOpenNotes(item)} className="btn-press"
-                style={{background:"none",border:`1px solid rgba(255,255,255,0.1)`,color:T.textFaint,
-                  borderRadius:8,padding:"7px 8px",fontSize:10,cursor:"pointer",minHeight:44,
-                  display:"flex",alignItems:"center",justifyContent:"center"}}>📷</button>
               <button onClick={()=>onDelete(item)} className="btn-press"
                 style={{background:"none",border:`1px solid rgba(239,68,68,0.2)`,color:T.red,
                   borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:0.7,minHeight:44}}>✕</button>
@@ -1678,55 +1666,396 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
   );
 }
 
-// ── Photo compression utility ─────────────────────────────────────────────────
-const compressImage = (file, maxDim=600, quality=0.65) => new Promise((resolve, reject) => {
-  const img = new Image();
-  const url = URL.createObjectURL(file);
-  img.onload = () => {
-    let w = img.naturalWidth, h = img.naturalHeight;
-    if (w > maxDim || h > maxDim) {
-      if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
-      else { w = Math.round(w * maxDim / h); h = maxDim; }
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0, w, h);
-    URL.revokeObjectURL(url);
-    resolve(canvas.toDataURL('image/jpeg', quality));
-  };
-  img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
-  img.src = url;
-});
-
-// ── Photo Notes Modal ─────────────────────────────────────────────────────────
-function PhotoNotesModal({ item, notes, onClose, onAdd, onDelete }) {
-  const [expanded, setExpanded] = useState(null);
-  const [adding, setAdding] = useState(false);
+// ── Add Photo Note Modal ───────────────────────────────────────────────────────
+function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd }) {
+  const [step, setStep] = useState('pick');
+  const [selectedItem, setSelectedItem] = useState(null);
+  // uploaded holds { url, storageKey } after a successful upload
+  const [uploaded, setUploaded] = useState(null);
+  const [caption, setCaption] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef(null);
-  const itemNotes = (notes && notes[item.id]) || [];
-  const c = gc(item.genre);
+
+  const activeCourseIds = [...(focus.courses||[]),...(focus.books||[])];
+  const todayPlannedIds = (()=>{
+    if (!weekPlan?.days) return [];
+    const today = weekPlan.days.find(d=>d.day===getDayName());
+    return (today?.items||[]).map(it=>it.id);
+  })();
+  const priorityIds = [...new Set([...activeCourseIds,...todayPlannedIds])];
+  const priorityItems = priorityIds.map(id=>curriculum.find(i=>i.id===id)).filter(Boolean);
+  const restItems = curriculum.filter(i=>!priorityIds.includes(i.id));
+  const filteredRest = searchQuery
+    ? curriculum.filter(i=>!priorityIds.includes(i.id)&&
+        (i.name.toLowerCase().includes(searchQuery.toLowerCase())||
+         i.id.toLowerCase().includes(searchQuery.toLowerCase())||
+         (i.genre||'').toLowerCase().includes(searchQuery.toLowerCase())))
+    : restItems;
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setAdding(true);
+    setUploading(true);
+    setUploadError('');
     try {
-      const imageData = await compressImage(file);
-      onAdd(item.id, {
-        id: Date.now(),
-        imageData,
-        date: new Date().toLocaleDateString(),
-        createdAt: new Date().toISOString(),
-      });
-    } catch (_) {}
-    setAdding(false);
+      const result = await uploadNotePhoto(file);
+      setUploaded(result);
+    } catch (err) {
+      setUploadError(err?.message || 'Upload failed — check your connection and try again.');
+    }
+    setUploading(false);
     if (e.target) e.target.value = '';
   };
 
-  // ── Expanded single-image viewer ──
-  if (expanded !== null && itemNotes[expanded]) {
-    const note = itemNotes[expanded];
+  const handleRetake = () => {
+    if (uploaded?.storageKey) deleteNotePhoto(uploaded.storageKey);
+    setUploaded(null);
+    setUploadError('');
+  };
+
+  const handleClose = () => {
+    if (uploaded?.storageKey) deleteNotePhoto(uploaded.storageKey);
+    onClose();
+  };
+
+  const handleSave = () => {
+    if (!selectedItem || !uploaded) return;
+    onAdd(selectedItem.id, {
+      id: Date.now(),
+      url: uploaded.url,
+      storageKey: uploaded.storageKey,
+      ...(caption.trim() ? { caption: caption.trim() } : {}),
+      date: new Date().toLocaleDateString(),
+      createdAt: new Date().toISOString(),
+    });
+    onClose();
+  };
+
+  const c = selectedItem ? gc(selectedItem.genre) : T.blue;
+
+  if (step === 'pick') {
+    return (
+      <div style={{
+        position:'fixed', inset:0, zIndex:400,
+        background:'linear-gradient(180deg,rgba(13,27,42,0.99) 0%,rgba(15,34,64,0.99) 100%)',
+        backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+        display:'flex', flexDirection:'column',
+        paddingTop:'env(safe-area-inset-top)',
+        animation:'fadeIn 0.22s ease both',
+      }}>
+        <div style={{padding:'14px 16px 12px', flexShrink:0, borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+            <button onClick={handleClose} className="btn-press"
+              style={{background:'none', border:'none', color:T.textDim, fontSize:13,
+                cursor:'pointer', padding:'8px 0', minHeight:44,
+                display:'flex', alignItems:'center', gap:6}}>
+              ✕ Close
+            </button>
+          </div>
+          <div style={{fontSize:9, color:T.blue, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:4}}>
+            Add Photo Note
+          </div>
+          <div style={{fontSize:15, fontWeight:800, color:T.text, letterSpacing:-0.2}}>Which course?</div>
+        </div>
+        <div style={{flex:1, overflowY:'auto', padding:'12px 14px', WebkitOverflowScrolling:'touch'}}>
+          {priorityItems.length > 0 && (
+            <div style={{marginBottom:18}}>
+              <div style={{fontSize:9, color:T.textDim, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:8}}>
+                Active &amp; Planned
+              </div>
+              {priorityItems.map(item=>{
+                const col=gc(item.genre);
+                const noteCount=(notes[item.id]||[]).length;
+                return (
+                  <button key={item.id} onClick={()=>{setSelectedItem(item);setStep('photo');}}
+                    className="btn-press"
+                    style={{
+                      width:'100%', background:'rgba(255,255,255,0.05)',
+                      border:`1px solid rgba(255,255,255,0.1)`, borderLeft:`3px solid ${col}`,
+                      borderRadius:14, padding:'12px 14px', marginBottom:8,
+                      display:'flex', alignItems:'center', gap:12, cursor:'pointer', textAlign:'left',
+                    }}>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{fontSize:9, color:col, textTransform:'uppercase', letterSpacing:1, fontWeight:700, marginBottom:3}}>
+                        {item.id} · {item.type}
+                      </div>
+                      <div style={{fontSize:13, fontWeight:700, color:T.text, lineHeight:1.3,
+                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                        {item.name}
+                      </div>
+                    </div>
+                    {noteCount > 0 && (
+                      <div style={{fontSize:9, color:T.textFaint, flexShrink:0, display:'flex', alignItems:'center', gap:3}}>
+                        📷 {noteCount}
+                      </div>
+                    )}
+                    <div style={{fontSize:16, color:T.textDim, flexShrink:0}}>›</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div>
+            <button onClick={()=>setShowAll(o=>!o)} className="btn-press"
+              style={{width:'100%', background:'none', border:'none',
+                display:'flex', justifyContent:'space-between', alignItems:'center',
+                padding:'6px 0', marginBottom:8, cursor:'pointer'}}>
+              <div style={{fontSize:9, color:T.textDim, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700}}>
+                Browse All
+              </div>
+              <div style={{color:T.textDim, fontSize:11, transform:showAll?'rotate(180deg)':'rotate(0deg)', transition:'transform 0.2s'}}>▼</div>
+            </button>
+            {showAll && (<>
+              <input
+                type="text"
+                placeholder="Search by name, ID, genre..."
+                value={searchQuery}
+                onChange={e=>setSearchQuery(e.target.value)}
+                style={{
+                  width:'100%', background:'rgba(255,255,255,0.06)',
+                  border:'1px solid rgba(255,255,255,0.12)',
+                  borderRadius:12, padding:'10px 13px', color:T.text, fontSize:14,
+                  boxSizing:'border-box', fontFamily:'inherit', outline:'none', marginBottom:8,
+                }}
+              />
+              {filteredRest.map(item=>{
+                const col=gc(item.genre);
+                const noteCount=(notes[item.id]||[]).length;
+                return (
+                  <button key={item.id} onClick={()=>{setSelectedItem(item);setStep('photo');}}
+                    className="btn-press"
+                    style={{
+                      width:'100%', background:'rgba(255,255,255,0.03)',
+                      border:'1px solid rgba(255,255,255,0.07)', borderLeft:`2px solid ${col}`,
+                      borderRadius:12, padding:'10px 12px', marginBottom:6,
+                      display:'flex', alignItems:'center', gap:10, cursor:'pointer', textAlign:'left',
+                    }}>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{fontSize:9, color:col, letterSpacing:1, fontWeight:700, marginBottom:2}}>{item.id}</div>
+                      <div style={{fontSize:12, fontWeight:600, color:T.textMid, lineHeight:1.3,
+                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                        {item.name}
+                      </div>
+                    </div>
+                    {noteCount > 0 && (
+                      <div style={{fontSize:9, color:T.textFaint, flexShrink:0, display:'flex', alignItems:'center', gap:3}}>
+                        📷 {noteCount}
+                      </div>
+                    )}
+                    <div style={{fontSize:16, color:T.textFaint, flexShrink:0}}>›</div>
+                  </button>
+                );
+              })}
+            </>)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Photo step
+  return (
+    <div style={{
+      position:'fixed', inset:0, zIndex:400,
+      background:'linear-gradient(180deg,rgba(13,27,42,0.99) 0%,rgba(15,34,64,0.99) 100%)',
+      backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+      display:'flex', flexDirection:'column',
+      paddingTop:'env(safe-area-inset-top)',
+      animation:'fadeIn 0.18s ease both',
+    }}>
+      <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
+      <div style={{padding:'14px 16px 12px', flexShrink:0, borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
+          <button onClick={()=>{handleRetake();setStep('pick');setCaption('');}} className="btn-press"
+            style={{background:'none', border:'none', color:T.textDim, fontSize:13,
+              cursor:'pointer', padding:'8px 0', minHeight:44,
+              display:'flex', alignItems:'center', gap:6}}>
+            ← Back
+          </button>
+          {uploaded && (
+            <button onClick={handleSave} className="btn-press"
+              style={{
+                background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`,
+                border:'none', color:'#fff',
+                borderRadius:12, padding:'9px 18px', fontSize:12, fontWeight:800,
+                cursor:'pointer', minHeight:44,
+                boxShadow:`0 4px 16px ${c}40`,
+              }}>
+              Save Note
+            </button>
+          )}
+        </div>
+        <div style={{fontSize:9, color:c, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:4}}>
+          Photo Note
+        </div>
+        <div style={{fontSize:15, fontWeight:800, color:T.text, letterSpacing:-0.2, lineHeight:1.2,
+          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+          {selectedItem?.name}
+        </div>
+        <div style={{fontSize:10, color:T.textDim, marginTop:2}}>{selectedItem?.id}</div>
+      </div>
+      <div style={{flex:1, overflowY:'auto', padding:'16px 14px', WebkitOverflowScrolling:'touch'}}>
+        {!uploaded && !uploading ? (
+          <div style={{
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            padding:'48px 24px', textAlign:'center',
+            background:'rgba(255,255,255,0.03)', borderRadius:20,
+            border:'1px dashed rgba(255,255,255,0.12)',
+          }}>
+            <div style={{fontSize:40, marginBottom:16, opacity:0.3}}>📷</div>
+            <div style={{fontSize:14, fontWeight:700, color:T.text, marginBottom:8}}>Add a photo</div>
+            <div style={{fontSize:12, color:T.textDim, marginBottom:uploadError?12:24, lineHeight:1.5}}>
+              Take a photo or upload from your library
+            </div>
+            {uploadError && (
+              <div style={{
+                background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.25)',
+                borderRadius:10, padding:'9px 13px', fontSize:12, color:T.red,
+                marginBottom:16, lineHeight:1.4, textAlign:'left', width:'100%',
+              }}>
+                {uploadError}
+              </div>
+            )}
+            <button onClick={()=>fileInputRef.current?.click()} className="btn-press"
+              style={{
+                background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`,
+                border:'none', color:'#fff',
+                borderRadius:14, padding:'13px 28px', fontSize:13, fontWeight:800,
+                cursor:'pointer', minHeight:44,
+                boxShadow:`0 4px 20px ${c}40`,
+              }}>
+              {uploadError ? 'Try Again' : 'Choose Photo'}
+            </button>
+          </div>
+        ) : uploading ? (
+          <div style={{
+            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+            padding:'64px 24px', textAlign:'center',
+          }}>
+            <div style={{
+              width:44, height:44, borderRadius:'50%', marginBottom:20,
+              border:`3px solid rgba(255,255,255,0.1)`, borderTopColor:c,
+              animation:'spin 0.9s linear infinite',
+            }}/>
+            <div style={{fontSize:13, color:T.textDim}}>Uploading photo…</div>
+          </div>
+        ) : (
+          <div>
+            <div style={{position:'relative', borderRadius:16, overflow:'hidden',
+              border:'1px solid rgba(255,255,255,0.1)', marginBottom:14}}>
+              <img src={uploaded.url} alt="" style={{width:'100%', display:'block', borderRadius:16}}/>
+              <button onClick={handleRetake} className="btn-press"
+                style={{
+                  position:'absolute', top:10, right:10,
+                  background:'rgba(0,0,0,0.6)', backdropFilter:'blur(8px)',
+                  border:'1px solid rgba(255,255,255,0.2)',
+                  color:'rgba(255,255,255,0.8)', borderRadius:20,
+                  padding:'5px 12px', fontSize:11, cursor:'pointer', fontWeight:600,
+                }}>
+                Retake
+              </button>
+            </div>
+            <div style={{marginBottom:8}}>
+              <div style={{fontSize:11, color:T.textMid, marginBottom:6, fontWeight:600}}>
+                Caption <span style={{color:T.textDim, fontWeight:400}}>(optional)</span>
+              </div>
+              <textarea
+                value={caption}
+                onChange={e=>setCaption(e.target.value)}
+                placeholder="Key concept, diagram, page reference..."
+                style={{
+                  width:'100%', background:'rgba(255,255,255,0.06)',
+                  border:'1px solid rgba(255,255,255,0.12)',
+                  borderRadius:12, padding:'11px 13px', color:T.text, fontSize:13,
+                  lineHeight:1.5, resize:'none', height:72,
+                  fontFamily:'inherit', boxSizing:'border-box', outline:'none',
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      {uploaded && (
+        <div style={{
+          padding:'12px 14px',
+          paddingBottom:'calc(env(safe-area-inset-bottom) + 12px)',
+          borderTop:'1px solid rgba(255,255,255,0.08)', flexShrink:0,
+        }}>
+          <button onClick={handleSave} className="btn-press"
+            style={{
+              width:'100%',
+              background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`,
+              border:'none', color:'#fff',
+              borderRadius:16, padding:'14px 0', fontSize:15, fontWeight:800,
+              cursor:'pointer', minHeight:52,
+              boxShadow:`0 4px 24px ${c}40`,
+            }}>
+            Save Photo Note
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Photo Library ──────────────────────────────────────────────────────────────
+function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote }) {
+  const [expanded, setExpanded] = useState(null); // { courseId, noteIdx }
+  const [addingTo, setAddingTo] = useState(null);
+  const [uploadingFor, setUploadingFor] = useState(null); // courseId currently uploading
+  const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef(null);
+
+  const coursesWithNotes = Object.entries(notes)
+    .filter(([,arr])=>arr&&arr.length>0)
+    .map(([id,arr])=>({id,item:curriculum.find(i=>i.id===id),noteArr:arr}))
+    .filter(({item})=>item)
+    .sort((a,b)=>{
+      const aLast=a.noteArr[a.noteArr.length-1]?.createdAt||'';
+      const bLast=b.noteArr[b.noteArr.length-1]?.createdAt||'';
+      return bLast.localeCompare(aLast);
+    });
+  const totalPhotos = coursesWithNotes.reduce((s,{noteArr})=>s+noteArr.length,0);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !addingTo) return;
+    const courseId = addingTo;
+    setUploadingFor(courseId);
+    setUploadError('');
+    try {
+      const { url, storageKey } = await uploadNotePhoto(file);
+      onAddNote(courseId, {
+        id: Date.now(),
+        url,
+        storageKey,
+        date: new Date().toLocaleDateString(),
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      setUploadError(err?.message || 'Upload failed');
+    }
+    setUploadingFor(null);
+    setAddingTo(null);
+    if (e.target) e.target.value = '';
+  };
+
+  const triggerAdd = (courseId) => {
+    setAddingTo(courseId);
+    setUploadError('');
+    setTimeout(()=>fileInputRef.current?.click(), 50);
+  };
+
+  if (expanded) {
+    const { courseId, noteIdx } = expanded;
+    const noteArr = notes[courseId]||[];
+    const note = noteArr[noteIdx];
+    const item = curriculum.find(i=>i.id===courseId);
+    if (!note) { setExpanded(null); return null; }
+    const imgSrc = note.url || note.imageData; // backward compat for old base64 notes
     return (
       <div style={{
         position:'fixed', inset:0, zIndex:500,
@@ -1739,152 +2068,195 @@ function PhotoNotesModal({ item, notes, onClose, onAdd, onDelete }) {
           display:'flex', justifyContent:'space-between', alignItems:'center',
           padding:'12px 16px', flexShrink:0,
         }}>
-          <button onClick={() => setExpanded(null)} className="btn-press"
+          <button onClick={()=>setExpanded(null)} className="btn-press"
             style={{background:'none', border:'none', color:'rgba(255,255,255,0.7)', fontSize:13,
               cursor:'pointer', padding:'8px 0', minHeight:44,
               display:'flex', alignItems:'center', gap:6}}>
             ← Back
           </button>
-          <button onClick={() => { onDelete(item.id, note.id); setExpanded(null); }} className="btn-press"
+          <div style={{fontSize:11, color:'rgba(255,255,255,0.45)', textAlign:'right',
+            maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+            {item?.name||courseId}
+          </div>
+        </div>
+        <div style={{
+          flex:1, display:'flex', alignItems:'center', justifyContent:'center',
+          overflow:'hidden', padding:'0 8px',
+        }}>
+          <img src={imgSrc} alt=""
+            style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:12}}/>
+        </div>
+        {note.caption && (
+          <div style={{
+            padding:'10px 20px 4px', fontSize:13,
+            color:'rgba(255,255,255,0.75)', fontStyle:'italic',
+            lineHeight:1.5, textAlign:'center',
+          }}>{note.caption}</div>
+        )}
+        <div style={{
+          padding:'12px 20px',
+          paddingBottom:'calc(env(safe-area-inset-bottom) + 16px)',
+          flexShrink:0,
+          background:'rgba(0,0,0,0.6)',
+          backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
+          display:'flex', justifyContent:'space-between', alignItems:'center',
+        }}>
+          <div style={{fontSize:11, color:'rgba(255,255,255,0.4)'}}>{note.date}</div>
+          <button onClick={()=>{onDeleteNote(courseId,note.id,note.storageKey);setExpanded(null);}} className="btn-press"
             style={{background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)',
               color:T.red, fontSize:12, cursor:'pointer', borderRadius:10,
               padding:'7px 14px', fontWeight:700, minHeight:44}}>
             Delete
           </button>
         </div>
-        <div style={{
-          flex:1, display:'flex', alignItems:'center', justifyContent:'center',
-          overflow:'hidden', padding:'0 8px',
-        }}>
-          <img src={note.imageData} alt=""
-            style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:12}}/>
-        </div>
-        <div style={{
-          padding:'16px 20px',
-          paddingBottom:'calc(env(safe-area-inset-bottom) + 16px)',
-          flexShrink:0,
-          background:'rgba(0,0,0,0.6)',
-          backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
-        }}>
-          <div style={{fontSize:11, color:'rgba(255,255,255,0.5)'}}>{note.date}</div>
-        </div>
       </div>
     );
   }
 
-  // ── Grid view ──
   return (
-    <div style={{
-      position:'fixed', inset:0, zIndex:400,
-      background:'linear-gradient(180deg,rgba(13,27,42,0.99) 0%,rgba(15,34,64,0.99) 100%)',
-      backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
-      display:'flex', flexDirection:'column',
-      paddingTop:'env(safe-area-inset-top)',
-      animation:'fadeIn 0.22s ease both',
-    }}>
-      {/* Header */}
+    <div style={{marginTop:8}}>
+      <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
+
+      {/* Library header */}
       <div style={{
-        padding:'14px 16px 12px', flexShrink:0,
-        borderBottom:'1px solid rgba(255,255,255,0.08)',
+        background:'linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
+        border:'1px solid rgba(255,255,255,0.08)',
+        borderRadius:20, padding:'16px 16px 14px', marginBottom:8,
+        boxShadow:shadow.card,
       }}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10}}>
-          <button onClick={onClose} className="btn-press"
-            style={{background:'none', border:'none', color:T.textDim, fontSize:13,
-              cursor:'pointer', padding:'8px 0', minHeight:44,
-              display:'flex', alignItems:'center', gap:6}}>
-            ← Back
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} disabled={adding} className="btn-press"
-            style={{
-              background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`,
-              border:'none', color:'#fff',
-              borderRadius:12, padding:'9px 16px', fontSize:12, fontWeight:700,
-              cursor:'pointer', minHeight:44,
-              display:'flex', alignItems:'center', gap:6,
-              opacity:adding ? 0.55 : 1,
-              boxShadow:`0 4px 16px ${c}40`,
-            }}>
-            {adding ? '...' : '+ Add Photo'}
-          </button>
-        </div>
-        <div style={{fontSize:9, color:c, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:4}}>
-          Photo Notes
-        </div>
-        <div style={{fontSize:15, fontWeight:800, color:T.text, lineHeight:1.2, letterSpacing:-0.2}}>{item.name}</div>
-        <div style={{fontSize:10, color:T.textDim, marginTop:3}}>
-          {item.id} · {itemNotes.length} note{itemNotes.length !== 1 ? 's' : ''}
-        </div>
-      </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        style={{display:'none'}}
-        onChange={handleFileChange}
-      />
-
-      {/* Content */}
-      <div style={{flex:1, overflowY:'auto', padding:12, WebkitOverflowScrolling:'touch'}}>
-        {itemNotes.length === 0 ? (
-          <div style={{
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-            padding:'60px 24px', textAlign:'center',
-          }}>
-            <div style={{fontSize:44, marginBottom:16, opacity:0.3}}>📷</div>
-            <div style={{fontSize:15, fontWeight:700, color:T.text, marginBottom:8}}>No photo notes yet</div>
-            <div style={{fontSize:13, color:T.textDim, marginBottom:28, lineHeight:1.6}}>
-              Take or upload a photo to save a visual note tied to this item.
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14}}>
+          <div>
+            <div style={{fontSize:9, color:T.textDim, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:4}}>
+              Photo Library
             </div>
-            <button onClick={() => fileInputRef.current?.click()} className="btn-press"
-              style={{
-                background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`,
-                border:'none', color:'#fff',
-                borderRadius:14, padding:'13px 28px', fontSize:13, fontWeight:800,
-                cursor:'pointer', minHeight:44,
-                boxShadow:`0 4px 20px ${c}40`,
-              }}>
-              Add First Photo
-            </button>
+            <div style={{fontSize:17, fontWeight:800, color:T.text, letterSpacing:-0.3}}>
+              {totalPhotos} {totalPhotos===1?'photo':'photos'}
+            </div>
+            {coursesWithNotes.length>0&&<div style={{fontSize:10, color:T.textDim, marginTop:2}}>
+              across {coursesWithNotes.length} {coursesWithNotes.length===1?'course':'courses'}
+            </div>}
           </div>
-        ) : (
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6}}>
-            {itemNotes.map((note, idx) => (
-              <div key={note.id} onClick={() => setExpanded(idx)} className="btn-press"
-                style={{
-                  position:'relative', aspectRatio:'1 / 1',
-                  borderRadius:12, overflow:'hidden',
-                  cursor:'pointer',
-                  border:'1px solid rgba(255,255,255,0.08)',
-                  animation:`fadeIn 0.18s ease ${Math.min(idx*0.04, 0.3)}s both`,
-                }}>
-                <img src={note.imageData} alt=""
-                  style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}}/>
-                <div style={{
-                  position:'absolute', bottom:0, left:0, right:0,
-                  padding:'14px 6px 4px',
-                  background:'linear-gradient(transparent, rgba(0,0,0,0.65))',
-                  fontSize:9, color:'rgba(255,255,255,0.65)', fontWeight:500,
-                }}>
-                  {note.date}
-                </div>
-              </div>
-            ))}
-            {/* Add more tile */}
-            <button onClick={() => fileInputRef.current?.click()} className="btn-press"
-              style={{
-                aspectRatio:'1 / 1', borderRadius:12,
-                background:'rgba(255,255,255,0.04)',
-                border:'1px dashed rgba(255,255,255,0.15)',
-                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                gap:6, cursor:'pointer', color:T.textFaint,
-              }}>
-              <span style={{fontSize:22, opacity:0.5}}>+</span>
-              <span style={{fontSize:9, letterSpacing:0.5, textTransform:'uppercase', fontWeight:600}}>Add</span>
-            </button>
+        </div>
+        <div style={{
+          background:'rgba(236,72,153,0.06)', border:'1px solid rgba(236,72,153,0.14)',
+          borderRadius:12, padding:'10px 13px',
+          display:'flex', alignItems:'center', gap:10,
+        }}>
+          <div style={{fontSize:15, flexShrink:0, color:T.pink}}>✦</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:11, fontWeight:700, color:T.pink, marginBottom:2}}>AI Study Analysis</div>
+            <div style={{fontSize:10, color:T.textDim, lineHeight:1.4}}>
+              Review your photos with AI to surface key themes and gaps. Coming soon.
+            </div>
+          </div>
+        </div>
+        {uploadError && (
+          <div style={{
+            marginTop:10, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.25)',
+            borderRadius:10, padding:'8px 12px', fontSize:11, color:T.red, lineHeight:1.4,
+          }}>
+            Upload failed: {uploadError}
           </div>
         )}
       </div>
+
+      {coursesWithNotes.length === 0 && (
+        <div style={{
+          padding:'40px 24px', textAlign:'center',
+          background:'linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
+          borderRadius:20, border:'1px solid rgba(255,255,255,0.06)',
+        }}>
+          <div style={{fontSize:36, marginBottom:12, opacity:0.3}}>📷</div>
+          <div style={{fontSize:13, fontWeight:600, color:T.textMid, marginBottom:6}}>No photos yet</div>
+          <div style={{fontSize:11, color:T.textDim, lineHeight:1.5}}>
+            Use "Add Photo Note" in the Today tab to save visual notes for your courses.
+          </div>
+        </div>
+      )}
+
+      {coursesWithNotes.map(({id,item,noteArr})=>{
+        const col=gc(item.genre);
+        const isUploadingHere = uploadingFor===id;
+        return (
+          <div key={id} style={{
+            background:'linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
+            border:'1px solid rgba(255,255,255,0.08)', borderLeft:`3px solid ${col}`,
+            borderRadius:20, padding:'14px 14px 12px', marginBottom:8,
+            boxShadow:shadow.card,
+          }}>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:9, color:col, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:3}}>
+                {item.type==='course'?'Course':'Book'} · {item.genre}
+              </div>
+              <div style={{fontSize:13, fontWeight:700, color:T.text, lineHeight:1.3}}>
+                {item.name}
+              </div>
+              <div style={{fontSize:9, color:T.textDim, marginTop:2}}>
+                {item.id} · {noteArr.length} photo{noteArr.length!==1?'s':''}
+              </div>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6}}>
+              {noteArr.map((note,idx)=>{
+                const imgSrc = note.url || note.imageData;
+                return (
+                  <div key={note.id} onClick={()=>setExpanded({courseId:id,noteIdx:idx})}
+                    className="btn-press"
+                    style={{
+                      position:'relative', aspectRatio:'1 / 1',
+                      borderRadius:10, overflow:'hidden',
+                      cursor:'pointer',
+                      border:'1px solid rgba(255,255,255,0.08)',
+                      animation:`fadeIn 0.18s ease ${Math.min(idx*0.04,0.3)}s both`,
+                    }}>
+                    <img src={imgSrc} alt=""
+                      style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}}/>
+                    <div style={{
+                      position:'absolute', bottom:0, left:0, right:0,
+                      padding:'12px 5px 4px',
+                      background:'linear-gradient(transparent, rgba(0,0,0,0.65))',
+                      fontSize:8, color:'rgba(255,255,255,0.6)', fontWeight:500,
+                    }}>
+                      {note.date}
+                    </div>
+                    {note.caption&&<div style={{
+                      position:'absolute', top:4, right:4,
+                      width:6, height:6, borderRadius:'50%',
+                      background:T.blue, opacity:0.85,
+                    }}/>}
+                  </div>
+                );
+              })}
+              {isUploadingHere ? (
+                <div style={{
+                  aspectRatio:'1 / 1', borderRadius:10,
+                  background:'rgba(255,255,255,0.04)',
+                  border:'1px solid rgba(255,255,255,0.1)',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                }}>
+                  <div style={{
+                    width:22, height:22, borderRadius:'50%',
+                    border:`2px solid rgba(255,255,255,0.1)`, borderTopColor:col,
+                    animation:'spin 0.9s linear infinite',
+                  }}/>
+                </div>
+              ) : (
+                <button onClick={()=>triggerAdd(id)} className="btn-press"
+                  style={{
+                    aspectRatio:'1 / 1', borderRadius:10,
+                    background:'rgba(255,255,255,0.04)',
+                    border:'1px dashed rgba(255,255,255,0.15)',
+                    display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                    gap:5, cursor:'pointer', color:T.textFaint,
+                  }}>
+                  <span style={{fontSize:20, opacity:0.5}}>+</span>
+                  <span style={{fontSize:8, letterSpacing:0.5, textTransform:'uppercase', fontWeight:600}}>Add</span>
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1950,7 +2322,7 @@ export default function App({ onSignOut }){
 
   // ── Photo notes state ──
   const [notes, setNotes] = useState(()=>load(SK_NOTES,{}));
-  const [notesItem, setNotesItem] = useState(null);
+  const [showAddPhotoNote, setShowAddPhotoNote] = useState(false);
 
   // ── 3. Derived values ──
   const getP = id => progress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
@@ -2135,7 +2507,8 @@ export default function App({ onSignOut }){
       [itemId]: [...(prev[itemId] || []), note],
     }));
   };
-  const deleteNote = (itemId, noteId) => {
+  const deleteNote = (itemId, noteId, storageKey) => {
+    if (storageKey) deleteNotePhoto(storageKey); // fire-and-forget
     setNotes(prev => ({
       ...prev,
       [itemId]: (prev[itemId] || []).filter(n => n.id !== noteId),
@@ -3264,8 +3637,19 @@ Respond ONLY with valid JSON:
                 </div>
               </Card>}
 
-              <div style={{fontSize:11,color:T.textDim,marginBottom:16,letterSpacing:0.3}}>
-                {weekH>=WEEKLY_TARGET?"Target hit — bonus mode":`Plan · ${getDayName()}`}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                <div style={{fontSize:11,color:T.textDim,letterSpacing:0.3}}>
+                  {weekH>=WEEKLY_TARGET?"Target hit — bonus mode":`Plan · ${getDayName()}`}
+                </div>
+                <button onClick={()=>setShowAddPhotoNote(true)} className="btn-press"
+                  style={{
+                    background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
+                    color:T.textDim,borderRadius:20,padding:"6px 13px",
+                    fontSize:11,cursor:"pointer",fontWeight:600,minHeight:34,
+                    display:"flex",alignItems:"center",gap:5,flexShrink:0,
+                  }}>
+                  📷 <span>Add Photo Note</span>
+                </button>
               </div>
 
               {today.length===0&&weekH<WEEKLY_TARGET&&<Card style={{padding:20,textAlign:"center",marginBottom:10}}>
@@ -3284,7 +3668,6 @@ Respond ONLY with valid JSON:
                 const remainingH=Math.max(0,parseFloat((item.allocRealH-loggedTodayH).toFixed(2)));
                 const sessionDoneToday=loggedTodayH>0;
                 const isComplete=isDone||(sessionDoneToday&&remainingH===0);
-                const noteCount=(notes[item.id]||[]).length;
                 return <Card key={item.id} accent={isComplete?T.green:c} glow
                   style={{marginBottom:10,padding:16,opacity:isComplete?0.55:1,
                     animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${idx*0.03}s both`,transition:"opacity 0.3s"}}>
@@ -3298,14 +3681,6 @@ Respond ONLY with valid JSON:
                       <div style={{fontSize:14,fontWeight:700,letterSpacing:-0.2,lineHeight:1.3}}>{item.name}</div>
                       <div style={{marginTop:7,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                         <Pill color={isComplete?T.green:c} label={item.genre||item.id}/>
-                        {/* Notes indicator */}
-                        {noteCount>0&&<button onClick={()=>setNotesItem(item)} className="btn-press"
-                          style={{display:"inline-flex",alignItems:"center",gap:3,
-                            background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",
-                            borderRadius:20,padding:"2px 8px",fontSize:9,color:T.textMid,cursor:"pointer",
-                            fontWeight:700,minHeight:24}}>
-                          📷 {noteCount}
-                        </button>}
                       </div>
                     </div>
                     <div style={{textAlign:"right",flexShrink:0}}>
@@ -3331,26 +3706,12 @@ Respond ONLY with valid JSON:
                       {!isComplete&&<span style={{color:sessionDoneToday?T.yellow:c,fontWeight:700}}>→ {item.targetPct}%</span>}
                     </div>
                   </div>
-                  <div style={{display:"flex",gap:8,marginBottom:8}}>
-                    {!isComplete&&<button onClick={()=>setLogging(item)} className="btn-press"
-                      style={{flex:1,background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",
-                        color:"#fff",borderRadius:14,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44,
-                        boxShadow:"0 4px 16px rgba(59,130,246,0.35)"}}>
-                      {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
-                    </button>}
-                    {/* Photo Notes button */}
-                    <button onClick={()=>setNotesItem(item)} className="btn-press"
-                      style={{
-                        background:noteCount>0?"rgba(255,255,255,0.08)":"rgba(255,255,255,0.05)",
-                        border:`1px solid ${noteCount>0?"rgba(255,255,255,0.14)":"rgba(255,255,255,0.08)"}`,
-                        color:noteCount>0?T.textMid:T.textFaint,
-                        borderRadius:14,padding:"12px 14px",fontSize:12,cursor:"pointer",
-                        fontWeight:600,minHeight:44,flexShrink:0,
-                        display:"flex",alignItems:"center",gap:5,
-                      }}>
-                      📷{noteCount>0&&<span style={{fontWeight:700}}>{noteCount}</span>}
-                    </button>
-                  </div>
+                  {!isComplete&&<button onClick={()=>setLogging(item)} className="btn-press"
+                    style={{width:"100%",background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",
+                      color:"#fff",borderRadius:14,padding:"12px 0",fontSize:12,fontWeight:700,cursor:"pointer",minHeight:44,
+                      boxShadow:"0 4px 16px rgba(59,130,246,0.35)"}}>
+                    {sessionDoneToday?"+ Log Another Session":"+ Log Session"}
+                  </button>}
                 </Card>;
               })}
 
@@ -3492,7 +3853,6 @@ Respond ONLY with valid JSON:
                     const remainingH=Math.max(0,parseFloat((it.realHours-loggedOnDay).toFixed(2)));
                     const isComplete=isDone||(isPast&&wasLogged)||(isToday&&wasLogged&&remainingH===0);
                     const liveTargetPct=f?targetPctAfterSession(f,p,it.realHours,settings):it.targetPct;
-                    const noteCount=(notes[it.id]||[]).length;
                     return <div key={it.id} style={{background:isToday&&!isComplete?"rgba(59,130,246,0.08)":"rgba(255,255,255,0.04)",borderRadius:12,
                       padding:"8px 12px",marginBottom:5,
                       borderLeft:`2px solid ${isComplete?T.green:wasLogged&&!isComplete?T.yellow:c}`,
@@ -3503,12 +3863,6 @@ Respond ONLY with valid JSON:
                           {isComplete&&<span style={{marginRight:5}}>✓</span>}{f?.name||it.id}
                         </div>
                         <div style={{flexShrink:0,textAlign:"right",display:"flex",alignItems:"center",gap:6}}>
-                          {noteCount>0&&<button onClick={()=>f&&setNotesItem(f)} className="btn-press"
-                            style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
-                              color:T.textFaint,borderRadius:8,padding:"3px 6px",fontSize:9,cursor:"pointer",
-                              display:"flex",alignItems:"center",gap:2,minHeight:24}}>
-                            📷<span style={{fontWeight:700}}>{noteCount}</span>
-                          </button>}
                           {!isComplete&&<div style={{fontSize:13,fontWeight:800,color:wasLogged?T.yellow:T.blue}}>
                             {wasLogged?`${remainingH.toFixed(2)}h`:it.realHours.toFixed(2)+"h"}
                           </div>}
@@ -3531,7 +3885,6 @@ Respond ONLY with valid JSON:
               const p=getP(item.id),sessions=p.sessions||[],c=gc(item.genre);
               const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
               const realLeft=contentToReal(item,contentLeft,settings);
-              const noteCount=(notes[item.id]||[]).length;
               return <Card key={item.id} accent={c} style={{marginBottom:10,padding:"13px 14px",
                 animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${idx*0.03}s both`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -3545,22 +3898,12 @@ Respond ONLY with valid JSON:
                     </div>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                    {noteCount>0&&<button onClick={()=>setNotesItem(item)} className="btn-press"
-                      style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.12)",
-                        color:T.textDim,borderRadius:20,padding:"4px 8px",fontSize:9,cursor:"pointer",
-                        display:"flex",alignItems:"center",gap:3,minHeight:28,fontWeight:700}}>
-                      📷 {noteCount}
-                    </button>}
                     <div style={{textAlign:"right"}}>
                       <div style={{fontSize:15,fontWeight:800,color:c}}>{p.percentComplete}%</div>
                     </div>
                     <button onClick={()=>setLogging(item)} className="btn-press"
                       style={{background:"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",border:"none",color:"#fff",
                         borderRadius:10,padding:"10px 16px",fontSize:12,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>
-                    <button onClick={()=>setNotesItem(item)} className="btn-press"
-                      style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
-                        color:T.textFaint,borderRadius:10,padding:"10px 10px",fontSize:12,cursor:"pointer",minHeight:44,
-                        display:"flex",alignItems:"center",justifyContent:"center"}}>📷</button>
                   </div>
                 </div>
                 <Bar pct={p.percentComplete} color={c} glow/>
@@ -3712,8 +4055,6 @@ Respond ONLY with valid JSON:
             {SECTIONS.map(sec=>(
               <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP}
                 setLogging={setLogging} settings={settings}
-                notes={notes}
-                onOpenNotes={item=>setNotesItem(item)}
                 onDelete={deleteItem}
                 onReset={item=>{
                   if(!window.confirm(`Reset "${item.name}" to 0%?`)) return;
@@ -3721,6 +4062,12 @@ Respond ONLY with valid JSON:
                 }}
               />
             ))}
+            <PhotoLibrary
+              notes={notes}
+              curriculum={CURRICULUM}
+              onDeleteNote={deleteNote}
+              onAddNote={addNote}
+            />
           </div>}
         </div>
 
@@ -3852,21 +4199,12 @@ Respond ONLY with valid JSON:
               {/* Header row */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
                 <div style={{fontSize:15,fontWeight:800,color:T.text,flex:1,paddingRight:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{logging.name}</div>
-                <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                  {/* Photo notes quick access from log modal */}
-                  <button onClick={()=>{setLogging(null);setLogForm({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});setNotesItem(logging);}} className="btn-press"
-                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
-                      color:T.textFaint,borderRadius:9,padding:"5px 10px",fontSize:11,cursor:"pointer",
-                      display:"flex",alignItems:"center",gap:4,minHeight:36}}>
-                    📷{(notes[logging.id]||[]).length>0&&<span style={{fontWeight:700,color:T.textDim}}>{(notes[logging.id]||[]).length}</span>}
-                  </button>
-                  <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
-                    style={{background:"none",border:"none",color:logForm.showDate?T.blue:T.textDim,fontSize:11,
-                      cursor:"pointer",padding:"2px 0",flexShrink:0,
-                      textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
-                    {logForm.showDate?"Today":"Different day"}
-                  </button>
-                </div>
+                <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
+                  style={{background:"none",border:"none",color:logForm.showDate?T.blue:T.textDim,fontSize:11,
+                    cursor:"pointer",padding:"2px 0",flexShrink:0,
+                    textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
+                  {logForm.showDate?"Today":"Different day"}
+                </button>
               </div>
               {logForm.showDate&&<div style={{marginBottom:14,padding:"10px 12px",background:"rgba(255,255,255,0.04)",
                 borderRadius:10,border:"1px solid rgba(255,255,255,0.08)"}}>
@@ -3924,13 +4262,14 @@ Respond ONLY with valid JSON:
           </div>;
         })()}
 
-        {/* ══ PHOTO NOTES MODAL ══ */}
-        {notesItem&&<PhotoNotesModal
-          item={notesItem}
+        {/* ══ ADD PHOTO NOTE MODAL ══ */}
+        {showAddPhotoNote&&<AddPhotoNoteModal
+          curriculum={CURRICULUM}
+          focus={focus}
+          weekPlan={weekPlan}
           notes={notes}
-          onClose={()=>setNotesItem(null)}
+          onClose={()=>setShowAddPhotoNote(false)}
           onAdd={addNote}
-          onDelete={deleteNote}
         />}
 
       </div>
