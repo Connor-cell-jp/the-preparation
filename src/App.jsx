@@ -1191,7 +1191,7 @@ function MountainRange({ view }){
 
 // ── HUD Progress Bar ───────────────────────────────────────────────────────────
 function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMenu, unreadCount, appReady,
-  editFocus, setEditFocus, focusItems, getP, focus, setFocus, curriculum }){
+  editFocus, setEditFocus, focusItems, getP, focus, setFocus, curriculum, photoDetailOpen }){
   const progress = weeklyTarget > 0 ? Math.min(1, hoursLogged / weeklyTarget) : 0;
   const isComplete = hoursLogged >= weeklyTarget;
   return(
@@ -1202,6 +1202,8 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
       zIndex:25,pointerEvents:'none',
       padding:'8px 16px',
       animation: appReady ? 'hudReveal 0.65s ease both' : 'none',
+      opacity: photoDetailOpen ? 0 : 1,
+      transition: 'opacity 0.3s ease',
     }}>
       <div style={{
         background:'rgba(8,18,38,0.72)',
@@ -2014,9 +2016,10 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 }
 
 // ── Photo Library ──────────────────────────────────────────────────────────────
-function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan }) {
+function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
+  useEffect(() => { onDetailOpenChange?.(!!selectedCourseId); }, [selectedCourseId]);
   const [expandedNote, setExpandedNote] = useState(null); // { courseId, noteIdx }
   const [editingCaption, setEditingCaption] = useState(null); // { courseId, noteId }
   const [captionDraft, setCaptionDraft] = useState('');
@@ -2604,6 +2607,9 @@ export default function App({ onSignOut }){
   const [planFlowSettings, setPlanFlowSettings] = useState(null);
   const [planFlowResult, setPlanFlowResult]     = useState(null);
   const [planLoadingMsg, setPlanLoadingMsg]     = useState("");
+  const [photoDetailOpen, setPhotoDetailOpen]   = useState(false);
+  const [arcSearchActive, setArcSearchActive]   = useState(false);
+  const [arcSearchQuery, setArcSearchQuery]     = useState("");
 
   const { notifs, push, markRead, clearAll: clearNotifs, dismiss: dismissNotif, unreadCount, currentBanner, dismissBanner } = useNotifications();
 
@@ -3612,7 +3618,7 @@ Respond ONLY with valid JSON:
           onOpenMenu={()=>setSideOpen(true)} unreadCount={unreadCount} appReady={appReady}
           editFocus={editFocus} setEditFocus={setEditFocus}
           focusItems={focusItems} getP={getP} focus={focus} setFocus={setFocus}
-          curriculum={CURRICULUM}/>
+          curriculum={CURRICULUM} photoDetailOpen={photoDetailOpen}/>
         {currentBanner&&<NotifBanner notif={currentBanner} onDismiss={dismissBanner} onAction={handleNotifAction}/>}
         <SidePanel
           open={sideOpen} onClose={()=>setSideOpen(false)}
@@ -4326,16 +4332,101 @@ Respond ONLY with valid JSON:
                 </div>
               </div>
             </Card>
-            {SECTIONS.map(sec=>(
-              <SectionBlock key={sec.label} sec={sec} focusIds={focusIds} getP={getP}
-                setLogging={setLogging} settings={settings}
-                onDelete={deleteItem}
-                onReset={item=>{
-                  if(!window.confirm(`Reset "${item.name}" to 0%?`)) return;
-                  setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});
-                }}
-              />
-            ))}
+            {/* Course Search */}
+            <div style={{
+              background:"linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)",
+              backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+              border:"1px solid rgba(255,255,255,0.08)",borderTop:"1px solid rgba(255,255,255,0.12)",
+              borderRadius:20,marginBottom:8,overflow:"hidden",boxShadow:shadow.card,
+            }}>
+              <div style={{padding:"14px 16px",display:"flex",alignItems:"center",gap:10}}>
+                {arcSearchActive ? (
+                  <input
+                    autoFocus
+                    value={arcSearchQuery}
+                    onChange={e=>setArcSearchQuery(e.target.value)}
+                    placeholder="Search courses & books…"
+                    style={{
+                      flex:1,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.15)",
+                      borderRadius:10,padding:"9px 12px",fontSize:13,color:T.text,outline:"none",
+                      fontFamily:T.fontUI,
+                    }}
+                  />
+                ) : (
+                  <div style={{flex:1,fontSize:13,fontWeight:700,color:T.text}}>Find a Course</div>
+                )}
+                <button
+                  onClick={()=>{setArcSearchActive(a=>!a);setArcSearchQuery("");}}
+                  className="btn-press"
+                  style={{
+                    background:arcSearchActive?"rgba(239,68,68,0.12)":"rgba(59,130,246,0.12)",
+                    border:`1px solid ${arcSearchActive?"rgba(239,68,68,0.3)":"rgba(59,130,246,0.25)"}`,
+                    color:arcSearchActive?T.red:T.blue,borderRadius:10,
+                    width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",
+                    fontSize:17,cursor:"pointer",flexShrink:0,
+                  }}>
+                  {arcSearchActive?"✕":"🔍"}
+                </button>
+              </div>
+              {arcSearchActive&&(
+                <div style={{padding:"0 12px 12px"}}>
+                  {(arcSearchQuery.trim()
+                    ? CURRICULUM.filter(i=>
+                        i.name.toLowerCase().includes(arcSearchQuery.toLowerCase())||
+                        i.id.toLowerCase().includes(arcSearchQuery.toLowerCase())||
+                        (i.genre||"").toLowerCase().includes(arcSearchQuery.toLowerCase())
+                      )
+                    : CURRICULUM
+                  ).slice(0,20).map(item=>{
+                    const p=getP(item.id);
+                    const inFocus=focusIds.includes(item.id);
+                    const isDone=p.percentComplete>=100;
+                    const isTouched=p.percentComplete>0&&!isDone;
+                    const c=gc(item.genre);
+                    const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
+                    const realLeft=contentToReal(item,contentLeft,settings);
+                    return <div key={item.id}
+                      style={{display:"flex",alignItems:"center",gap:10,padding:"8px 6px",
+                        borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+                      <div style={{width:6,height:6,borderRadius:"50%",flexShrink:0,
+                        background:isDone?T.green:isTouched?c:inFocus?T.pink:"rgba(255,255,255,0.15)"}}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:11,fontWeight:isDone||isTouched?600:400,
+                          color:isDone?T.green:isTouched?T.text:T.textDim,
+                          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                          <span style={{color:T.textDim,marginRight:5}}>{item.id}</span>{item.name}
+                        </div>
+                        <div style={{fontSize:9,color:T.textFaint,marginTop:2}}>
+                          {item.hours}h{item.genre?` · ${item.genre}`:""}
+                          {!isDone&&isTouched?` · ${realLeft.toFixed(1)}h left`:""}
+                          {inFocus?" · focus":""}
+                        </div>
+                      </div>
+                      <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+                        {isTouched&&<div style={{fontSize:11,fontWeight:700,color:c}}>{p.percentComplete}%</div>}
+                        {isDone&&<div style={{fontSize:13,color:T.green}}>✓</div>}
+                        {isDone&&<button onClick={()=>{if(!window.confirm(`Reset "${item.name}" to 0%?`))return;setProgress(prev=>{const copy={...prev};delete copy[item.id];return copy;});}} className="btn-press"
+                          style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",color:T.red,
+                            borderRadius:8,padding:"7px 12px",fontSize:10,cursor:"pointer",fontWeight:600,minHeight:44}}>Reset</button>}
+                        {!isDone&&<button onClick={()=>setLogging(item)} className="btn-press"
+                          style={{background:"rgba(59,130,246,0.12)",border:"1px solid rgba(59,130,246,0.25)",color:T.blue,
+                            borderRadius:8,padding:"7px 14px",fontSize:11,cursor:"pointer",fontWeight:700,minHeight:44}}>Log</button>}
+                        <button onClick={()=>deleteItem(item)} className="btn-press"
+                          style={{background:"none",border:"1px solid rgba(239,68,68,0.2)",color:T.red,
+                            borderRadius:8,padding:"7px 10px",fontSize:11,cursor:"pointer",fontWeight:600,opacity:0.7,minHeight:44}}>✕</button>
+                      </div>
+                    </div>;
+                  })}
+                  {arcSearchQuery.trim()&&CURRICULUM.filter(i=>
+                    i.name.toLowerCase().includes(arcSearchQuery.toLowerCase())||
+                    i.id.toLowerCase().includes(arcSearchQuery.toLowerCase())||
+                    (i.genre||"").toLowerCase().includes(arcSearchQuery.toLowerCase())
+                  ).length===0&&(
+                    <div style={{padding:"20px 0",textAlign:"center",color:T.textDim,fontSize:12}}>No courses found</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>}
 
           {/* ══ NOTES (Photo Library) ══ */}
@@ -4348,6 +4439,7 @@ Respond ONLY with valid JSON:
               onEditNote={editNote}
               focusItems={focusItems}
               weekPlan={weekPlan}
+              onDetailOpenChange={setPhotoDetailOpen}
             />
           </div>}
         </div>
@@ -4556,7 +4648,7 @@ Respond ONLY with valid JSON:
       </div>
 
       {/* ── Bottom Navigation ── */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:appReady?undefined:0}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:photoDetailOpen?0:appReady?1:0,transition:"opacity 0.3s ease",pointerEvents:photoDetailOpen?"none":"auto"}}>
         <div style={{
           position:"absolute",inset:0,
           background:"rgba(13,27,42,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
