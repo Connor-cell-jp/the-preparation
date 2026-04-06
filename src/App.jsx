@@ -2006,12 +2006,13 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 }
 
 // ── Photo Library ──────────────────────────────────────────────────────────────
-function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote }) {
+function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [expandedNote, setExpandedNote] = useState(null); // { courseId, noteIdx }
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadError, setUploadError] = useState('');
+  const [aiStudyOpen, setAiStudyOpen] = useState(false);
   const fileInputRef = useRef(null);
   const addingToRef = useRef(null);
 
@@ -2035,6 +2036,11 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote }) {
     : null;
 
   const displayCourses = searchResults || coursesWithNotes;
+
+  // Active focus items (current courses + books)
+  const activeFocusItems = (focusItems||[]).map(item=>({
+    id:item.id, item, noteArr:notes[item.id]||[]
+  }));
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -2195,76 +2201,174 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote }) {
   }
 
   // ── Course list (default view) ──
-  return (
-    <div style={{marginTop:8}}>
-      <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
-
-      <div style={{background:'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)',
-        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
-        border:'1px solid rgba(255,255,255,0.08)',borderRadius:20,
-        padding:'16px 16px 14px',marginBottom:12,boxShadow:shadow.card}}>
-        <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
-          Photo Library
-        </div>
-        <div style={{fontSize:17,fontWeight:800,color:T.text,letterSpacing:-0.3}}>
-          {totalPhotos} {totalPhotos===1?'photo':'photos'}
-        </div>
-        {coursesWithNotes.length>0&&<div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-          across {coursesWithNotes.length} {coursesWithNotes.length===1?'course':'courses'}
-        </div>}
-      </div>
-
-      <input
-        type="text"
-        placeholder="Search courses…"
-        value={searchQuery}
-        onChange={e=>setSearchQuery(e.target.value)}
-        style={{width:'100%',background:'rgba(255,255,255,0.06)',
-          border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,
-          padding:'10px 13px',color:T.text,fontSize:13,
-          boxSizing:'border-box',fontFamily:'inherit',outline:'none',marginBottom:10}}
-      />
-
-      {displayCourses.length===0 ? (
-        <div style={{padding:'40px 24px',textAlign:'center',
-          background:'linear-gradient(145deg,rgba(255,255,255,0.04) 0%,rgba(255,255,255,0.01) 100%)',
-          borderRadius:20,border:'1px solid rgba(255,255,255,0.06)'}}>
-          <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📷</div>
-          <div style={{fontSize:13,fontWeight:600,color:T.textMid,marginBottom:6}}>No photos yet</div>
-          <div style={{fontSize:11,color:T.textDim,lineHeight:1.5}}>
-            Use "Add Photo Note" in the Today tab to save visual notes for your courses.
+  const CourseRow = ({id, item, noteArr}) => {
+    const col=gc(item.genre);
+    return (
+      <button key={id} onClick={()=>setSelectedCourseId(id)} className="btn-press"
+        style={{width:'100%',
+          background:'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)',
+          border:'1px solid rgba(255,255,255,0.08)',borderLeft:`3px solid ${col}`,
+          borderRadius:16,padding:'13px 14px',marginBottom:8,
+          display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',
+          boxShadow:shadow.card}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:9,color:col,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:3}}>
+            {item.type==='course'?'Course':'Book'} · {item.genre}
+          </div>
+          <div style={{fontSize:13,fontWeight:700,color:T.text,lineHeight:1.3,
+            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {item.name}
+          </div>
+          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+            {noteArr.length>0?`${noteArr.length} photo${noteArr.length!==1?'s':''}`:'No photos yet'}
           </div>
         </div>
-      ) : displayCourses.map(({id,item,noteArr})=>{
-        const col=gc(item.genre);
-        return (
-          <button key={id} onClick={()=>setSelectedCourseId(id)} className="btn-press"
-            style={{width:'100%',
-              background:'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)',
-              border:'1px solid rgba(255,255,255,0.08)',borderLeft:`3px solid ${col}`,
-              borderRadius:16,padding:'13px 14px',marginBottom:8,
-              display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',
-              boxShadow:shadow.card}}>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:9,color:col,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:3}}>
-                {item.type==='course'?'Course':'Book'} · {item.genre}
-              </div>
-              <div style={{fontSize:13,fontWeight:700,color:T.text,lineHeight:1.3,
-                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                {item.name}
-              </div>
-              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-                {noteArr.length>0?`${noteArr.length} photo${noteArr.length!==1?'s':''}`:'No photos yet'}
-              </div>
+        {noteArr.length>0&&<div style={{fontSize:9,color:T.textFaint,flexShrink:0,
+          display:'flex',alignItems:'center',gap:3}}>
+          📷 {noteArr.length}
+        </div>}
+        <div style={{fontSize:16,color:T.textDim,flexShrink:0}}>›</div>
+      </button>
+    );
+  };
+
+  return (
+    <div style={{padding:'0 16px',paddingBottom:24}}>
+      <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
+
+      {/* ── Header stats ── */}
+      <div style={{
+        background:'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)',
+        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+        border:'1px solid rgba(255,255,255,0.08)',borderRadius:20,
+        padding:'18px 18px 16px',marginBottom:16,boxShadow:shadow.card,
+        display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,
+      }}>
+        <div>
+          <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
+            Photo Library
+          </div>
+          <div style={{fontSize:22,fontWeight:900,color:T.text,letterSpacing:-0.5}}>
+            {totalPhotos} <span style={{fontSize:14,fontWeight:500,color:T.textMid}}>{totalPhotos===1?'photo':'photos'}</span>
+          </div>
+          {coursesWithNotes.length>0&&<div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+            across {coursesWithNotes.length} {coursesWithNotes.length===1?'course':'courses'}
+          </div>}
+        </div>
+        <div style={{fontSize:32,opacity:0.3,flexShrink:0}}>📷</div>
+      </div>
+
+      {/* ── AI Study (placeholder) ── */}
+      <button onClick={()=>setAiStudyOpen(s=>!s)} className="btn-press"
+        style={{width:'100%',
+          background:'linear-gradient(145deg,rgba(59,130,246,0.10) 0%,rgba(59,130,246,0.04) 100%)',
+          backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+          border:'1px solid rgba(59,130,246,0.22)',borderRadius:20,
+          padding:'16px 18px',marginBottom:16,boxShadow:shadow.card,
+          textAlign:'left',cursor:'pointer',
+          display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+        <div>
+          <div style={{fontSize:9,color:T.blue,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
+            AI Study ✦
+          </div>
+          <div style={{fontSize:14,fontWeight:800,color:T.text,letterSpacing:-0.2}}>
+            Study from your photos
+          </div>
+          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+            AI-powered review from your photo notes — coming soon
+          </div>
+        </div>
+        <div style={{fontSize:20,color:T.blue,flexShrink:0,
+          transform:aiStudyOpen?'rotate(90deg)':'rotate(0deg)',
+          transition:'transform 0.2s ease'}}>›</div>
+      </button>
+      {aiStudyOpen&&<div style={{
+        background:'linear-gradient(145deg,rgba(59,130,246,0.07) 0%,rgba(59,130,246,0.02) 100%)',
+        border:'1px solid rgba(59,130,246,0.15)',borderRadius:20,
+        padding:'20px 18px',marginTop:-8,marginBottom:16,
+        animation:'fadeIn 0.18s ease both',
+      }}>
+        <div style={{fontSize:32,marginBottom:12,textAlign:'center',opacity:0.4}}>✦</div>
+        <div style={{fontSize:13,fontWeight:700,color:T.textMid,textAlign:'center',marginBottom:8}}>
+          AI Photo Study — Coming Soon
+        </div>
+        <div style={{fontSize:11,color:T.textDim,lineHeight:1.65,textAlign:'center',maxWidth:280,margin:'0 auto'}}>
+          Soon you'll be able to quiz yourself, generate flashcards, and get AI summaries directly from your course photos.
+        </div>
+      </div>}
+
+      {/* ── Search bar ── */}
+      <div style={{position:'relative',marginBottom:16}}>
+        <span style={{position:'absolute',left:13,top:'50%',transform:'translateY(-50%)',
+          fontSize:14,color:T.textFaint,pointerEvents:'none'}}>🔍</span>
+        <input
+          type="text"
+          placeholder="Search all courses and books…"
+          value={searchQuery}
+          onChange={e=>setSearchQuery(e.target.value)}
+          style={{width:'100%',background:'rgba(255,255,255,0.06)',
+            border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,
+            padding:'11px 13px 11px 36px',color:T.text,fontSize:14,
+            boxSizing:'border-box',fontFamily:'inherit',outline:'none'}}
+        />
+        {searchQuery&&<button onClick={()=>setSearchQuery('')} className="btn-press"
+          style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
+            background:'none',border:'none',color:T.textDim,fontSize:16,cursor:'pointer',padding:4,minHeight:32}}>
+          ×
+        </button>}
+      </div>
+
+      {searchQuery.trim() ? (
+        // ── Search results ──
+        <div>
+          <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
+            Results for "{searchQuery}"
+          </div>
+          {displayCourses.length===0 ? (
+            <div style={{padding:'32px 24px',textAlign:'center',
+              background:'rgba(255,255,255,0.03)',borderRadius:16,
+              border:'1px solid rgba(255,255,255,0.06)'}}>
+              <div style={{fontSize:13,color:T.textDim}}>No courses found</div>
             </div>
-            {noteArr.length>0&&<div style={{fontSize:9,color:T.textFaint,flexShrink:0,
-              display:'flex',alignItems:'center',gap:3}}>
-              📷 {noteArr.length}
-            </div>}
-            <div style={{fontSize:16,color:T.textDim,flexShrink:0}}>›</div>
-          </button>
-        );
-      })}
+          ) : displayCourses.map(({id,item,noteArr})=>(
+            <CourseRow key={id} id={id} item={item} noteArr={noteArr}/>
+          ))}
+        </div>
+      ) : (
+        <>
+          {/* ── Current Courses (from focus) ── */}
+          {activeFocusItems.length>0&&<div style={{marginBottom:20}}>
+            <div style={{fontSize:9,color:T.blue,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
+              Current Focus
+            </div>
+            {activeFocusItems.map(({id,item,noteArr})=>(
+              <CourseRow key={id} id={id} item={item} noteArr={noteArr}/>
+            ))}
+          </div>}
+
+          {/* ── Courses with photos ── */}
+          <div>
+            <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
+              {coursesWithNotes.length>0?'All Photos':''}
+            </div>
+            {coursesWithNotes.length===0 ? (
+              <div style={{padding:'40px 24px',textAlign:'center',
+                background:'linear-gradient(145deg,rgba(255,255,255,0.04) 0%,rgba(255,255,255,0.01) 100%)',
+                borderRadius:20,border:'1px solid rgba(255,255,255,0.06)'}}>
+                <div style={{fontSize:36,marginBottom:12,opacity:0.25}}>📷</div>
+                <div style={{fontSize:13,fontWeight:600,color:T.textMid,marginBottom:6}}>No photos yet</div>
+                <div style={{fontSize:11,color:T.textDim,lineHeight:1.6,maxWidth:240,margin:'0 auto'}}>
+                  Tap a course above to add your first photo note. Capture diagrams, notes, and key concepts.
+                </div>
+              </div>
+            ) : coursesWithNotes
+                .filter(({id})=>!(activeFocusItems.some(f=>f.id===id)))
+                .map(({id,item,noteArr})=>(
+                  <CourseRow key={id} id={id} item={item} noteArr={noteArr}/>
+                ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -4071,11 +4175,16 @@ Respond ONLY with valid JSON:
                 }}
               />
             ))}
+          </div>}
+
+          {/* ══ NOTES (Photo Library) ══ */}
+          {view==="notes"&&<div className="tab-content">
             <PhotoLibrary
               notes={notes}
               curriculum={CURRICULUM}
               onDeleteNote={deleteNote}
               onAddNote={addNote}
+              focusItems={focusItems}
             />
           </div>}
         </div>
@@ -4298,25 +4407,26 @@ Respond ONLY with valid JSON:
             ["week","Week","▦"],
             ["ai","Check-In","✦"],
             ["arc","Arc","△"],
+            ["notes","Notes","📷"],
           ].map(([k,label,icon])=>(
             <button key={k} onClick={()=>setView(k)} className="btn-press"
               style={{
-                flex:1,padding:"10px 4px 8px",background:"none",border:"none",
+                flex:1,padding:"10px 2px 8px",background:"none",border:"none",
                 cursor:"pointer",display:"flex",flexDirection:"column",
-                alignItems:"center",gap:4,color:view===k?T.blue:"rgba(255,255,255,0.35)",
+                alignItems:"center",gap:3,color:view===k?T.blue:"rgba(255,255,255,0.35)",
                 transition:"color 0.22s cubic-bezier(0.4,0,0.2,1)",minHeight:56,position:"relative",
               }}>
               {view===k&&<div style={{
-                position:"absolute",top:0,left:"20%",right:"20%",
+                position:"absolute",top:0,left:"15%",right:"15%",
                 height:2,
                 background:"linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)",
                 borderRadius:"0 0 3px 3px",
                 boxShadow:"0 0 8px rgba(59,130,246,0.7), 0 0 20px rgba(59,130,246,0.3)",
               }}/>}
-              <span style={{fontSize:18,lineHeight:1}}>{icon}</span>
+              <span style={{fontSize:17,lineHeight:1}}>{icon}</span>
               <span style={{
-                fontSize:10,fontWeight:view===k?800:500,
-                letterSpacing:0.8,textTransform:"uppercase",
+                fontSize:9,fontWeight:view===k?800:500,
+                letterSpacing:0.5,textTransform:"uppercase",
               }}>{label}</span>
             </button>
           ))}
