@@ -1736,9 +1736,6 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
   const [pendingScan, setPendingScan] = useState(null); // { file }
   const fileInputRef = useRef(null);
 
-  // Pre-warm OpenCV as soon as the modal opens so it's ready when a photo is picked
-  useEffect(() => { loadScanLibs(); }, []);
-
   const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
   const planCourseIds = weekPlan
     ? [...new Set((weekPlan.days||[]).flatMap(d=>(d.items||[]).map(it=>it.id)))]
@@ -1761,16 +1758,14 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
     setPendingScan({ file });
   };
 
-  const handleScanConfirm = async (blob, mimeType) => {
+  const handleScanConfirm = async (file, caption) => {
     setPendingScan(null);
-    if (!blob) return;
+    if (!file) return;
     setUploading(true);
     setUploadError('');
     try {
-      const ext = mimeType === 'image/png' ? 'png' : 'jpg';
-      const file = new File([blob], `scan.${ext}`, { type: mimeType || 'image/jpeg' });
       const result = await uploadNotePhoto(file);
-      setUploaded(result);
+      setUploaded({ ...result, caption: caption || '' });
     } catch (err) {
       setUploadError(err?.message || 'Upload failed — check your connection and try again.');
     }
@@ -1794,6 +1789,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
       id: Date.now(),
       url: uploaded.url,
       storageKey: uploaded.storageKey,
+      caption: uploaded.caption || '',
       date: new Date().toLocaleDateString(),
       createdAt: new Date().toISOString(),
     });
@@ -1804,7 +1800,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 
   if (pendingScan) {
     return (
-      <ScanPreviewModal
+      <PhotoPreviewModal
         file={pendingScan.file}
         courseColor={c}
         onConfirm={handleScanConfirm}
@@ -1888,6 +1884,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
               placeholder="Search by name, ID, genre..."
               value={searchQuery}
               onChange={e=>setSearchQuery(e.target.value)}
+              onKeyDown={e=>{ if(e.key==='Enter') e.currentTarget.blur(); }}
               style={{
                 width:'100%', background:'rgba(255,255,255,0.06)',
                 border:'1px solid rgba(255,255,255,0.12)',
@@ -1939,7 +1936,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
       paddingTop:'env(safe-area-inset-top)',
       animation:'fadeIn 0.18s ease both',
     }}>
-      <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
+      <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFileChange}/>
       <div style={{padding:'14px 16px 12px', flexShrink:0, borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
           <button onClick={()=>{handleRetake();setStep('pick');}} className="btn-press"
@@ -2058,93 +2055,25 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 }
 
 // ── Photo Library ──────────────────────────────────────────────────────────────
-// ── Document scanning libs (lazy-loaded) ──
-let _scanLibsPromise = null;
-function loadScanLibs() {
-  if (_scanLibsPromise) return _scanLibsPromise;
-  _scanLibsPromise = new Promise((resolve) => {
-    // Always resolve within 20 s so the UI never hangs on a white screen
-    const timeout = setTimeout(() => resolve(false), 20000);
-    const done = (val) => { clearTimeout(timeout); resolve(val); };
 
-    if (window.jscanify) { done(true); return; }
-    const existingInit = (window.Module||{}).onRuntimeInitialized;
-    window.Module = {
-      ...(window.Module||{}),
-      onRuntimeInitialized() {
-        if (existingInit) existingInit.call(this);
-        const jsScript = document.createElement('script');
-        jsScript.src = 'https://cdn.jsdelivr.net/gh/ColonelParrot/jscanify@master/src/jscanify.min.js';
-        jsScript.onload = () => done(true);
-        jsScript.onerror = () => done(false);
-        document.head.appendChild(jsScript);
-      }
-    };
-    const cvScript = document.createElement('script');
-    cvScript.src = 'https://docs.opencv.org/4.7.0/opencv.js';
-    cvScript.onerror = () => done(false);
-    document.head.appendChild(cvScript);
-  });
-  return _scanLibsPromise;
-}
-
-function ScanPreviewModal({ file, courseColor, onConfirm, onRetake }) {
-  const [scanState, setScanState] = React.useState('loading'); // 'loading'|'scanned'|'original'
-  const [originalUrl, setOriginalUrl] = React.useState(null);
-  const [scannedUrl, setScannedUrl] = React.useState(null);
-  const scannedCanvasRef = React.useRef(null);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      if (cancelled) return;
-      const dataUrl = e.target.result;
-      setOriginalUrl(dataUrl);
-      try {
-        const ready = await loadScanLibs();
-        if (cancelled) return;
-        if (!ready || !window.jscanify) { setScanState('original'); return; }
-        const img = new Image();
-        img.onload = () => {
-          if (cancelled) return;
-          try {
-            const scanner = new window.jscanify();
-            const resultCanvas = scanner.extractPaper(img, img.naturalWidth, img.naturalHeight);
-            if (resultCanvas && resultCanvas.width > 10 && resultCanvas.height > 10) {
-              scannedCanvasRef.current = resultCanvas;
-              setScannedUrl(resultCanvas.toDataURL('image/jpeg', 0.92));
-              setScanState('scanned');
-            } else {
-              setScanState('original');
-            }
-          } catch { setScanState('original'); }
-        };
-        img.onerror = () => { if (!cancelled) setScanState('original'); };
-        img.src = dataUrl;
-      } catch { if (!cancelled) setScanState('original'); }
-    };
-    reader.onerror = () => setScanState('original');
-    reader.readAsDataURL(file);
-    return () => { cancelled = true; };
-  }, [file]);
-
+function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
+  const [previewUrl, setPreviewUrl] = React.useState(null);
+  const [caption, setCaption] = React.useState('');
   const col = courseColor || T.blue;
 
-  const handleConfirm = () => {
-    if (scanState === 'scanned' && scannedCanvasRef.current) {
-      scannedCanvasRef.current.toBlob(blob => onConfirm(blob, 'image/jpeg'), 'image/jpeg', 0.92);
-    } else if (originalUrl) {
-      fetch(originalUrl).then(r => r.blob()).then(blob => onConfirm(blob, blob.type || file.type));
-    }
-  };
+  React.useEffect(() => {
+    const reader = new FileReader();
+    reader.onload = (e) => setPreviewUrl(e.target.result);
+    reader.readAsDataURL(file);
+  }, [file]);
 
   return (
     <div style={{
-      position:'fixed',inset:0,zIndex:600,background:'#000',
+      position:'fixed',inset:0,zIndex:600,
+      background:'linear-gradient(180deg,#000 0%,#0a0f1a 100%)',
       display:'flex',flexDirection:'column',
       paddingTop:'env(safe-area-inset-top)',
-      animation:'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both',
+      animation:'slideInUp 0.25s cubic-bezier(0.16,1,0.3,1) both',
     }}>
       {/* Header */}
       <div style={{
@@ -2159,81 +2088,55 @@ function ScanPreviewModal({ file, courseColor, onConfirm, onRetake }) {
             borderRadius:99,minHeight:40,display:'flex',alignItems:'center',gap:5}}>
           ← Retake
         </button>
-        <div style={{textAlign:'center',flex:1,padding:'0 8px'}}>
-          <div style={{fontSize:13,fontWeight:700,color:T.text,animation:'fadeIn 0.2s ease both'}}>
-            {scanState==='loading' ? 'Processing…' : scanState==='scanned' ? 'Document Scan' : 'Review Photo'}
-          </div>
-          <div style={{fontSize:10,color:T.textDim,marginTop:2,animation:'fadeIn 0.3s ease 0.1s both'}}>
-            {scanState==='scanned' ? 'Edges detected & corrected' : scanState==='original' ? 'Original photo · edges not detected' : 'Detecting document edges…'}
-          </div>
-        </div>
-        <button onClick={handleConfirm} disabled={scanState==='loading'} className="btn-press"
+        <div style={{fontSize:13,fontWeight:700,color:T.text}}>Review Photo</div>
+        <button onClick={() => onConfirm(file, caption)} className="btn-press"
           style={{
-            background:scanState!=='loading'?`linear-gradient(135deg,${col} 0%,${col}cc 100%)`:'rgba(255,255,255,0.08)',
+            background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
             border:'none',color:'#fff',fontSize:12,fontWeight:700,
-            cursor:scanState!=='loading'?'pointer':'default',
-            padding:'7px 18px',borderRadius:99,minHeight:40,
-            opacity:scanState==='loading'?0.4:1,
-            transition:'opacity 0.2s ease,background 0.2s ease',
-            boxShadow:scanState!=='loading'?`0 4px 18px ${col}50`:'none',
+            cursor:'pointer',padding:'7px 18px',borderRadius:99,minHeight:40,
+            boxShadow:`0 4px 18px ${col}50`,
           }}>
-          Save
+          Use Photo
         </button>
       </div>
 
-      {/* Preview area */}
+      {/* Preview */}
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
-        padding:'16px',background:'#000',position:'relative',overflow:'hidden'}}>
-        {scanState==='loading' && (
-          <div style={{textAlign:'center',animation:'fadeIn 0.2s ease both'}}>
-            <div style={{
-              width:44,height:44,borderRadius:'50%',
-              border:`3px solid rgba(255,255,255,0.08)`,borderTopColor:col,
-              animation:'spin 0.9s linear infinite',margin:'0 auto 14px',
-            }}/>
-            <div style={{fontSize:13,color:T.textDim,fontWeight:500}}>Detecting document edges…</div>
-            <div style={{fontSize:11,color:T.textFaint,marginTop:4}}>This may take a moment</div>
-          </div>
-        )}
-        {scanState==='scanned' && scannedUrl && (
-          <div style={{maxWidth:'100%',maxHeight:'100%',position:'relative',animation:'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) both'}}>
-            <div style={{
-              position:'absolute',top:-8,right:-8,
-              background:T.green,borderRadius:99,
-              padding:'3px 10px',fontSize:10,fontWeight:700,color:'#fff',
-              boxShadow:`0 2px 10px ${T.green}60`,
-              animation:'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) 0.1s both',
-            }}>✓ Scan</div>
-            <img src={scannedUrl} alt="Scanned document"
-              style={{maxWidth:'100%',maxHeight:'calc(100vh - 280px)',objectFit:'contain',
-                borderRadius:14,boxShadow:'0 12px 50px rgba(0,0,0,0.85)',display:'block'}}/>
-          </div>
-        )}
-        {scanState==='original' && originalUrl && (
-          <div style={{maxWidth:'100%',maxHeight:'100%',position:'relative',animation:'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) both'}}>
-            <div style={{
-              position:'absolute',top:-8,right:-8,
-              background:'rgba(255,255,255,0.18)',borderRadius:99,
-              padding:'3px 10px',fontSize:10,fontWeight:600,color:T.textMid,
-              animation:'fadeUp 0.3s cubic-bezier(0.16,1,0.3,1) 0.1s both',
-            }}>Original</div>
-            <img src={originalUrl} alt="Original photo"
-              style={{maxWidth:'100%',maxHeight:'calc(100vh - 280px)',objectFit:'contain',
-                borderRadius:14,boxShadow:'0 12px 50px rgba(0,0,0,0.85)',display:'block'}}/>
-          </div>
+        padding:'16px',background:'#000',overflow:'hidden'}}>
+        {previewUrl ? (
+          <img src={previewUrl} alt="Preview"
+            style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain',
+              borderRadius:14,boxShadow:'0 12px 50px rgba(0,0,0,0.85)',display:'block'}}/>
+        ) : (
+          <div style={{
+            width:40,height:40,borderRadius:'50%',
+            border:`3px solid rgba(255,255,255,0.08)`,borderTopColor:col,
+            animation:'spin 0.9s linear infinite',
+          }}/>
         )}
       </div>
 
-      {/* Footer buttons */}
-      {scanState!=='loading' && (
-        <div style={{
-          padding:'12px 16px',paddingBottom:'calc(env(safe-area-inset-bottom) + 12px)',
-          flexShrink:0,background:'rgba(0,0,0,0.75)',
-          backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
-          borderTop:'1px solid rgba(255,255,255,0.07)',
-          display:'flex',gap:10,
-          animation:'fadeUp 0.28s cubic-bezier(0.16,1,0.3,1) both',
-        }}>
+      {/* Caption + confirm */}
+      <div style={{
+        padding:'12px 16px',paddingBottom:'calc(env(safe-area-inset-bottom) + 12px)',
+        flexShrink:0,background:'rgba(0,0,0,0.75)',
+        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+        borderTop:'1px solid rgba(255,255,255,0.07)',
+        display:'flex',flexDirection:'column',gap:10,
+      }}>
+        <input
+          type="text"
+          placeholder="Add a caption (optional)"
+          value={caption}
+          onChange={e => setCaption(e.target.value)}
+          style={{
+            width:'100%',background:'rgba(255,255,255,0.07)',
+            border:'1px solid rgba(255,255,255,0.12)',
+            borderRadius:12,padding:'11px 13px',color:T.text,fontSize:14,
+            boxSizing:'border-box',fontFamily:'inherit',outline:'none',
+          }}
+        />
+        <div style={{display:'flex',gap:10}}>
           <button onClick={onRetake} className="btn-press"
             style={{flex:1,background:'rgba(255,255,255,0.08)',
               border:'1px solid rgba(255,255,255,0.12)',color:T.text,
@@ -2241,15 +2144,15 @@ function ScanPreviewModal({ file, courseColor, onConfirm, onRetake }) {
               cursor:'pointer',minHeight:52}}>
             Retake
           </button>
-          <button onClick={handleConfirm} className="btn-press"
+          <button onClick={() => onConfirm(file, caption)} className="btn-press"
             style={{flex:2,background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
               border:'none',color:'#fff',borderRadius:16,padding:'14px',
               fontSize:14,fontWeight:800,cursor:'pointer',minHeight:52,
               boxShadow:`0 6px 28px ${col}45`}}>
-            {scanState==='scanned' ? '✓ Use Scan' : 'Save Photo'}
+            Use Photo
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -2270,9 +2173,6 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
   const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
   const fileInputRef = useRef(null);
   const addingToRef = useRef(null);
-
-  // Pre-warm OpenCV as soon as the library opens so it's ready when a photo is picked
-  useEffect(() => { loadScanLibs(); }, []);
 
   const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
 
@@ -2306,19 +2206,17 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
     ? planCourseIds.map(id=>coursesOnly.find(i=>i.id===id)).filter(Boolean).map(item=>({id:item.id,item,noteArr:notes[item.id]||[]}))
     : (focusItems||[]).filter(item=>item.type==="course").map(item=>({id:item.id,item,noteArr:notes[item.id]||[]}));
 
-  // Called after scan preview is confirmed — uploads the (possibly scanned) blob
-  const handleScanConfirm = async (blob, mimeType) => {
+  const handleScanConfirm = async (file, caption) => {
     const courseId = pendingScan?.courseId;
     setPendingScan(null);
-    if (!blob || !courseId) return;
+    if (!file || !courseId) return;
     setUploadingFor(courseId);
     setUploadError('');
     try {
-      const ext = mimeType === 'image/png' ? 'png' : 'jpg';
-      const file = new File([blob], `scan.${ext}`, { type: mimeType || 'image/jpeg' });
       const { url, storageKey } = await uploadNotePhoto(file);
       onAddNote(courseId, {
         id: Date.now(), url, storageKey,
+        caption: caption || '',
         date: new Date().toLocaleDateString(),
         createdAt: new Date().toISOString(),
       });
@@ -2344,20 +2242,19 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
     setTimeout(()=>fileInputRef.current?.click(), 50);
   };
 
-  // ── Scan preview modal ──
   if (pendingScan) {
     const courseItem = coursesOnly.find(i=>i.id===pendingScan.courseId);
     const col = gc(courseItem?.genre);
+    const pendingCourseId = pendingScan.courseId;
     return (
-      <ScanPreviewModal
+      <PhotoPreviewModal
         file={pendingScan.file}
         courseColor={col}
         onConfirm={handleScanConfirm}
         onRetake={() => {
           setPendingScan(null);
-          // Re-trigger the file picker so user can pick a different photo
           setTimeout(() => {
-            addingToRef.current = pendingScan.courseId;
+            addingToRef.current = pendingCourseId;
             setUploadError('');
             fileInputRef.current?.click();
           }, 100);
@@ -2424,7 +2321,13 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
           backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
           display:'flex',justifyContent:'space-between',alignItems:'center',
           borderTop:'1px solid rgba(255,255,255,0.06)'}}>
-          <div style={{fontSize:11,color:'rgba(255,255,255,0.30)'}}>{note.date}</div>
+          <div style={{flex:1,minWidth:0,paddingRight:12}}>
+            {note.caption ? (
+              <div style={{fontSize:12,color:T.textMid,marginBottom:2,lineHeight:1.4,
+                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{note.caption}</div>
+            ) : null}
+            <div style={{fontSize:11,color:'rgba(255,255,255,0.30)'}}>{note.date}</div>
+          </div>
           {deleteConfirm?.noteId===note.id ? (
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
               <span style={{fontSize:11,color:T.textDim}}>Delete this photo?</span>
@@ -2538,19 +2441,33 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
               {noteArr.map((note,idx)=>(
                 <div key={note.id}
-                  onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:idx})}
-                  className="btn-press"
                   style={{
                     position:'relative', aspectRatio:'1 / 1', borderRadius:14, overflow:'hidden',
-                    cursor:'pointer', border:'1px solid rgba(255,255,255,0.09)',
+                    border:'1px solid rgba(255,255,255,0.09)',
                     boxShadow:'0 2px 14px rgba(0,0,0,0.45)',
                     animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${Math.min(idx*0.04,0.28)}s both`,
                   }}>
-                  <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
-                    style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
-                  <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'18px 8px 6px',
-                    background:'linear-gradient(transparent,rgba(0,0,0,0.72))',
-                    fontSize:8,color:'rgba(255,255,255,0.60)',fontWeight:500}}>{note.date}</div>
+                  <div onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:idx})}
+                    className="btn-press"
+                    style={{position:'absolute',inset:0,cursor:'pointer'}}>
+                    <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
+                      style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+                    <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'18px 8px 6px',
+                      background:'linear-gradient(transparent,rgba(0,0,0,0.72))',
+                      fontSize:8,color:'rgba(255,255,255,0.60)',fontWeight:500}}>{note.date}</div>
+                  </div>
+                  <button
+                    onClick={e=>{e.stopPropagation();onDeleteNote(selectedCourseId,note.id,note.storageKey);}}
+                    className="btn-press"
+                    style={{position:'absolute',top:5,right:5,
+                      width:26,height:26,borderRadius:99,
+                      background:'rgba(0,0,0,0.65)',backdropFilter:'blur(6px)',
+                      border:'1px solid rgba(255,255,255,0.18)',
+                      color:'rgba(255,255,255,0.85)',fontSize:12,fontWeight:700,
+                      cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+                      lineHeight:1,padding:0}}>
+                    ×
+                  </button>
                 </div>
               ))}
               {isUploading&&<div style={{aspectRatio:'1 / 1',borderRadius:14,
@@ -2681,6 +2598,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
           placeholder="Search courses…"
           value={searchQuery}
           onChange={e=>setSearchQuery(e.target.value)}
+          onKeyDown={e=>{ if(e.key==='Enter') e.currentTarget.blur(); }}
           style={{width:'100%',background:'rgba(255,255,255,0.06)',
             border:'1px solid rgba(255,255,255,0.12)',borderRadius:14,
             padding:'11px 13px 11px 36px',color:T.text,fontSize:14,
@@ -2751,6 +2669,112 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
           </div>}
         </>
       )}
+    </div>
+  );
+}
+
+function LogModal({ logging, p, logForm, setLogForm, submitLog, setLogging, weeklyTarget }) {
+  const [kbPad, setKbPad] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setKbPad(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, []);
+
+  const isCourse = logging.type === "course";
+  const contentDone = p.courseHoursComplete || 0;
+  const contentLeft = Math.max(0, (logging.hours || 0) - contentDone);
+  const previewContentH = isCourse ? parseFloat(logForm.contentHours || 0) : parseFloat(logForm.studyHours || 0);
+  const previewPct = previewContentH > 0
+    ? Math.floor((Math.min(contentDone + previewContentH, logging.hours || 1) / (logging.hours || 1)) * 100)
+    : null;
+  const canSubmit = parseFloat(logForm.studyHours || 0) > 0 && (isCourse ? parseFloat(logForm.contentHours || 0) > 0 : true);
+  const inputSt = {width:"100%",background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
+    borderRadius:12,padding:"12px 13px",color:T.text,fontSize:16,
+    boxSizing:"border-box",fontFamily:"inherit",outline:"none"};
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
+      display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
+      paddingBottom:kbPad,boxSizing:"border-box",
+      transform:"translateZ(0)",animation:"fadeIn 0.2s ease both"}}>
+      <div style={{
+        background:"linear-gradient(145deg, rgba(13,27,42,0.98) 0%, rgba(15,34,64,0.98) 100%)",
+        backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
+        borderRadius:"18px 18px 0 0",
+        padding:`20px 20px calc(env(safe-area-inset-bottom) + 16px)`,
+        width:"100%",boxSizing:"border-box",
+        border:"1px solid rgba(255,255,255,0.1)",borderTop:`3px solid ${gc(logging.genre)}`,
+        boxShadow:shadow.raised,
+        transform:"translateZ(0)",willChange:"transform",
+        animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
+      }}>
+        {/* Header row */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontSize:15,fontWeight:800,color:T.text,flex:1,paddingRight:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{logging.name}</div>
+          <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
+            style={{background:"none",border:"none",color:logForm.showDate?T.blue:T.textDim,fontSize:11,
+              cursor:"pointer",padding:"2px 0",flexShrink:0,
+              textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
+            {logForm.showDate?"Today":"Different day"}
+          </button>
+        </div>
+        {logForm.showDate&&<div style={{marginBottom:14,padding:"10px 12px",background:"rgba(255,255,255,0.04)",
+          borderRadius:10,border:"1px solid rgba(255,255,255,0.08)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:11,color:T.textDim,flexShrink:0}}>Date</span>
+            <input type="date"
+              value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
+              max={new Date().toLocaleDateString('en-CA')}
+              onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
+              style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
+                color:T.textMid,borderRadius:8,padding:"5px 8px",fontSize:12,outline:"none",cursor:"pointer",flex:1}}/>
+          </div>
+          {(()=>{
+            const sd=new Date(logForm.date),mon=getMondayDate();
+            const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
+            return sd<mon||sd>sun?<div style={{fontSize:10,color:T.yellow,marginTop:6}}>
+              Previous week — won't count toward this week's {weeklyTarget}h
+            </div>:null;
+          })()}
+        </div>}
+        <div style={{fontSize:10,color:T.textDim,marginBottom:14}}>
+          {p.percentComplete}% complete · {contentLeft.toFixed(1)}h content left
+        </div>
+        {isCourse&&<div style={{marginBottom:12}}>
+          <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Content Covered (hrs)</label>
+          <input type="number" min="0.05" step="0.05"
+            value={logForm.contentHours}
+            onChange={e=>setLogForm(f=>({...f,contentHours:e.target.value}))}
+            style={inputSt} placeholder="0.0" autoFocus/>
+        </div>}
+        <div style={{marginBottom:16}}>
+          <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Time Studied (hrs)</label>
+          <input type="number" min="0.05" step="0.05"
+            value={logForm.studyHours}
+            onChange={e=>setLogForm(f=>({...f,studyHours:e.target.value}))}
+            style={inputSt} placeholder="0.0" autoFocus={!isCourse}/>
+          {previewPct!==null&&<div style={{fontSize:11,color:gc(logging.genre),marginTop:4,fontWeight:600}}>
+            {p.percentComplete}% → {previewPct}%
+          </div>}
+        </div>
+        <button onClick={submitLog} disabled={!canSubmit} className="btn-press"
+          style={{width:"100%",background:canSubmit?"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)":"rgba(59,130,246,0.15)",
+            border:"none",color:"#fff",borderRadius:12,padding:"13px 0",fontSize:15,fontWeight:800,
+            cursor:canSubmit?"pointer":"default",minHeight:44,opacity:canSubmit?1:0.4,
+            boxShadow:canSubmit?"0 4px 16px rgba(59,130,246,0.35)":"none",marginBottom:14}}>
+          Log Session
+        </button>
+        <div style={{textAlign:"center"}}>
+          <button onClick={()=>{setLogging(null);setLogForm({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});}} className="btn-press"
+            style={{background:"none",border:"none",color:T.textDim,fontSize:12,cursor:"pointer",padding:"2px 0"}}>
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -4732,95 +4756,15 @@ Respond ONLY with valid JSON:
         })()}
 
         {/* ══ LOG MODAL ══ */}
-        {logging&&(()=>{
-          const p=getP(logging.id);
-          const isCourse=logging.type==="course";
-          const contentDone=p.courseHoursComplete||0;
-          const contentLeft=Math.max(0,(logging.hours||0)-contentDone);
-          const previewContentH=isCourse?parseFloat(logForm.contentHours||0):parseFloat(logForm.studyHours||0);
-          const previewPct=previewContentH>0
-            ?Math.floor((Math.min(contentDone+previewContentH,logging.hours||1)/(logging.hours||1))*100)
-            :null;
-          const canSubmit=parseFloat(logForm.studyHours||0)>0&&(isCourse?parseFloat(logForm.contentHours||0)>0:true);
-          return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
-            display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
-            transform:"translateZ(0)",animation:"fadeIn 0.2s ease both"}}>
-            <div style={{
-              background:"linear-gradient(145deg, rgba(13,27,42,0.98) 0%, rgba(15,34,64,0.98) 100%)",
-              backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",
-              borderRadius:"18px 18px 0 0",
-              padding:`20px 20px calc(env(safe-area-inset-bottom) + 16px)`,
-              width:"100%",boxSizing:"border-box",
-              border:"1px solid rgba(255,255,255,0.1)",borderTop:`3px solid ${gc(logging.genre)}`,
-              boxShadow:shadow.raised,
-              transform:"translateZ(0)",willChange:"transform",
-              animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
-            }}>
-              {/* Header row */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                <div style={{fontSize:15,fontWeight:800,color:T.text,flex:1,paddingRight:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{logging.name}</div>
-                <button onClick={()=>setLogForm(f=>({...f,showDate:!f.showDate}))} className="btn-press"
-                  style={{background:"none",border:"none",color:logForm.showDate?T.blue:T.textDim,fontSize:11,
-                    cursor:"pointer",padding:"2px 0",flexShrink:0,
-                    textDecoration:"underline",textDecorationColor:"rgba(255,255,255,0.2)"}}>
-                  {logForm.showDate?"Today":"Different day"}
-                </button>
-              </div>
-              {logForm.showDate&&<div style={{marginBottom:14,padding:"10px 12px",background:"rgba(255,255,255,0.04)",
-                borderRadius:10,border:"1px solid rgba(255,255,255,0.08)"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <span style={{fontSize:11,color:T.textDim,flexShrink:0}}>Date</span>
-                  <input type="date"
-                    value={logForm.date?new Date(logForm.date).toLocaleDateString('en-CA'):new Date().toLocaleDateString('en-CA')}
-                    max={new Date().toLocaleDateString('en-CA')}
-                    onChange={e=>{const d=new Date(e.target.value+"T12:00:00");setLogForm(f=>({...f,date:d.toLocaleDateString()}));}}
-                    style={{background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.1)",
-                      color:T.textMid,borderRadius:8,padding:"5px 8px",fontSize:12,outline:"none",cursor:"pointer",flex:1}}/>
-                </div>
-                {(()=>{
-                  const sd=new Date(logForm.date),mon=getMondayDate();
-                  const sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6,23,59,59,999);
-                  return sd<mon||sd>sun?<div style={{fontSize:10,color:T.yellow,marginTop:6}}>
-                    Previous week — won't count toward this week's {WEEKLY_TARGET}h
-                  </div>:null;
-                })()}
-              </div>}
-              <div style={{fontSize:10,color:T.textDim,marginBottom:14}}>
-                {p.percentComplete}% complete · {contentLeft.toFixed(1)}h content left
-              </div>
-              {isCourse&&<div style={{marginBottom:12}}>
-                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Content Covered (hrs)</label>
-                <input type="number" min="0.05" step="0.05"
-                  value={logForm.contentHours}
-                  onChange={e=>setLogForm(f=>({...f,contentHours:e.target.value}))}
-                  style={inputSt} placeholder="0.0" autoFocus/>
-              </div>}
-              <div style={{marginBottom:16}}>
-                <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Time Studied (hrs)</label>
-                <input type="number" min="0.05" step="0.05"
-                  value={logForm.studyHours}
-                  onChange={e=>setLogForm(f=>({...f,studyHours:e.target.value}))}
-                  style={inputSt} placeholder="0.0" autoFocus={!isCourse}/>
-                {previewPct!==null&&<div style={{fontSize:11,color:gc(logging.genre),marginTop:4,fontWeight:600}}>
-                  {p.percentComplete}% → {previewPct}%
-                </div>}
-              </div>
-              <button onClick={submitLog} disabled={!canSubmit} className="btn-press"
-                style={{width:"100%",background:canSubmit?"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)":"rgba(59,130,246,0.15)",
-                  border:"none",color:"#fff",borderRadius:12,padding:"13px 0",fontSize:15,fontWeight:800,
-                  cursor:canSubmit?"pointer":"default",minHeight:44,opacity:canSubmit?1:0.4,
-                  boxShadow:canSubmit?"0 4px 16px rgba(59,130,246,0.35)":"none",marginBottom:14}}>
-                Log Session
-              </button>
-              <div style={{textAlign:"center"}}>
-                <button onClick={()=>{setLogging(null);setLogForm({contentHours:"",studyHours:"",date:new Date().toLocaleDateString(),showDate:false});}} className="btn-press"
-                  style={{background:"none",border:"none",color:T.textDim,fontSize:12,cursor:"pointer",padding:"2px 0"}}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>;
-        })()}
+        {logging&&<LogModal
+          logging={logging}
+          p={getP(logging.id)}
+          logForm={logForm}
+          setLogForm={setLogForm}
+          submitLog={submitLog}
+          setLogging={setLogging}
+          weeklyTarget={WEEKLY_TARGET}
+        />}
 
         {/* ══ ADD PHOTO NOTE MODAL ══ */}
         {showAddPhotoNote&&<AddPhotoNoteModal
