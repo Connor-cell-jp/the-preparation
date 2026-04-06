@@ -730,6 +730,14 @@ const GLOBAL_CSS = `
     from { opacity:0; transform:translateX(-50%) translateY(8px) scale(0.95); }
     to   { opacity:1; transform:translateX(-50%) translateY(0)   scale(1); }
   }
+  @keyframes courseDetailIn {
+    from { transform:translateY(100%); opacity:0.6; }
+    to   { transform:translateY(0);    opacity:1; }
+  }
+  @keyframes courseDetailOut {
+    from { transform:translateY(0);    opacity:1; }
+    to   { transform:translateY(100%); opacity:0.4; }
+  }
   .btn-press { transition: transform 0.08s cubic-bezier(0.4,0,0.2,1), opacity 0.15s ease; }
   .btn-press:active { transform: scale(0.97); transition: transform 0.08s cubic-bezier(0.4,0,0.2,1); }
   .tab-content { animation: fadeIn 0.15s ease both; padding-top: 220px; position: relative; z-index: 1; }
@@ -1691,17 +1699,16 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
   const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef(null);
 
-  const activeCourseIds = [...(focus.courses||[]),...(focus.books||[])];
-  const todayPlannedIds = (()=>{
-    if (!weekPlan?.days) return [];
-    const today = weekPlan.days.find(d=>d.day===getDayName());
-    return (today?.items||[]).map(it=>it.id);
-  })();
-  const priorityIds = [...new Set([...activeCourseIds,...todayPlannedIds])];
-  const priorityItems = priorityIds.map(id=>curriculum.find(i=>i.id===id)).filter(Boolean);
-  const restItems = curriculum.filter(i=>!priorityIds.includes(i.id));
+  const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
+  const planCourseIds = weekPlan
+    ? [...new Set((weekPlan.days||[]).flatMap(d=>(d.items||[]).map(it=>it.id)))]
+        .filter(id=>coursesOnly.find(i=>i.id===id))
+    : [];
+  const priorityIds = planCourseIds.length>0 ? planCourseIds : [...(focus.courses||[])];
+  const priorityItems = priorityIds.map(id=>coursesOnly.find(i=>i.id===id)).filter(Boolean);
+  const restItems = coursesOnly.filter(i=>!priorityIds.includes(i.id));
   const filteredRest = searchQuery
-    ? curriculum.filter(i=>!priorityIds.includes(i.id)&&
+    ? coursesOnly.filter(i=>!priorityIds.includes(i.id)&&
         (i.name.toLowerCase().includes(searchQuery.toLowerCase())||
          i.id.toLowerCase().includes(searchQuery.toLowerCase())||
          (i.genre||'').toLowerCase().includes(searchQuery.toLowerCase())))
@@ -1776,7 +1783,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
           {priorityItems.length > 0 && (
             <div style={{marginBottom:18}}>
               <div style={{fontSize:9, color:T.textDim, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:8}}>
-                Active &amp; Planned
+                {planCourseIds.length>0?'This Week':'Active Focus'}
               </div>
               {priorityItems.map(item=>{
                 const col=gc(item.genre);
@@ -2006,9 +2013,13 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 }
 
 // ── Photo Library ──────────────────────────────────────────────────────────────
-function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems }) {
+function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const [isClosingDetail, setIsClosingDetail] = useState(false);
   const [expandedNote, setExpandedNote] = useState(null); // { courseId, noteIdx }
+  const [editingCaption, setEditingCaption] = useState(null); // { courseId, noteId }
+  const [captionDraft, setCaptionDraft] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // { courseId, noteId, storageKey }
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadError, setUploadError] = useState('');
@@ -2016,9 +2027,11 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems }
   const fileInputRef = useRef(null);
   const addingToRef = useRef(null);
 
+  const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
+
   const coursesWithNotes = Object.entries(notes)
     .filter(([,arr])=>arr&&arr.length>0)
-    .map(([id,arr])=>({id,item:curriculum.find(i=>i.id===id),noteArr:arr}))
+    .map(([id,arr])=>({id,item:coursesOnly.find(i=>i.id===id),noteArr:arr}))
     .filter(({item})=>item)
     .sort((a,b)=>{
       const aLast=a.noteArr[a.noteArr.length-1]?.createdAt||'';
@@ -2028,7 +2041,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems }
   const totalPhotos = coursesWithNotes.reduce((s,{noteArr})=>s+noteArr.length,0);
 
   const searchResults = searchQuery.trim()
-    ? curriculum.filter(i=>
+    ? coursesOnly.filter(i=>
         i.name.toLowerCase().includes(searchQuery.toLowerCase())||
         i.id.toLowerCase().includes(searchQuery.toLowerCase())||
         (i.genre||'').toLowerCase().includes(searchQuery.toLowerCase())
@@ -2037,10 +2050,14 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems }
 
   const displayCourses = searchResults || coursesWithNotes;
 
-  // Active focus items (current courses + books)
-  const activeFocusItems = (focusItems||[]).map(item=>({
-    id:item.id, item, noteArr:notes[item.id]||[]
-  }));
+  // Active courses: use week plan courses if plan exists, else focus courses only (no books)
+  const planCourseIds = weekPlan
+    ? [...new Set((weekPlan.days||[]).flatMap(d=>(d.items||[]).map(it=>it.id)))]
+        .filter(id=>coursesOnly.find(i=>i.id===id))
+    : [];
+  const activeFocusItems = planCourseIds.length>0
+    ? planCourseIds.map(id=>coursesOnly.find(i=>i.id===id)).filter(Boolean).map(item=>({id:item.id,item,noteArr:notes[item.id]||[]}))
+    : (focusItems||[]).filter(item=>item.type==="course").map(item=>({id:item.id,item,noteArr:notes[item.id]||[]}));
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -2074,123 +2091,236 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems }
     const { courseId, noteIdx } = expandedNote;
     const noteArr = notes[courseId]||[];
     const note = noteArr[noteIdx];
-    const item = curriculum.find(i=>i.id===courseId);
+    const item = coursesOnly.find(i=>i.id===courseId);
     if (!note) { setExpandedNote(null); return null; }
+    const hasPrev = noteIdx > 0;
+    const hasNext = noteIdx < noteArr.length - 1;
+    const isEditing = editingCaption?.courseId===courseId && editingCaption?.noteId===note.id;
+    const col = gc(item?.genre);
+    const closeExpanded = () => { setExpandedNote(null); setEditingCaption(null); setDeleteConfirm(null); };
     return (
-      <div style={{position:'fixed',inset:0,zIndex:500,background:'#000',display:'flex',flexDirection:'column',
-        paddingTop:'env(safe-area-inset-top)',animation:'fadeIn 0.18s ease both'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',flexShrink:0}}>
-          <button onClick={()=>setExpandedNote(null)} className="btn-press"
-            style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:13,
-              cursor:'pointer',padding:'8px 0',minHeight:44,display:'flex',alignItems:'center',gap:6}}>
+      <div style={{position:'fixed',inset:0,zIndex:510,background:'#000',display:'flex',flexDirection:'column',
+        paddingTop:'env(safe-area-inset-top)',animation:'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both'}}>
+        {/* Header */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
+          padding:'10px 14px',flexShrink:0,
+          background:'rgba(0,0,0,0.55)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
+          borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
+          <button onClick={closeExpanded} className="btn-press"
+            style={{background:'rgba(255,255,255,0.10)',border:'none',color:T.text,fontSize:12,fontWeight:600,
+              cursor:'pointer',padding:'7px 14px',borderRadius:99,minHeight:40,display:'flex',alignItems:'center',gap:5}}>
             ← Back
           </button>
-          <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',textAlign:'right',
-            maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-            {item?.name||courseId}
+          <div style={{textAlign:'center',flex:1,padding:'0 8px'}}>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.45)',fontWeight:500,
+              overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:180,margin:'0 auto'}}>
+              {item?.name||courseId}
+            </div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,0.22)',marginTop:2}}>{noteIdx+1} of {noteArr.length}</div>
           </div>
-        </div>
-        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',padding:'0 8px'}}>
-          <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
-            style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain',borderRadius:12}}/>
-        </div>
-        {note.caption&&<div style={{padding:'10px 20px 4px',fontSize:13,color:'rgba(255,255,255,0.75)',
-          fontStyle:'italic',lineHeight:1.5,textAlign:'center'}}>{note.caption}</div>}
-        <div style={{padding:'12px 20px',paddingBottom:'calc(env(safe-area-inset-bottom) + 16px)',flexShrink:0,
-          background:'rgba(0,0,0,0.6)',backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
-          display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>{note.date}</div>
-          <button onClick={()=>{onDeleteNote(courseId,note.id,note.storageKey);setExpandedNote(null);}} className="btn-press"
-            style={{background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.3)',
-              color:T.red,fontSize:12,cursor:'pointer',borderRadius:10,padding:'7px 14px',fontWeight:700,minHeight:44}}>
-            Delete
+          <button onClick={()=>{
+              if(!isEditing){ setEditingCaption({courseId,noteId:note.id}); setCaptionDraft(note.caption||''); }
+              else { setEditingCaption(null); }
+            }} className="btn-press"
+            style={{background:isEditing?'rgba(59,130,246,0.18)':'rgba(255,255,255,0.08)',
+              border:`1px solid ${isEditing?'rgba(59,130,246,0.4)':'rgba(255,255,255,0.12)'}`,
+              color:isEditing?T.blue:T.textDim,fontSize:12,cursor:'pointer',
+              padding:'7px 14px',borderRadius:99,minHeight:40,fontWeight:600}}>
+            {isEditing?'Cancel':'✎ Edit'}
           </button>
+        </div>
+        {/* Photo */}
+        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
+          overflow:'hidden',padding:'0 8px',position:'relative'}}>
+          <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
+            style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain',borderRadius:10}}/>
+          {hasPrev&&<button onClick={()=>{setExpandedNote({courseId,noteIdx:noteIdx-1});setEditingCaption(null);setDeleteConfirm(null);}} className="btn-press"
+            style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',
+              background:'rgba(0,0,0,0.50)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)',
+              border:'1px solid rgba(255,255,255,0.14)',borderRadius:99,
+              width:42,height:42,display:'flex',alignItems:'center',justifyContent:'center',
+              color:'#fff',fontSize:22,cursor:'pointer',flexShrink:0}}>‹</button>}
+          {hasNext&&<button onClick={()=>{setExpandedNote({courseId,noteIdx:noteIdx+1});setEditingCaption(null);setDeleteConfirm(null);}} className="btn-press"
+            style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',
+              background:'rgba(0,0,0,0.50)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)',
+              border:'1px solid rgba(255,255,255,0.14)',borderRadius:99,
+              width:42,height:42,display:'flex',alignItems:'center',justifyContent:'center',
+              color:'#fff',fontSize:22,cursor:'pointer',flexShrink:0}}>›</button>}
+        </div>
+        {/* Caption edit area */}
+        {isEditing&&(
+          <div style={{padding:'12px 16px',flexShrink:0,
+            background:'rgba(0,0,0,0.72)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
+            borderTop:'1px solid rgba(255,255,255,0.07)'}}>
+            <textarea value={captionDraft} onChange={e=>setCaptionDraft(e.target.value)}
+              placeholder="Add a caption…" rows={2}
+              style={{width:'100%',background:'rgba(255,255,255,0.08)',
+                border:'1px solid rgba(255,255,255,0.14)',borderRadius:12,
+                padding:'10px 12px',color:T.text,fontSize:14,resize:'none',
+                fontFamily:'inherit',outline:'none',boxSizing:'border-box',marginBottom:10}}/>
+            <button onClick={()=>{
+                onEditNote(courseId,note.id,{caption:captionDraft.trim()||undefined});
+                setEditingCaption(null);
+              }} className="btn-press"
+              style={{width:'100%',background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
+                border:'none',color:'#fff',borderRadius:14,padding:'13px',fontSize:14,fontWeight:800,
+                cursor:'pointer',minHeight:48,boxShadow:`0 4px 20px ${col}40`}}>
+              Save Caption
+            </button>
+          </div>
+        )}
+        {!isEditing&&note.caption&&(
+          <div style={{padding:'10px 20px 4px',fontSize:13,color:'rgba(255,255,255,0.72)',
+            fontStyle:'italic',lineHeight:1.5,textAlign:'center',flexShrink:0,
+            background:'rgba(0,0,0,0.4)'}}>
+            {note.caption}
+          </div>
+        )}
+        {/* Footer */}
+        <div style={{
+          padding:'10px 16px',paddingBottom:'calc(env(safe-area-inset-bottom) + 10px)',
+          flexShrink:0,background:'rgba(0,0,0,0.65)',
+          backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
+          display:'flex',justifyContent:'space-between',alignItems:'center',
+          borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.30)'}}>{note.date}</div>
+          {deleteConfirm?.noteId===note.id ? (
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <span style={{fontSize:11,color:T.textDim}}>Delete this photo?</span>
+              <button onClick={()=>setDeleteConfirm(null)} className="btn-press"
+                style={{background:'rgba(255,255,255,0.08)',border:'none',color:T.textDim,
+                  fontSize:12,cursor:'pointer',borderRadius:10,padding:'6px 12px',fontWeight:600,minHeight:36}}>
+                Cancel
+              </button>
+              <button onClick={()=>{
+                  onDeleteNote(courseId,note.id,note.storageKey);
+                  setDeleteConfirm(null);
+                  const remaining=noteArr.length-1;
+                  setExpandedNote(remaining>0?{courseId,noteIdx:Math.min(noteIdx,remaining-1)}:null);
+                }} className="btn-press"
+                style={{background:'rgba(239,68,68,0.22)',border:'1px solid rgba(239,68,68,0.45)',
+                  color:T.red,fontSize:12,cursor:'pointer',borderRadius:10,padding:'6px 14px',fontWeight:700,minHeight:36}}>
+                Delete
+              </button>
+            </div>
+          ) : (
+            <button onClick={()=>setDeleteConfirm({courseId,noteId:note.id,storageKey:note.storageKey})} className="btn-press"
+              style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.25)',
+                color:T.red,fontSize:12,cursor:'pointer',borderRadius:10,padding:'7px 16px',fontWeight:700,minHeight:40}}>
+              Delete
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  // ── Course detail view ──
+  // ── Course detail splash screen ──
   if (selectedCourseId) {
-    const item = curriculum.find(i=>i.id===selectedCourseId);
+    const item = coursesOnly.find(i=>i.id===selectedCourseId);
     const noteArr = notes[selectedCourseId]||[];
     const col = gc(item?.genre);
     const isUploading = uploadingFor===selectedCourseId;
+    const handleClose = () => {
+      setIsClosingDetail(true);
+      setTimeout(()=>{ setSelectedCourseId(null); setIsClosingDetail(false); }, 340);
+    };
     return (
-      <div style={{position:'fixed',inset:0,zIndex:450,
-        background:'linear-gradient(180deg,#0d1b2a 0%,#0f2240 100%)',
-        display:'flex',flexDirection:'column',
-        paddingTop:'env(safe-area-inset-top)',animation:'fadeIn 0.18s ease both'}}>
+      <div style={{
+        position:'fixed', inset:0, zIndex:450,
+        background:'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)',
+        display:'flex', flexDirection:'column',
+        paddingTop:'env(safe-area-inset-top)',
+        animation: isClosingDetail
+          ? 'courseDetailOut 0.32s cubic-bezier(0.4,0,1,1) both'
+          : 'courseDetailIn 0.42s cubic-bezier(0.16,1,0.3,1) both',
+      }}>
         <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
-        <div style={{padding:'14px 16px 12px',flexShrink:0,borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-            <button onClick={()=>setSelectedCourseId(null)} className="btn-press"
-              style={{background:'none',border:'none',color:T.textDim,fontSize:13,
-                cursor:'pointer',padding:'8px 0',minHeight:44,display:'flex',alignItems:'center',gap:6}}>
+        {/* Header */}
+        <div style={{
+          padding:'14px 16px 16px', flexShrink:0,
+          background:'rgba(8,15,30,0.82)',
+          backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+          borderBottom:'1px solid rgba(255,255,255,0.07)',
+        }}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+            <button onClick={handleClose} className="btn-press"
+              style={{background:'rgba(255,255,255,0.08)',border:'1px solid rgba(255,255,255,0.12)',
+                color:T.text,borderRadius:99,padding:'7px 16px',fontSize:12,fontWeight:600,
+                cursor:'pointer',minHeight:40,display:'flex',alignItems:'center',gap:6}}>
               ← Back
             </button>
             <button onClick={()=>triggerAdd(selectedCourseId)} disabled={isUploading} className="btn-press"
-              style={{background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,border:'none',
-                color:'#fff',borderRadius:12,padding:'8px 16px',fontSize:12,fontWeight:700,
-                cursor:'pointer',minHeight:44,boxShadow:`0 4px 16px ${col}40`,
-                opacity:isUploading?0.5:1}}>
+              style={{background:`linear-gradient(135deg,${col} 0%,${col}bb 100%)`,border:'none',
+                color:'#fff',borderRadius:99,padding:'7px 18px',fontSize:12,fontWeight:700,
+                cursor:'pointer',minHeight:40,boxShadow:`0 4px 18px ${col}50`,
+                opacity:isUploading?0.5:1,display:'flex',alignItems:'center',gap:6}}>
               {isUploading?'Uploading…':'+ Add Photo'}
             </button>
           </div>
-          <div style={{fontSize:9,color:col,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
-            {item?.type==='course'?'Course':'Book'} · {item?.genre}
+          <div style={{fontSize:9,color:col,textTransform:'uppercase',letterSpacing:2,fontWeight:700,marginBottom:5}}>
+            Course · {item?.genre}
           </div>
-          <div style={{fontSize:15,fontWeight:800,color:T.text,letterSpacing:-0.2,lineHeight:1.2,
-            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+          <div style={{fontSize:19,fontWeight:900,color:T.text,letterSpacing:-0.5,lineHeight:1.2}}>
             {item?.name}
           </div>
-          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-            {item?.id} · {noteArr.length} photo{noteArr.length!==1?'s':''}
+          <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6}}>
+            <span style={{fontSize:10,color:T.textDim,fontWeight:600,
+              background:'rgba(255,255,255,0.07)',borderRadius:6,padding:'2px 7px'}}>{item?.id}</span>
+            <span style={{fontSize:10,color:T.textDim}}>
+              {noteArr.length} photo{noteArr.length!==1?'s':''}
+            </span>
           </div>
         </div>
-        {uploadError&&<div style={{margin:'8px 14px 0',background:'rgba(239,68,68,0.1)',
-          border:'1px solid rgba(239,68,68,0.25)',borderRadius:10,padding:'8px 12px',
+        {uploadError&&<div style={{margin:'8px 14px 0',background:'rgba(239,68,68,0.10)',
+          border:'1px solid rgba(239,68,68,0.28)',borderRadius:10,padding:'8px 12px',
           fontSize:11,color:T.red}}>{uploadError}</div>}
-        <div style={{flex:1,overflowY:'auto',padding:'14px',WebkitOverflowScrolling:'touch'}}>
+        {/* Photo grid */}
+        <div style={{flex:1,overflowY:'auto',padding:'16px 14px 24px',WebkitOverflowScrolling:'touch'}}>
           {noteArr.length===0&&!isUploading ? (
-            <div style={{padding:'48px 24px',textAlign:'center',
-              background:'rgba(255,255,255,0.03)',borderRadius:20,
-              border:'1px dashed rgba(255,255,255,0.10)'}}>
-              <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📷</div>
-              <div style={{fontSize:13,fontWeight:600,color:T.textMid,marginBottom:8}}>No photos yet</div>
-              <div style={{fontSize:11,color:T.textDim,lineHeight:1.5,marginBottom:20}}>
-                Add your first photo note for this course.
+            <div style={{padding:'64px 24px',textAlign:'center',
+              background:'rgba(255,255,255,0.02)',borderRadius:24,
+              border:'1px dashed rgba(255,255,255,0.08)',marginTop:8}}>
+              <div style={{fontSize:52,marginBottom:16,opacity:0.18}}>📷</div>
+              <div style={{fontSize:14,fontWeight:700,color:T.textMid,marginBottom:8}}>No photos yet</div>
+              <div style={{fontSize:12,color:T.textDim,lineHeight:1.6,maxWidth:220,margin:'0 auto 24px'}}>
+                Capture diagrams, notes, and key concepts from this course.
               </div>
               <button onClick={()=>triggerAdd(selectedCourseId)} className="btn-press"
                 style={{background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,border:'none',
-                  color:'#fff',borderRadius:14,padding:'12px 24px',fontSize:13,fontWeight:800,
-                  cursor:'pointer',minHeight:44,boxShadow:`0 4px 20px ${col}40`}}>
-                + Add Photo
+                  color:'#fff',borderRadius:16,padding:'14px 30px',fontSize:14,fontWeight:800,
+                  cursor:'pointer',minHeight:50,boxShadow:`0 6px 28px ${col}45`}}>
+                + Add First Photo
               </button>
             </div>
           ) : (
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
               {noteArr.map((note,idx)=>(
                 <div key={note.id}
                   onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:idx})}
                   className="btn-press"
-                  style={{position:'relative',aspectRatio:'1 / 1',borderRadius:10,overflow:'hidden',
-                    cursor:'pointer',border:'1px solid rgba(255,255,255,0.08)',
-                    animation:`fadeIn 0.18s ease ${Math.min(idx*0.04,0.3)}s both`}}>
+                  style={{
+                    position:'relative', aspectRatio:'1 / 1', borderRadius:14, overflow:'hidden',
+                    cursor:'pointer', border:'1px solid rgba(255,255,255,0.09)',
+                    boxShadow:'0 2px 14px rgba(0,0,0,0.45)',
+                    animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${Math.min(idx*0.04,0.28)}s both`,
+                  }}>
                   <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
                     style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
-                  <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'12px 5px 4px',
-                    background:'linear-gradient(transparent,rgba(0,0,0,0.65))',
-                    fontSize:8,color:'rgba(255,255,255,0.6)',fontWeight:500}}>{note.date}</div>
-                  {note.caption&&<div style={{position:'absolute',top:4,right:4,width:6,height:6,
-                    borderRadius:'50%',background:T.blue,opacity:0.85}}/>}
+                  <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'18px 8px 6px',
+                    background:'linear-gradient(transparent,rgba(0,0,0,0.72))',
+                    fontSize:8,color:'rgba(255,255,255,0.60)',fontWeight:500}}>{note.date}</div>
+                  {note.caption&&<div style={{position:'absolute',top:6,right:6,
+                    background:'rgba(59,130,246,0.85)',borderRadius:99,
+                    width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',
+                    fontSize:10,color:'#fff',fontWeight:700}}>✎</div>}
                 </div>
               ))}
-              {isUploading&&<div style={{aspectRatio:'1 / 1',borderRadius:10,
-                background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',
+              {isUploading&&<div style={{aspectRatio:'1 / 1',borderRadius:14,
+                background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',
                 display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <div style={{width:22,height:22,borderRadius:'50%',
-                  border:`2px solid rgba(255,255,255,0.1)`,borderTopColor:col,
+                <div style={{width:24,height:24,borderRadius:'50%',
+                  border:`2px solid rgba(255,255,255,0.08)`,borderTopColor:col,
                   animation:'spin 0.9s linear infinite'}}/>
               </div>}
             </div>
@@ -2303,7 +2433,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems }
           fontSize:14,color:T.textFaint,pointerEvents:'none'}}>🔍</span>
         <input
           type="text"
-          placeholder="Search all courses and books…"
+          placeholder="Search courses…"
           value={searchQuery}
           onChange={e=>setSearchQuery(e.target.value)}
           style={{width:'100%',background:'rgba(255,255,255,0.06)',
@@ -2339,7 +2469,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems }
           {/* ── Current Courses (from focus) ── */}
           {activeFocusItems.length>0&&<div style={{marginBottom:20}}>
             <div style={{fontSize:9,color:T.blue,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:10}}>
-              Current Focus
+              {planCourseIds.length>0?'This Week':'Current Focus'}
             </div>
             {activeFocusItems.map(({id,item,noteArr})=>(
               <CourseRow key={id} id={id} item={item} noteArr={noteArr}/>
@@ -2624,6 +2754,12 @@ export default function App({ onSignOut }){
     setNotes(prev => ({
       ...prev,
       [itemId]: (prev[itemId] || []).filter(n => n.id !== noteId),
+    }));
+  };
+  const editNote = (itemId, noteId, updates) => {
+    setNotes(prev => ({
+      ...prev,
+      [itemId]: (prev[itemId] || []).map(n => n.id === noteId ? { ...n, ...updates } : n),
     }));
   };
 
@@ -3052,6 +3188,14 @@ RESPOND ONLY WITH VALID JSON — no commentary, no markdown, no code fences. Use
     }
     archivePlanToHistory(weekPlan);
     setWeekPlan(plan);setAiResult(_ai);updateWeeklyHours(weekH);
+    const allPlannedIds=[...new Set((plan?.days||[]).flatMap(d=>(d.items||[]).map(it=>it.id)))]
+      .filter(id=>(progress[id]?.percentComplete||0)<100);
+    const plannedCourses=allPlannedIds.filter(id=>CURRICULUM.find(i=>i.id===id)?.type==="course");
+    const plannedBooks=allPlannedIds.filter(id=>CURRICULUM.find(i=>i.id===id)?.type==="book");
+    setFocus(f=>({...f,
+      courses:[...new Set([...(f.courses||[]),...plannedCourses])],
+      books:[...new Set([...(f.books||[]),...plannedBooks])],
+    }));
     setPlanFlowFocusText("");
     const planReadyBody=isReducedPlan
       ?`${effectiveDLeft} day${effectiveDLeft===1?"":"s"} remaining — reduced schedule of ${planTarget}h`
@@ -4184,7 +4328,9 @@ Respond ONLY with valid JSON:
               curriculum={CURRICULUM}
               onDeleteNote={deleteNote}
               onAddNote={addNote}
+              onEditNote={editNote}
               focusItems={focusItems}
+              weekPlan={weekPlan}
             />
           </div>}
         </div>
