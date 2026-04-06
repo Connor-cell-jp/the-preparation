@@ -1235,7 +1235,7 @@ function HUDProgressBar({ hoursLogged, weeklyTarget, dayName, weekNum, onOpenMen
       left:0,right:0,
       zIndex:25,pointerEvents:'none',
       padding:'8px 16px',
-      animation: appReady ? 'hudReveal 0.65s ease both' : 'none',
+      animation: appReady ? 'hudReveal 0.65s ease backwards' : 'none',
       opacity: photoDetailOpen ? 0 : 1,
       transition: 'opacity 0.3s ease',
     }}>
@@ -1734,6 +1734,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [pendingScan, setPendingScan] = useState(null); // { file }
   const fileInputRef = useRef(null);
 
   const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
@@ -1751,19 +1752,27 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
          (i.genre||'').toLowerCase().includes(searchQuery.toLowerCase())))
     : restItems;
 
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
     if (!file) return;
+    setPendingScan({ file });
+  };
+
+  const handleScanConfirm = async (blob, mimeType) => {
+    setPendingScan(null);
+    if (!blob) return;
     setUploading(true);
     setUploadError('');
     try {
+      const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+      const file = new File([blob], `scan.${ext}`, { type: mimeType || 'image/jpeg' });
       const result = await uploadNotePhoto(file);
       setUploaded(result);
     } catch (err) {
       setUploadError(err?.message || 'Upload failed — check your connection and try again.');
     }
     setUploading(false);
-    if (e.target) e.target.value = '';
   };
 
   const handleRetake = () => {
@@ -1791,6 +1800,21 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
   };
 
   const c = selectedItem ? gc(selectedItem.genre) : T.blue;
+
+  if (pendingScan) {
+    return (
+      <ScanPreviewModal
+        file={pendingScan.file}
+        courseColor={c}
+        onConfirm={handleScanConfirm}
+        onRetake={() => {
+          setPendingScan(null);
+          setUploadError('');
+          setTimeout(() => fileInputRef.current?.click(), 100);
+        }}
+      />
+    );
+  }
 
   if (step === 'pick') {
     return (
@@ -4863,7 +4887,7 @@ Respond ONLY with valid JSON:
       </div>
 
       {/* ── Bottom Navigation ── */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:photoDetailOpen?0:appReady?1:0,transition:"opacity 0.3s ease",pointerEvents:photoDetailOpen?"none":"auto"}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:appReady?1:0,transition:"opacity 0.3s ease",pointerEvents:"auto"}}>
         <div style={{
           position:"absolute",inset:0,
           background:"rgba(13,27,42,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
