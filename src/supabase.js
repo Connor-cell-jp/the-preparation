@@ -42,10 +42,26 @@ export async function uploadNotePhoto(file) {
     .from('notes-photos')
     .upload(storageKey, file, { upsert: false });
   if (error) throw error;
-  const { data } = supabase.storage
+  // Use a signed URL (1 year) so photos work with private buckets.
+  const { data: signedData } = await supabase.storage
     .from('notes-photos')
-    .getPublicUrl(storageKey);
-  return { url: data.publicUrl, storageKey };
+    .createSignedUrl(storageKey, 31536000);
+  const url = signedData?.signedUrl || '';
+  return { url, storageKey };
+}
+
+// Generate a fresh signed URL for an existing photo (e.g. to refresh expired URLs).
+export async function createSignedPhotoUrl(storageKey, expiresIn = 31536000) {
+  if (!storageKey) return null;
+  try {
+    const { data, error } = await supabase.storage
+      .from('notes-photos')
+      .createSignedUrl(storageKey, expiresIn);
+    if (error) return null;
+    return data?.signedUrl || null;
+  } catch {
+    return null;
+  }
 }
 
 // Delete a photo from the notes-photos Storage bucket.

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto } from "./supabase";
+import { upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
 
 // ── Settings-aware pure helpers ───────────────────────────────────────────────
 const snap25 = h => Math.round(h * 4) / 4;
@@ -1666,6 +1666,19 @@ function SidePanel({ open, onClose, reviews, structuredProfile, setStructuredPro
   );
 }
 
+// ── Signed Image ──────────────────────────────────────────────────────────────
+// Renders a photo from Supabase Storage using a freshly generated signed URL.
+// Falls back to the stored url if storageKey is missing.
+function SignedImage({ storageKey, fallbackUrl, style, alt = '', className = '' }) {
+  const [src, setSrc] = useState(fallbackUrl || null);
+  useEffect(() => {
+    if (!storageKey) return;
+    createSignedPhotoUrl(storageKey).then(url => { if (url) setSrc(url); });
+  }, [storageKey]);
+  if (!src) return <div style={{ ...style, background: 'rgba(255,255,255,0.06)' }} />;
+  return <img src={src} alt={alt} style={style} className={className} />;
+}
+
 // ── Add Photo Note Modal ───────────────────────────────────────────────────────
 function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd }) {
   const [step, setStep] = useState('pick');
@@ -1675,7 +1688,6 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
   const [caption, setCaption] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef(null);
 
@@ -1799,57 +1811,49 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
             </div>
           )}
           <div>
-            <button onClick={()=>setShowAll(o=>!o)} className="btn-press"
-              style={{width:'100%', background:'none', border:'none',
-                display:'flex', justifyContent:'space-between', alignItems:'center',
-                padding:'6px 0', marginBottom:8, cursor:'pointer'}}>
-              <div style={{fontSize:9, color:T.textDim, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700}}>
-                Browse All
-              </div>
-              <div style={{color:T.textDim, fontSize:11, transform:showAll?'rotate(180deg)':'rotate(0deg)', transition:'transform 0.2s'}}>▼</div>
-            </button>
-            {showAll && (<>
-              <input
-                type="text"
-                placeholder="Search by name, ID, genre..."
-                value={searchQuery}
-                onChange={e=>setSearchQuery(e.target.value)}
-                style={{
-                  width:'100%', background:'rgba(255,255,255,0.06)',
-                  border:'1px solid rgba(255,255,255,0.12)',
-                  borderRadius:12, padding:'10px 13px', color:T.text, fontSize:14,
-                  boxSizing:'border-box', fontFamily:'inherit', outline:'none', marginBottom:8,
-                }}
-              />
-              {filteredRest.map(item=>{
-                const col=gc(item.genre);
-                const noteCount=(notes[item.id]||[]).length;
-                return (
-                  <button key={item.id} onClick={()=>{setSelectedItem(item);setStep('photo');}}
-                    className="btn-press"
-                    style={{
-                      width:'100%', background:'rgba(255,255,255,0.03)',
-                      border:'1px solid rgba(255,255,255,0.07)', borderLeft:`2px solid ${col}`,
-                      borderRadius:12, padding:'10px 12px', marginBottom:6,
-                      display:'flex', alignItems:'center', gap:10, cursor:'pointer', textAlign:'left',
-                    }}>
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{fontSize:9, color:col, letterSpacing:1, fontWeight:700, marginBottom:2}}>{item.id}</div>
-                      <div style={{fontSize:12, fontWeight:600, color:T.textMid, lineHeight:1.3,
-                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                        {item.name}
-                      </div>
+            <div style={{fontSize:9, color:T.textDim, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:8}}>
+              Browse All
+            </div>
+            <input
+              type="text"
+              placeholder="Search by name, ID, genre..."
+              value={searchQuery}
+              onChange={e=>setSearchQuery(e.target.value)}
+              style={{
+                width:'100%', background:'rgba(255,255,255,0.06)',
+                border:'1px solid rgba(255,255,255,0.12)',
+                borderRadius:12, padding:'10px 13px', color:T.text, fontSize:14,
+                boxSizing:'border-box', fontFamily:'inherit', outline:'none', marginBottom:8,
+              }}
+            />
+            {filteredRest.map(item=>{
+              const col=gc(item.genre);
+              const noteCount=(notes[item.id]||[]).length;
+              return (
+                <button key={item.id} onClick={()=>{setSelectedItem(item);setStep('photo');}}
+                  className="btn-press"
+                  style={{
+                    width:'100%', background:'rgba(255,255,255,0.03)',
+                    border:'1px solid rgba(255,255,255,0.07)', borderLeft:`2px solid ${col}`,
+                    borderRadius:12, padding:'10px 12px', marginBottom:6,
+                    display:'flex', alignItems:'center', gap:10, cursor:'pointer', textAlign:'left',
+                  }}>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div style={{fontSize:9, color:col, letterSpacing:1, fontWeight:700, marginBottom:2}}>{item.id}</div>
+                    <div style={{fontSize:12, fontWeight:600, color:T.textMid, lineHeight:1.3,
+                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                      {item.name}
                     </div>
-                    {noteCount > 0 && (
-                      <div style={{fontSize:9, color:T.textFaint, flexShrink:0, display:'flex', alignItems:'center', gap:3}}>
-                        📷 {noteCount}
-                      </div>
-                    )}
-                    <div style={{fontSize:16, color:T.textFaint, flexShrink:0}}>›</div>
-                  </button>
-                );
-              })}
-            </>)}
+                  </div>
+                  {noteCount > 0 && (
+                    <div style={{fontSize:9, color:T.textFaint, flexShrink:0, display:'flex', alignItems:'center', gap:3}}>
+                      📷 {noteCount}
+                    </div>
+                  )}
+                  <div style={{fontSize:16, color:T.textFaint, flexShrink:0}}>›</div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1946,7 +1950,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
           <div>
             <div style={{position:'relative', borderRadius:16, overflow:'hidden',
               border:'1px solid rgba(255,255,255,0.1)', marginBottom:14}}>
-              <img src={uploaded.url} alt="" style={{width:'100%', display:'block', borderRadius:16}}/>
+              <SignedImage storageKey={uploaded.storageKey} fallbackUrl={uploaded.url} alt="" style={{width:'100%', display:'block', borderRadius:16}}/>
               <button onClick={handleRetake} className="btn-press"
                 style={{
                   position:'absolute', top:10, right:10,
@@ -2003,11 +2007,13 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 
 // ── Photo Library ──────────────────────────────────────────────────────────────
 function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote }) {
-  const [expanded, setExpanded] = useState(null); // { courseId, noteIdx }
-  const [addingTo, setAddingTo] = useState(null);
-  const [uploadingFor, setUploadingFor] = useState(null); // courseId currently uploading
+  const [selectedCourseId, setSelectedCourseId] = useState(null);
+  const [expandedNote, setExpandedNote] = useState(null); // { courseId, noteIdx }
+  const [searchQuery, setSearchQuery] = useState('');
+  const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadError, setUploadError] = useState('');
   const fileInputRef = useRef(null);
+  const addingToRef = useRef(null);
 
   const coursesWithNotes = Object.entries(notes)
     .filter(([,arr])=>arr&&arr.length>0)
@@ -2020,18 +2026,26 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote }) {
     });
   const totalPhotos = coursesWithNotes.reduce((s,{noteArr})=>s+noteArr.length,0);
 
+  const searchResults = searchQuery.trim()
+    ? curriculum.filter(i=>
+        i.name.toLowerCase().includes(searchQuery.toLowerCase())||
+        i.id.toLowerCase().includes(searchQuery.toLowerCase())||
+        (i.genre||'').toLowerCase().includes(searchQuery.toLowerCase())
+      ).map(item=>({id:item.id,item,noteArr:notes[item.id]||[]}))
+    : null;
+
+  const displayCourses = searchResults || coursesWithNotes;
+
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !addingTo) return;
-    const courseId = addingTo;
+    const courseId = addingToRef.current;
+    if (!file || !courseId) return;
     setUploadingFor(courseId);
     setUploadError('');
     try {
       const { url, storageKey } = await uploadNotePhoto(file);
       onAddNote(courseId, {
-        id: Date.now(),
-        url,
-        storageKey,
+        id: Date.now(), url, storageKey,
         date: new Date().toLocaleDateString(),
         createdAt: new Date().toISOString(),
       });
@@ -2039,73 +2053,50 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote }) {
       setUploadError(err?.message || 'Upload failed');
     }
     setUploadingFor(null);
-    setAddingTo(null);
+    addingToRef.current = null;
     if (e.target) e.target.value = '';
   };
 
   const triggerAdd = (courseId) => {
-    setAddingTo(courseId);
+    addingToRef.current = courseId;
     setUploadError('');
     setTimeout(()=>fileInputRef.current?.click(), 50);
   };
 
-  if (expanded) {
-    const { courseId, noteIdx } = expanded;
+  // ── Expanded note full-screen view ──
+  if (expandedNote) {
+    const { courseId, noteIdx } = expandedNote;
     const noteArr = notes[courseId]||[];
     const note = noteArr[noteIdx];
     const item = curriculum.find(i=>i.id===courseId);
-    if (!note) { setExpanded(null); return null; }
-    const imgSrc = note.url || note.imageData; // backward compat for old base64 notes
+    if (!note) { setExpandedNote(null); return null; }
     return (
-      <div style={{
-        position:'fixed', inset:0, zIndex:500,
-        background:'#000',
-        display:'flex', flexDirection:'column',
-        paddingTop:'env(safe-area-inset-top)',
-        animation:'fadeIn 0.18s ease both',
-      }}>
-        <div style={{
-          display:'flex', justifyContent:'space-between', alignItems:'center',
-          padding:'12px 16px', flexShrink:0,
-        }}>
-          <button onClick={()=>setExpanded(null)} className="btn-press"
-            style={{background:'none', border:'none', color:'rgba(255,255,255,0.7)', fontSize:13,
-              cursor:'pointer', padding:'8px 0', minHeight:44,
-              display:'flex', alignItems:'center', gap:6}}>
+      <div style={{position:'fixed',inset:0,zIndex:500,background:'#000',display:'flex',flexDirection:'column',
+        paddingTop:'env(safe-area-inset-top)',animation:'fadeIn 0.18s ease both'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',flexShrink:0}}>
+          <button onClick={()=>setExpandedNote(null)} className="btn-press"
+            style={{background:'none',border:'none',color:'rgba(255,255,255,0.7)',fontSize:13,
+              cursor:'pointer',padding:'8px 0',minHeight:44,display:'flex',alignItems:'center',gap:6}}>
             ← Back
           </button>
-          <div style={{fontSize:11, color:'rgba(255,255,255,0.45)', textAlign:'right',
-            maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.45)',textAlign:'right',
+            maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
             {item?.name||courseId}
           </div>
         </div>
-        <div style={{
-          flex:1, display:'flex', alignItems:'center', justifyContent:'center',
-          overflow:'hidden', padding:'0 8px',
-        }}>
-          <img src={imgSrc} alt=""
-            style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain', borderRadius:12}}/>
+        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',padding:'0 8px'}}>
+          <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
+            style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain',borderRadius:12}}/>
         </div>
-        {note.caption && (
-          <div style={{
-            padding:'10px 20px 4px', fontSize:13,
-            color:'rgba(255,255,255,0.75)', fontStyle:'italic',
-            lineHeight:1.5, textAlign:'center',
-          }}>{note.caption}</div>
-        )}
-        <div style={{
-          padding:'12px 20px',
-          paddingBottom:'calc(env(safe-area-inset-bottom) + 16px)',
-          flexShrink:0,
-          background:'rgba(0,0,0,0.6)',
-          backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
-          display:'flex', justifyContent:'space-between', alignItems:'center',
-        }}>
-          <div style={{fontSize:11, color:'rgba(255,255,255,0.4)'}}>{note.date}</div>
-          <button onClick={()=>{onDeleteNote(courseId,note.id,note.storageKey);setExpanded(null);}} className="btn-press"
-            style={{background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)',
-              color:T.red, fontSize:12, cursor:'pointer', borderRadius:10,
-              padding:'7px 14px', fontWeight:700, minHeight:44}}>
+        {note.caption&&<div style={{padding:'10px 20px 4px',fontSize:13,color:'rgba(255,255,255,0.75)',
+          fontStyle:'italic',lineHeight:1.5,textAlign:'center'}}>{note.caption}</div>}
+        <div style={{padding:'12px 20px',paddingBottom:'calc(env(safe-area-inset-bottom) + 16px)',flexShrink:0,
+          background:'rgba(0,0,0,0.6)',backdropFilter:'blur(12px)',WebkitBackdropFilter:'blur(12px)',
+          display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>{note.date}</div>
+          <button onClick={()=>{onDeleteNote(courseId,note.id,note.storageKey);setExpandedNote(null);}} className="btn-press"
+            style={{background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.3)',
+              color:T.red,fontSize:12,cursor:'pointer',borderRadius:10,padding:'7px 14px',fontWeight:700,minHeight:44}}>
             Delete
           </button>
         </div>
@@ -2113,148 +2104,165 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote }) {
     );
   }
 
+  // ── Course detail view ──
+  if (selectedCourseId) {
+    const item = curriculum.find(i=>i.id===selectedCourseId);
+    const noteArr = notes[selectedCourseId]||[];
+    const col = gc(item?.genre);
+    const isUploading = uploadingFor===selectedCourseId;
+    return (
+      <div style={{position:'fixed',inset:0,zIndex:450,
+        background:'linear-gradient(180deg,#0d1b2a 0%,#0f2240 100%)',
+        display:'flex',flexDirection:'column',
+        paddingTop:'env(safe-area-inset-top)',animation:'fadeIn 0.18s ease both'}}>
+        <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
+        <div style={{padding:'14px 16px 12px',flexShrink:0,borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+            <button onClick={()=>setSelectedCourseId(null)} className="btn-press"
+              style={{background:'none',border:'none',color:T.textDim,fontSize:13,
+                cursor:'pointer',padding:'8px 0',minHeight:44,display:'flex',alignItems:'center',gap:6}}>
+              ← Back
+            </button>
+            <button onClick={()=>triggerAdd(selectedCourseId)} disabled={isUploading} className="btn-press"
+              style={{background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,border:'none',
+                color:'#fff',borderRadius:12,padding:'8px 16px',fontSize:12,fontWeight:700,
+                cursor:'pointer',minHeight:44,boxShadow:`0 4px 16px ${col}40`,
+                opacity:isUploading?0.5:1}}>
+              {isUploading?'Uploading…':'+ Add Photo'}
+            </button>
+          </div>
+          <div style={{fontSize:9,color:col,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
+            {item?.type==='course'?'Course':'Book'} · {item?.genre}
+          </div>
+          <div style={{fontSize:15,fontWeight:800,color:T.text,letterSpacing:-0.2,lineHeight:1.2,
+            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {item?.name}
+          </div>
+          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+            {item?.id} · {noteArr.length} photo{noteArr.length!==1?'s':''}
+          </div>
+        </div>
+        {uploadError&&<div style={{margin:'8px 14px 0',background:'rgba(239,68,68,0.1)',
+          border:'1px solid rgba(239,68,68,0.25)',borderRadius:10,padding:'8px 12px',
+          fontSize:11,color:T.red}}>{uploadError}</div>}
+        <div style={{flex:1,overflowY:'auto',padding:'14px',WebkitOverflowScrolling:'touch'}}>
+          {noteArr.length===0&&!isUploading ? (
+            <div style={{padding:'48px 24px',textAlign:'center',
+              background:'rgba(255,255,255,0.03)',borderRadius:20,
+              border:'1px dashed rgba(255,255,255,0.10)'}}>
+              <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📷</div>
+              <div style={{fontSize:13,fontWeight:600,color:T.textMid,marginBottom:8}}>No photos yet</div>
+              <div style={{fontSize:11,color:T.textDim,lineHeight:1.5,marginBottom:20}}>
+                Add your first photo note for this course.
+              </div>
+              <button onClick={()=>triggerAdd(selectedCourseId)} className="btn-press"
+                style={{background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,border:'none',
+                  color:'#fff',borderRadius:14,padding:'12px 24px',fontSize:13,fontWeight:800,
+                  cursor:'pointer',minHeight:44,boxShadow:`0 4px 20px ${col}40`}}>
+                + Add Photo
+              </button>
+            </div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6}}>
+              {noteArr.map((note,idx)=>(
+                <div key={note.id}
+                  onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:idx})}
+                  className="btn-press"
+                  style={{position:'relative',aspectRatio:'1 / 1',borderRadius:10,overflow:'hidden',
+                    cursor:'pointer',border:'1px solid rgba(255,255,255,0.08)',
+                    animation:`fadeIn 0.18s ease ${Math.min(idx*0.04,0.3)}s both`}}>
+                  <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
+                    style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+                  <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'12px 5px 4px',
+                    background:'linear-gradient(transparent,rgba(0,0,0,0.65))',
+                    fontSize:8,color:'rgba(255,255,255,0.6)',fontWeight:500}}>{note.date}</div>
+                  {note.caption&&<div style={{position:'absolute',top:4,right:4,width:6,height:6,
+                    borderRadius:'50%',background:T.blue,opacity:0.85}}/>}
+                </div>
+              ))}
+              {isUploading&&<div style={{aspectRatio:'1 / 1',borderRadius:10,
+                background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',
+                display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <div style={{width:22,height:22,borderRadius:'50%',
+                  border:`2px solid rgba(255,255,255,0.1)`,borderTopColor:col,
+                  animation:'spin 0.9s linear infinite'}}/>
+              </div>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Course list (default view) ──
   return (
     <div style={{marginTop:8}}>
       <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
 
-      {/* Library header */}
-      <div style={{
-        background:'linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-        border:'1px solid rgba(255,255,255,0.08)',
-        borderRadius:20, padding:'16px 16px 14px', marginBottom:8,
-        boxShadow:shadow.card,
-      }}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14}}>
-          <div>
-            <div style={{fontSize:9, color:T.textDim, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:4}}>
-              Photo Library
-            </div>
-            <div style={{fontSize:17, fontWeight:800, color:T.text, letterSpacing:-0.3}}>
-              {totalPhotos} {totalPhotos===1?'photo':'photos'}
-            </div>
-            {coursesWithNotes.length>0&&<div style={{fontSize:10, color:T.textDim, marginTop:2}}>
-              across {coursesWithNotes.length} {coursesWithNotes.length===1?'course':'courses'}
-            </div>}
-          </div>
+      <div style={{background:'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)',
+        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+        border:'1px solid rgba(255,255,255,0.08)',borderRadius:20,
+        padding:'16px 16px 14px',marginBottom:12,boxShadow:shadow.card}}>
+        <div style={{fontSize:9,color:T.textDim,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
+          Photo Library
         </div>
-        <div style={{
-          background:'rgba(236,72,153,0.06)', border:'1px solid rgba(236,72,153,0.14)',
-          borderRadius:12, padding:'10px 13px',
-          display:'flex', alignItems:'center', gap:10,
-        }}>
-          <div style={{fontSize:15, flexShrink:0, color:T.pink}}>✦</div>
-          <div style={{flex:1}}>
-            <div style={{fontSize:11, fontWeight:700, color:T.pink, marginBottom:2}}>AI Study Analysis</div>
-            <div style={{fontSize:10, color:T.textDim, lineHeight:1.4}}>
-              Review your photos with AI to surface key themes and gaps. Coming soon.
-            </div>
-          </div>
+        <div style={{fontSize:17,fontWeight:800,color:T.text,letterSpacing:-0.3}}>
+          {totalPhotos} {totalPhotos===1?'photo':'photos'}
         </div>
-        {uploadError && (
-          <div style={{
-            marginTop:10, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.25)',
-            borderRadius:10, padding:'8px 12px', fontSize:11, color:T.red, lineHeight:1.4,
-          }}>
-            Upload failed: {uploadError}
-          </div>
-        )}
+        {coursesWithNotes.length>0&&<div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+          across {coursesWithNotes.length} {coursesWithNotes.length===1?'course':'courses'}
+        </div>}
       </div>
 
-      {coursesWithNotes.length === 0 && (
-        <div style={{
-          padding:'40px 24px', textAlign:'center',
-          background:'linear-gradient(145deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
-          borderRadius:20, border:'1px solid rgba(255,255,255,0.06)',
-        }}>
-          <div style={{fontSize:36, marginBottom:12, opacity:0.3}}>📷</div>
-          <div style={{fontSize:13, fontWeight:600, color:T.textMid, marginBottom:6}}>No photos yet</div>
-          <div style={{fontSize:11, color:T.textDim, lineHeight:1.5}}>
+      <input
+        type="text"
+        placeholder="Search courses…"
+        value={searchQuery}
+        onChange={e=>setSearchQuery(e.target.value)}
+        style={{width:'100%',background:'rgba(255,255,255,0.06)',
+          border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,
+          padding:'10px 13px',color:T.text,fontSize:13,
+          boxSizing:'border-box',fontFamily:'inherit',outline:'none',marginBottom:10}}
+      />
+
+      {displayCourses.length===0 ? (
+        <div style={{padding:'40px 24px',textAlign:'center',
+          background:'linear-gradient(145deg,rgba(255,255,255,0.04) 0%,rgba(255,255,255,0.01) 100%)',
+          borderRadius:20,border:'1px solid rgba(255,255,255,0.06)'}}>
+          <div style={{fontSize:36,marginBottom:12,opacity:0.3}}>📷</div>
+          <div style={{fontSize:13,fontWeight:600,color:T.textMid,marginBottom:6}}>No photos yet</div>
+          <div style={{fontSize:11,color:T.textDim,lineHeight:1.5}}>
             Use "Add Photo Note" in the Today tab to save visual notes for your courses.
           </div>
         </div>
-      )}
-
-      {coursesWithNotes.map(({id,item,noteArr})=>{
+      ) : displayCourses.map(({id,item,noteArr})=>{
         const col=gc(item.genre);
-        const isUploadingHere = uploadingFor===id;
         return (
-          <div key={id} style={{
-            background:'linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)',
-            border:'1px solid rgba(255,255,255,0.08)', borderLeft:`3px solid ${col}`,
-            borderRadius:20, padding:'14px 14px 12px', marginBottom:8,
-            boxShadow:shadow.card,
-          }}>
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:9, color:col, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:3}}>
+          <button key={id} onClick={()=>setSelectedCourseId(id)} className="btn-press"
+            style={{width:'100%',
+              background:'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)',
+              border:'1px solid rgba(255,255,255,0.08)',borderLeft:`3px solid ${col}`,
+              borderRadius:16,padding:'13px 14px',marginBottom:8,
+              display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',
+              boxShadow:shadow.card}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:9,color:col,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:3}}>
                 {item.type==='course'?'Course':'Book'} · {item.genre}
               </div>
-              <div style={{fontSize:13, fontWeight:700, color:T.text, lineHeight:1.3}}>
+              <div style={{fontSize:13,fontWeight:700,color:T.text,lineHeight:1.3,
+                overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                 {item.name}
               </div>
-              <div style={{fontSize:9, color:T.textDim, marginTop:2}}>
-                {item.id} · {noteArr.length} photo{noteArr.length!==1?'s':''}
+              <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
+                {noteArr.length>0?`${noteArr.length} photo${noteArr.length!==1?'s':''}`:'No photos yet'}
               </div>
             </div>
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6}}>
-              {noteArr.map((note,idx)=>{
-                const imgSrc = note.url || note.imageData;
-                return (
-                  <div key={note.id} onClick={()=>setExpanded({courseId:id,noteIdx:idx})}
-                    className="btn-press"
-                    style={{
-                      position:'relative', aspectRatio:'1 / 1',
-                      borderRadius:10, overflow:'hidden',
-                      cursor:'pointer',
-                      border:'1px solid rgba(255,255,255,0.08)',
-                      animation:`fadeIn 0.18s ease ${Math.min(idx*0.04,0.3)}s both`,
-                    }}>
-                    <img src={imgSrc} alt=""
-                      style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}}/>
-                    <div style={{
-                      position:'absolute', bottom:0, left:0, right:0,
-                      padding:'12px 5px 4px',
-                      background:'linear-gradient(transparent, rgba(0,0,0,0.65))',
-                      fontSize:8, color:'rgba(255,255,255,0.6)', fontWeight:500,
-                    }}>
-                      {note.date}
-                    </div>
-                    {note.caption&&<div style={{
-                      position:'absolute', top:4, right:4,
-                      width:6, height:6, borderRadius:'50%',
-                      background:T.blue, opacity:0.85,
-                    }}/>}
-                  </div>
-                );
-              })}
-              {isUploadingHere ? (
-                <div style={{
-                  aspectRatio:'1 / 1', borderRadius:10,
-                  background:'rgba(255,255,255,0.04)',
-                  border:'1px solid rgba(255,255,255,0.1)',
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                }}>
-                  <div style={{
-                    width:22, height:22, borderRadius:'50%',
-                    border:`2px solid rgba(255,255,255,0.1)`, borderTopColor:col,
-                    animation:'spin 0.9s linear infinite',
-                  }}/>
-                </div>
-              ) : (
-                <button onClick={()=>triggerAdd(id)} className="btn-press"
-                  style={{
-                    aspectRatio:'1 / 1', borderRadius:10,
-                    background:'rgba(255,255,255,0.04)',
-                    border:'1px dashed rgba(255,255,255,0.15)',
-                    display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-                    gap:5, cursor:'pointer', color:T.textFaint,
-                  }}>
-                  <span style={{fontSize:20, opacity:0.5}}>+</span>
-                  <span style={{fontSize:8, letterSpacing:0.5, textTransform:'uppercase', fontWeight:600}}>Add</span>
-                </button>
-              )}
-            </div>
-          </div>
+            {noteArr.length>0&&<div style={{fontSize:9,color:T.textFaint,flexShrink:0,
+              display:'flex',alignItems:'center',gap:3}}>
+              📷 {noteArr.length}
+            </div>}
+            <div style={{fontSize:16,color:T.textDim,flexShrink:0}}>›</div>
+          </button>
         );
       })}
     </div>
@@ -3589,6 +3597,18 @@ Respond ONLY with valid JSON:
               </button>
             </Card>}
 
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+              <button onClick={()=>setShowAddPhotoNote(true)} className="btn-press"
+                style={{
+                  background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
+                  color:T.textDim,borderRadius:20,padding:"6px 13px",
+                  fontSize:11,cursor:"pointer",fontWeight:600,minHeight:34,
+                  display:"flex",alignItems:"center",gap:5,flexShrink:0,
+                }}>
+                📷 <span>Add Photo Note</span>
+              </button>
+            </div>
+
             {planIsFromThisWeek&&<>
               {allWeekSessionsDone&&<Card style={{padding:"22px 20px",marginBottom:16,borderLeft:`3px solid ${T.green}`,
                 animation:"fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both"}} accent={T.green} glow>
@@ -3637,19 +3657,8 @@ Respond ONLY with valid JSON:
                 </div>
               </Card>}
 
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <div style={{fontSize:11,color:T.textDim,letterSpacing:0.3}}>
-                  {weekH>=WEEKLY_TARGET?"Target hit — bonus mode":`Plan · ${getDayName()}`}
-                </div>
-                <button onClick={()=>setShowAddPhotoNote(true)} className="btn-press"
-                  style={{
-                    background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",
-                    color:T.textDim,borderRadius:20,padding:"6px 13px",
-                    fontSize:11,cursor:"pointer",fontWeight:600,minHeight:34,
-                    display:"flex",alignItems:"center",gap:5,flexShrink:0,
-                  }}>
-                  📷 <span>Add Photo Note</span>
-                </button>
+              <div style={{fontSize:11,color:T.textDim,letterSpacing:0.3,marginBottom:16}}>
+                {weekH>=WEEKLY_TARGET?"Target hit — bonus mode":`Plan · ${getDayName()}`}
               </div>
 
               {today.length===0&&weekH<WEEKLY_TARGET&&<Card style={{padding:20,textAlign:"center",marginBottom:10}}>
