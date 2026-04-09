@@ -2186,11 +2186,11 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
+  const [expandedNote, setExpandedNote] = useState(null); // { courseId, noteIdx }
   useEffect(() => { onDetailOpenChange?.(!!(selectedCourseId || pendingScan || expandedNote)); }, [selectedCourseId, pendingScan, expandedNote]);
   // Guarantee the HUD is restored if PhotoLibrary unmounts while a detail is open
   // (e.g. user switches tabs before tapping Back)
   useEffect(() => { return () => { onDetailOpenChange?.(false); }; }, []);
-  const [expandedNote, setExpandedNote] = useState(null); // { courseId, noteIdx }
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { courseId, noteId, storageKey }
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadingFor, setUploadingFor] = useState(null);
