@@ -2096,36 +2096,44 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
     reader.readAsDataURL(file);
   }, [file]);
 
-  // Attempt jscanify perspective correction with a hard 5-second timeout.
-  // Uses findPaperContour + getCornerPoints to compute the document's natural
-  // dimensions before calling extractPaper, so the output isn't warped to the
-  // original photo's aspect ratio.  Falls back to the original photo silently
-  // on any error, timeout, or implausible result.
+  // Attempt jscanify perspective correction with an 8-second timeout.
+  // Core bugs fixed:
+  //   1. findPaperContour needs a cv.Mat, not an HTMLImageElement.
+  //   2. cv.Canny (used internally) needs a single-channel grayscale Mat —
+  //      cv.imread produces 4-channel RGBA, so we must convert first.
+  //   3. Pass corners directly to extractPaper so detection doesn't run twice.
+  // Falls back to the original photo silently on any error or timeout.
   useEffect(() => {
     if (!previewUrl) return;
     let cancelled = false;
     let timedOut = false;
+    const mats = []; // tracked for cleanup on cancel / error
 
     const timeoutId = setTimeout(() => {
       timedOut = true;
       if (!cancelled) setScanStatus('failed');
-    }, 5000);
+    }, 8000);
 
     const waitForCV = () => new Promise((resolve, reject) => {
       if (window.cv?.Mat) { resolve(); return; }
       const started = Date.now();
       const poll = setInterval(() => {
         if (window.cv?.Mat) { clearInterval(poll); resolve(); }
-        else if (Date.now() - started > 4000) { clearInterval(poll); reject(new Error('cv not ready')); }
+        else if (Date.now() - started > 7000) { clearInterval(poll); reject(new Error('cv not ready')); }
       }, 100);
     });
+
+    const freeMats = () => {
+      mats.forEach(m => { try { m.delete(); } catch {} });
+      mats.length = 0;
+    };
 
     (async () => {
       try {
         await waitForCV();
         if (cancelled || timedOut) return;
 
-        const img = await new Promise((resolve, reject) => {
+        const imgEl = await new Promise((resolve, reject) => {
           const el = new Image();
           el.onload = () => resolve(el);
           el.onerror = reject;
@@ -2135,17 +2143,30 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
 
         const scanner = new jscanify();
 
-        // Step 1: find the document contour
-        const contour = scanner.findPaperContour(img);
+        // Step 1: cv.imread → 4-channel RGBA Mat, then convert to grayscale.
+        // cv.Canny (called inside findPaperContour) requires a single-channel
+        // 8-bit image — passing color or an HTML element both silently fail.
+        const imgColor = cv.imread(imgEl);
+        mats.push(imgColor);
+
+        const imgGray = new cv.Mat();
+        mats.push(imgGray);
+        cv.cvtColor(imgColor, imgGray, cv.COLOR_RGBA2GRAY);
+
+        // Step 2: find the document contour on the grayscale Mat
+        const contour = scanner.findPaperContour(imgGray);
         if (!contour) throw new Error('No document contour found');
         if (cancelled || timedOut) return;
 
-        // Step 2: get the four corner points of the detected document
-        const corners = scanner.getCornerPoints(contour, img);
+        // Step 3: get the four corner points
+        const corners = scanner.getCornerPoints(contour);
         const { topLeftCorner: tl, topRightCorner: tr,
                 bottomLeftCorner: bl, bottomRightCorner: br } = corners;
 
-        // Step 3: compute natural document width/height from corner distances
+        if (!tl || !tr || !bl || !br) throw new Error('Could not locate all 4 corners');
+        if (cancelled || timedOut) return;
+
+        // Step 4: compute natural document width/height from corner distances
         const topEdge    = Math.hypot(tr.x - tl.x, tr.y - tl.y);
         const bottomEdge = Math.hypot(br.x - bl.x, br.y - bl.y);
         const leftEdge   = Math.hypot(bl.x - tl.x, bl.y - tl.y);
@@ -2154,26 +2175,19 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
         const docW = Math.round(Math.max(topEdge, bottomEdge));
         const docH = Math.round(Math.max(leftEdge, rightEdge));
 
-        // Sanity-check: reject if the detected document is implausibly small
-        if (docW < 200 || docH < 200) {
-          throw new Error(`Detected doc too small: ${docW}x${docH}`);
-        }
+        if (docW < 200 || docH < 200) throw new Error(`Detected doc too small: ${docW}x${docH}`);
         if (cancelled || timedOut) return;
 
-        // Step 4: extract with correct dimensions so there's no distortion
-        const canvas = scanner.extractPaper(img, docW, docH);
+        // Step 5: extract with correct dimensions.
+        // Pass corners explicitly so extractPaper skips its own findPaperContour
+        // call (which would also fail without a grayscale Mat).
+        // extractPaper calls cv.imread(imgEl) internally for the color warp — that's fine.
+        const canvas = scanner.extractPaper(imgEl, docW, docH, corners);
+        freeMats(); // release grayscale/color mats now that extraction is done
         if (cancelled || timedOut) return;
 
-        // Step 5: validate the output canvas
         if (!canvas || canvas.width < 200 || canvas.height < 200) {
           throw new Error(`extractPaper returned bad canvas: ${canvas?.width}x${canvas?.height}`);
-        }
-
-        // Step 6: reject if the output aspect ratio diverges too far from detected
-        const detectedRatio = docW / docH;
-        const canvasRatio   = canvas.width / canvas.height;
-        if (Math.abs(detectedRatio - canvasRatio) > 0.5) {
-          throw new Error(`Aspect ratio mismatch: expected ~${detectedRatio.toFixed(2)}, got ${canvasRatio.toFixed(2)}`);
         }
 
         await new Promise((resolve) => {
@@ -2190,12 +2204,13 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
           }, 'image/jpeg', 0.92);
         });
       } catch {
+        freeMats();
         clearTimeout(timeoutId);
         if (!cancelled && !timedOut) setScanStatus('failed');
       }
     })();
 
-    return () => { cancelled = true; clearTimeout(timeoutId); };
+    return () => { cancelled = true; clearTimeout(timeoutId); freeMats(); };
   }, [previewUrl]);
 
   // Revoke the blob URL when it changes or when the component unmounts
