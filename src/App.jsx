@@ -1751,8 +1751,8 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
   const [uploadError, setUploadError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingScan, setPendingScan] = useState(null); // { file }
-  const [cameraOpen, setCameraOpen] = useState(false);
   const libInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
   const planCourseIds = weekPlan
@@ -1808,16 +1808,6 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
   };
 
   const c = selectedItem ? gc(selectedItem.genre) : T.blue;
-
-  if (cameraOpen) {
-    return (
-      <CameraModal
-        courseColor={c}
-        onCapture={(file) => { setCameraOpen(false); setPendingScan({ file }); }}
-        onClose={() => setCameraOpen(false)}
-      />
-    );
-  }
 
   if (pendingScan) {
     return (
@@ -1956,6 +1946,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
       paddingTop:'env(safe-area-inset-top)',
       animation:'fadeIn 0.18s ease both',
     }}>
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e => { const f=e.target.files?.[0]; if(e.target) e.target.value=''; if(f) setPendingScan({file:f}); }}/>
       <input ref={libInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={e => { const f=e.target.files?.[0]; if(e.target) e.target.value=''; if(f) setPendingScan({file:f}); }}/>
       <div style={{padding:'14px 16px 12px', flexShrink:0, borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
@@ -2010,7 +2001,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
               </div>
             )}
             <div style={{display:'flex', flexDirection:'column', gap:10, width:'100%'}}>
-              <button onClick={()=>setCameraOpen(true)} className="btn-press"
+              <button onClick={()=>cameraInputRef.current?.click()} className="btn-press"
                 style={{
                   background:`linear-gradient(135deg, ${c} 0%, ${c}cc 100%)`,
                   border:'none', color:'#fff',
@@ -2190,159 +2181,6 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
   );
 }
 
-// ── Camera Modal ──────────────────────────────────────────────────────────────
-// Uses getUserMedia for a live in-app camera feed. Avoids handing off to
-// the native camera app (which causes app state loss / white screen on iOS).
-function CameraModal({ courseColor, onCapture, onClose }) {
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const [ready, setReady] = useState(false);
-  const [camError, setCamError] = useState('');
-  const col = courseColor || T.blue;
-
-  useEffect(() => {
-    let cancelled = false;
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: false,
-        });
-        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-          setReady(true);
-        }
-      } catch (err) {
-        if (!cancelled) setCamError(err?.message || 'Camera not available');
-      }
-    }
-    startCamera();
-    return () => {
-      cancelled = true;
-      streamRef.current?.getTracks().forEach(t => t.stop());
-    };
-  }, []);
-
-  const capture = () => {
-    const video = videoRef.current;
-    if (!video || !ready) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    canvas.toBlob(blob => {
-      if (!blob) return;
-      const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      onCapture(file);
-    }, 'image/jpeg', 0.92);
-  };
-
-  const handleClose = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    onClose();
-  };
-
-  return (
-    <div style={{
-      position:'fixed', inset:0, zIndex:700,
-      background:'#000',
-      display:'flex', flexDirection:'column',
-      paddingTop:'env(safe-area-inset-top)',
-      animation:'fadeIn 0.18s ease both',
-    }}>
-      {/* Close */}
-      <div style={{
-        position:'absolute',
-        top:'calc(env(safe-area-inset-top) + 12px)',
-        left:16, zIndex:10,
-      }}>
-        <button onClick={handleClose} className="btn-press"
-          style={{
-            background:'rgba(0,0,0,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)',
-            border:'1px solid rgba(255,255,255,0.20)',
-            color:'#fff', borderRadius:99, padding:'8px 16px',
-            fontSize:13, fontWeight:600, cursor:'pointer', minHeight:40,
-          }}>
-          ✕
-        </button>
-      </div>
-
-      {/* Live feed */}
-      <div style={{flex:1, position:'relative', overflow:'hidden'}}>
-        {camError ? (
-          <div style={{
-            position:'absolute', inset:0,
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-            padding:32, textAlign:'center',
-          }}>
-            <div style={{fontSize:44, marginBottom:16, opacity:0.35}}>📷</div>
-            <div style={{fontSize:14, fontWeight:700, color:'rgba(255,255,255,0.85)', marginBottom:8}}>
-              Camera unavailable
-            </div>
-            <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', lineHeight:1.55, maxWidth:240}}>
-              {camError}
-            </div>
-          </div>
-        ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{
-              width:'100%', height:'100%',
-              objectFit:'cover',
-              opacity: ready ? 1 : 0,
-              transition:'opacity 0.35s ease',
-            }}
-          />
-        )}
-        {!ready && !camError && (
-          <div style={{
-            position:'absolute', inset:0,
-            display:'flex', alignItems:'center', justifyContent:'center',
-          }}>
-            <div style={{
-              width:40, height:40, borderRadius:'50%',
-              border:`3px solid rgba(255,255,255,0.12)`,
-              borderTopColor: col,
-              animation:'spin 0.9s linear infinite',
-            }}/>
-          </div>
-        )}
-      </div>
-
-      {/* Shutter */}
-      <div style={{
-        padding:'24px 32px',
-        paddingBottom:'calc(env(safe-area-inset-bottom) + 24px)',
-        display:'flex', alignItems:'center', justifyContent:'center',
-        background:'rgba(0,0,0,0.72)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-        flexShrink:0,
-      }}>
-        <button
-          onClick={capture}
-          disabled={!ready || !!camError}
-          className="btn-press"
-          style={{
-            width:72, height:72, borderRadius:'50%',
-            background:'#fff',
-            border:'5px solid rgba(255,255,255,0.35)',
-            cursor: ready ? 'pointer' : 'default',
-            opacity: ready ? 1 : 0.4,
-            boxShadow:'0 4px 28px rgba(0,0,0,0.65)',
-            padding:0, flexShrink:0,
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
 function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, weekPlan, onDetailOpenChange }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
@@ -2357,8 +2195,8 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
   const [uploadError, setUploadError] = useState('');
   const [aiStudyOpen, setAiStudyOpen] = useState(false);
   const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
-  const [cameraOpenFor, setCameraOpenFor] = useState(null); // courseId
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const addingToRef = useRef(null);
 
   const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
@@ -2429,22 +2267,10 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
   };
 
   const triggerCamera = (courseId) => {
+    addingToRef.current = courseId;
     setUploadError('');
-    setCameraOpenFor(courseId);
+    setTimeout(()=>cameraInputRef.current?.click(), 50);
   };
-
-  if (cameraOpenFor) {
-    const courseItem = coursesOnly.find(i=>i.id===cameraOpenFor);
-    const col = gc(courseItem?.genre);
-    const courseId = cameraOpenFor;
-    return (
-      <CameraModal
-        courseColor={col}
-        onCapture={(file) => { setCameraOpenFor(null); setPendingScan({ file, courseId }); }}
-        onClose={() => setCameraOpenFor(null)}
-      />
-    );
-  }
 
   if (pendingScan) {
     const courseItem = coursesOnly.find(i=>i.id===pendingScan.courseId);
@@ -2578,6 +2404,7 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
           ? 'courseDetailOut 0.32s cubic-bezier(0.4,0,1,1) both'
           : 'courseDetailIn 0.42s cubic-bezier(0.16,1,0.3,1) both',
       }}>
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFileChange}/>
         <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
         {/* Header */}
         <div style={{
