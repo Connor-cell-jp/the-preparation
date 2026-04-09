@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
+import jscanify from 'jscanify/client';
 
 // ── Settings-aware pure helpers ───────────────────────────────────────────────
 const snap25 = h => Math.round(h * 4) / 4;
@@ -2081,43 +2082,133 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 // ── Photo Library ──────────────────────────────────────────────────────────────
 
 function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
-  const [previewUrl, setPreviewUrl] = React.useState(null);
-  const [caption, setCaption] = React.useState('');
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [scannedUrl, setScannedUrl] = useState(null);
+  const [scannedBlob, setScannedBlob] = useState(null);
+  const [scanStatus, setScanStatus] = useState('scanning'); // 'scanning' | 'done' | 'failed'
+  const [caption, setCaption] = useState('');
   const col = courseColor || T.blue;
 
-  React.useEffect(() => {
+  // Decode the original file to a data URL immediately — never block on scanning
+  useEffect(() => {
     const reader = new FileReader();
     reader.onload = (e) => setPreviewUrl(e.target.result);
     reader.readAsDataURL(file);
   }, [file]);
 
+  // Attempt jscanify perspective correction with a hard 3-second timeout.
+  // Falls back to the original photo silently on any error or timeout.
+  useEffect(() => {
+    if (!previewUrl) return;
+    let cancelled = false;
+    let timedOut = false;
+
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      if (!cancelled) setScanStatus('failed');
+    }, 3000);
+
+    const waitForCV = () => new Promise((resolve, reject) => {
+      if (window.cv?.Mat) { resolve(); return; }
+      const started = Date.now();
+      const poll = setInterval(() => {
+        if (window.cv?.Mat) { clearInterval(poll); resolve(); }
+        else if (Date.now() - started > 2500) { clearInterval(poll); reject(new Error('cv not ready')); }
+      }, 100);
+    });
+
+    (async () => {
+      try {
+        await waitForCV();
+        if (cancelled || timedOut) return;
+
+        const img = await new Promise((resolve, reject) => {
+          const el = new Image();
+          el.onload = () => resolve(el);
+          el.onerror = reject;
+          el.src = previewUrl;
+        });
+        if (cancelled || timedOut) return;
+
+        const scanner = new jscanify();
+        const canvas = scanner.extractPaper(img, img.naturalWidth, img.naturalHeight);
+        if (cancelled || timedOut) return;
+
+        await new Promise((resolve) => {
+          canvas.toBlob((blob) => {
+            if (!cancelled && !timedOut && blob) {
+              setScannedBlob(blob);
+              setScannedUrl(URL.createObjectURL(blob));
+              setScanStatus('done');
+            } else if (!cancelled && !timedOut) {
+              setScanStatus('failed');
+            }
+            clearTimeout(timeoutId);
+            resolve();
+          }, 'image/jpeg', 0.92);
+        });
+      } catch {
+        clearTimeout(timeoutId);
+        if (!cancelled && !timedOut) setScanStatus('failed');
+      }
+    })();
+
+    return () => { cancelled = true; clearTimeout(timeoutId); };
+  }, [previewUrl]);
+
+  // Revoke the blob URL when it changes or when the component unmounts
+  useEffect(() => {
+    const url = scannedUrl;
+    return () => { if (url?.startsWith('blob:')) URL.revokeObjectURL(url); };
+  }, [scannedUrl]);
+
+  const displayUrl = scannedUrl || previewUrl;
+  const fileToUse = scannedBlob
+    ? new File([scannedBlob], file.name || 'photo.jpg', { type: 'image/jpeg' })
+    : file;
+
   return (
     <div style={{
-      position:'fixed',inset:0,zIndex:600,
+      position:'fixed', inset:0, zIndex:600,
       background:'linear-gradient(180deg,#000 0%,#0a0f1a 100%)',
-      display:'flex',flexDirection:'column',
+      display:'flex', flexDirection:'column',
       paddingTop:'env(safe-area-inset-top)',
       animation:'slideInUp 0.25s cubic-bezier(0.16,1,0.3,1) both',
     }}>
       {/* Header */}
       <div style={{
-        display:'flex',justifyContent:'space-between',alignItems:'center',
-        padding:'12px 16px',flexShrink:0,
-        background:'rgba(0,0,0,0.70)',backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+        display:'flex', justifyContent:'space-between', alignItems:'center',
+        padding:'12px 16px', flexShrink:0,
+        background:'rgba(0,0,0,0.70)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
         borderBottom:'1px solid rgba(255,255,255,0.07)',
       }}>
         <button onClick={onRetake} className="btn-press"
-          style={{background:'rgba(255,255,255,0.10)',border:'none',color:T.text,
-            fontSize:12,fontWeight:600,cursor:'pointer',padding:'7px 14px',
-            borderRadius:99,minHeight:40,display:'flex',alignItems:'center',gap:5}}>
+          style={{background:'rgba(255,255,255,0.10)', border:'none', color:T.text,
+            fontSize:12, fontWeight:600, cursor:'pointer', padding:'7px 14px',
+            borderRadius:99, minHeight:40, display:'flex', alignItems:'center', gap:5}}>
           ← Retake
         </button>
-        <div style={{fontSize:13,fontWeight:700,color:T.text}}>Review Photo</div>
-        <button onClick={() => onConfirm(file, caption)} className="btn-press"
+        <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:2}}>
+          <div style={{fontSize:13, fontWeight:700, color:T.text}}>Review Photo</div>
+          {scanStatus === 'scanning' && previewUrl && (
+            <div style={{fontSize:10, color:T.textDim, display:'flex', alignItems:'center', gap:4}}>
+              <div style={{
+                width:8, height:8, borderRadius:'50%',
+                border:'1.5px solid rgba(255,255,255,0.12)', borderTopColor:col,
+                animation:'spin 0.8s linear infinite',
+              }}/>
+              Detecting document…
+            </div>
+          )}
+          {scanStatus === 'done' && (
+            <div style={{fontSize:10, color:col, fontWeight:600}}>✓ Document corrected</div>
+          )}
+        </div>
+        <button onClick={() => onConfirm(fileToUse, caption)} className="btn-press"
           style={{
             background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
-            border:'none',color:'#fff',fontSize:12,fontWeight:700,
-            cursor:'pointer',padding:'7px 18px',borderRadius:99,minHeight:40,
+            border:'none', color:'#fff', fontSize:12, fontWeight:700,
+            cursor:'pointer', padding:'7px 18px', borderRadius:99, minHeight:40,
             boxShadow:`0 4px 18px ${col}50`,
           }}>
           Use Photo
@@ -2125,16 +2216,16 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
       </div>
 
       {/* Preview */}
-      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
-        padding:'16px',background:'#000',overflow:'hidden'}}>
-        {previewUrl ? (
-          <img src={previewUrl} alt="Preview"
-            style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain',
-              borderRadius:14,boxShadow:'0 12px 50px rgba(0,0,0,0.85)',display:'block'}}/>
+      <div style={{flex:1, display:'flex', alignItems:'center', justifyContent:'center',
+        padding:'16px', background:'#000', overflow:'hidden'}}>
+        {displayUrl ? (
+          <img src={displayUrl} alt="Preview"
+            style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain',
+              borderRadius:14, boxShadow:'0 12px 50px rgba(0,0,0,0.85)', display:'block'}}/>
         ) : (
           <div style={{
-            width:40,height:40,borderRadius:'50%',
-            border:`3px solid rgba(255,255,255,0.08)`,borderTopColor:col,
+            width:40, height:40, borderRadius:'50%',
+            border:`3px solid rgba(255,255,255,0.08)`, borderTopColor:col,
             animation:'spin 0.9s linear infinite',
           }}/>
         )}
@@ -2142,11 +2233,11 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
 
       {/* Caption + confirm */}
       <div style={{
-        padding:'12px 16px',paddingBottom:'calc(env(safe-area-inset-bottom) + 12px)',
-        flexShrink:0,background:'rgba(0,0,0,0.75)',
-        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+        padding:'12px 16px', paddingBottom:'calc(env(safe-area-inset-bottom) + 12px)',
+        flexShrink:0, background:'rgba(0,0,0,0.75)',
+        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
         borderTop:'1px solid rgba(255,255,255,0.07)',
-        display:'flex',flexDirection:'column',gap:10,
+        display:'flex', flexDirection:'column', gap:10,
       }}>
         <input
           type="text"
@@ -2154,24 +2245,24 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
           value={caption}
           onChange={e => setCaption(e.target.value)}
           style={{
-            width:'100%',background:'rgba(255,255,255,0.07)',
+            width:'100%', background:'rgba(255,255,255,0.07)',
             border:'1px solid rgba(255,255,255,0.12)',
-            borderRadius:12,padding:'11px 13px',color:T.text,fontSize:14,
-            boxSizing:'border-box',fontFamily:'inherit',outline:'none',
+            borderRadius:12, padding:'11px 13px', color:T.text, fontSize:14,
+            boxSizing:'border-box', fontFamily:'inherit', outline:'none',
           }}
         />
-        <div style={{display:'flex',gap:10}}>
+        <div style={{display:'flex', gap:10}}>
           <button onClick={onRetake} className="btn-press"
-            style={{flex:1,background:'rgba(255,255,255,0.08)',
-              border:'1px solid rgba(255,255,255,0.12)',color:T.text,
-              borderRadius:16,padding:'14px',fontSize:14,fontWeight:600,
-              cursor:'pointer',minHeight:52}}>
+            style={{flex:1, background:'rgba(255,255,255,0.08)',
+              border:'1px solid rgba(255,255,255,0.12)', color:T.text,
+              borderRadius:16, padding:'14px', fontSize:14, fontWeight:600,
+              cursor:'pointer', minHeight:52}}>
             Retake
           </button>
-          <button onClick={() => onConfirm(file, caption)} className="btn-press"
-            style={{flex:2,background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
-              border:'none',color:'#fff',borderRadius:16,padding:'14px',
-              fontSize:14,fontWeight:800,cursor:'pointer',minHeight:52,
+          <button onClick={() => onConfirm(fileToUse, caption)} className="btn-press"
+            style={{flex:2, background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
+              border:'none', color:'#fff', borderRadius:16, padding:'14px',
+              fontSize:14, fontWeight:800, cursor:'pointer', minHeight:52,
               boxShadow:`0 6px 28px ${col}45`}}>
             Use Photo
           </button>
