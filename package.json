@@ -10,8 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
-    "jscanify": "^1.4.2",
-    "react": "^18.2.0",
+"react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
-import jscanify from 'jscanify/client';
+
 
 // ── Settings-aware pure helpers ───────────────────────────────────────────────
 const snap25 = h => Math.round(h * 4) / 4;
@@ -2083,146 +2083,14 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
 
 function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [scannedUrl, setScannedUrl] = useState(null);
-  const [scannedBlob, setScannedBlob] = useState(null);
-  const [scanStatus, setScanStatus] = useState('scanning'); // 'scanning' | 'done' | 'failed'
   const [caption, setCaption] = useState('');
   const col = courseColor || T.blue;
 
-  // Decode the original file to a data URL immediately — never block on scanning
   useEffect(() => {
     const reader = new FileReader();
     reader.onload = (e) => setPreviewUrl(e.target.result);
     reader.readAsDataURL(file);
   }, [file]);
-
-  // Attempt jscanify perspective correction with an 8-second timeout.
-  // Core bugs fixed:
-  //   1. findPaperContour needs a cv.Mat, not an HTMLImageElement.
-  //   2. cv.Canny (used internally) needs a single-channel grayscale Mat —
-  //      cv.imread produces 4-channel RGBA, so we must convert first.
-  //   3. Pass corners directly to extractPaper so detection doesn't run twice.
-  // Falls back to the original photo silently on any error or timeout.
-  useEffect(() => {
-    if (!previewUrl) return;
-    let cancelled = false;
-    let timedOut = false;
-    const mats = []; // tracked for cleanup on cancel / error
-
-    const timeoutId = setTimeout(() => {
-      timedOut = true;
-      if (!cancelled) setScanStatus('failed');
-    }, 8000);
-
-    const waitForCV = () => new Promise((resolve, reject) => {
-      if (window.cv?.Mat) { resolve(); return; }
-      const started = Date.now();
-      const poll = setInterval(() => {
-        if (window.cv?.Mat) { clearInterval(poll); resolve(); }
-        else if (Date.now() - started > 7000) { clearInterval(poll); reject(new Error('cv not ready')); }
-      }, 100);
-    });
-
-    const freeMats = () => {
-      mats.forEach(m => { try { m.delete(); } catch {} });
-      mats.length = 0;
-    };
-
-    (async () => {
-      try {
-        await waitForCV();
-        if (cancelled || timedOut) return;
-
-        const imgEl = await new Promise((resolve, reject) => {
-          const el = new Image();
-          el.onload = () => resolve(el);
-          el.onerror = reject;
-          el.src = previewUrl;
-        });
-        if (cancelled || timedOut) return;
-
-        const scanner = new jscanify();
-
-        // Step 1: cv.imread → 4-channel RGBA Mat, then convert to grayscale.
-        // cv.Canny (called inside findPaperContour) requires a single-channel
-        // 8-bit image — passing color or an HTML element both silently fail.
-        const imgColor = cv.imread(imgEl);
-        mats.push(imgColor);
-
-        const imgGray = new cv.Mat();
-        mats.push(imgGray);
-        cv.cvtColor(imgColor, imgGray, cv.COLOR_RGBA2GRAY);
-
-        // Step 2: find the document contour on the grayscale Mat
-        const contour = scanner.findPaperContour(imgGray);
-        if (!contour) throw new Error('No document contour found');
-        if (cancelled || timedOut) return;
-
-        // Step 3: get the four corner points
-        const corners = scanner.getCornerPoints(contour);
-        const { topLeftCorner: tl, topRightCorner: tr,
-                bottomLeftCorner: bl, bottomRightCorner: br } = corners;
-
-        if (!tl || !tr || !bl || !br) throw new Error('Could not locate all 4 corners');
-        if (cancelled || timedOut) return;
-
-        // Step 4: compute natural document width/height from corner distances
-        const topEdge    = Math.hypot(tr.x - tl.x, tr.y - tl.y);
-        const bottomEdge = Math.hypot(br.x - bl.x, br.y - bl.y);
-        const leftEdge   = Math.hypot(bl.x - tl.x, bl.y - tl.y);
-        const rightEdge  = Math.hypot(br.x - tr.x, br.y - tr.y);
-
-        const docW = Math.round(Math.max(topEdge, bottomEdge));
-        const docH = Math.round(Math.max(leftEdge, rightEdge));
-
-        if (docW < 200 || docH < 200) throw new Error(`Detected doc too small: ${docW}x${docH}`);
-        if (cancelled || timedOut) return;
-
-        // Step 5: extract with correct dimensions.
-        // Pass corners explicitly so extractPaper skips its own findPaperContour
-        // call (which would also fail without a grayscale Mat).
-        // extractPaper calls cv.imread(imgEl) internally for the color warp — that's fine.
-        const canvas = scanner.extractPaper(imgEl, docW, docH, corners);
-        freeMats(); // release grayscale/color mats now that extraction is done
-        if (cancelled || timedOut) return;
-
-        if (!canvas || canvas.width < 200 || canvas.height < 200) {
-          throw new Error(`extractPaper returned bad canvas: ${canvas?.width}x${canvas?.height}`);
-        }
-
-        await new Promise((resolve) => {
-          canvas.toBlob((blob) => {
-            if (!cancelled && !timedOut && blob) {
-              setScannedBlob(blob);
-              setScannedUrl(URL.createObjectURL(blob));
-              setScanStatus('done');
-            } else if (!cancelled && !timedOut) {
-              setScanStatus('failed');
-            }
-            clearTimeout(timeoutId);
-            resolve();
-          }, 'image/jpeg', 0.92);
-        });
-      } catch {
-        freeMats();
-        clearTimeout(timeoutId);
-        if (!cancelled && !timedOut) setScanStatus('failed');
-      }
-    })();
-
-    return () => { cancelled = true; clearTimeout(timeoutId); freeMats(); };
-  }, [previewUrl]);
-
-  // Revoke the blob URL when it changes or when the component unmounts
-  useEffect(() => {
-    const url = scannedUrl;
-    return () => { if (url?.startsWith('blob:')) URL.revokeObjectURL(url); };
-  }, [scannedUrl]);
-
-  const displayUrl = scannedUrl || previewUrl;
-  const fileToUse = scannedBlob
-    ? new File([scannedBlob], file.name || 'photo.jpg', { type: 'image/jpeg' })
-    : file;
 
   return (
     <div style={{
@@ -2245,23 +2113,8 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
             borderRadius:99, minHeight:40, display:'flex', alignItems:'center', gap:5}}>
           ← Retake
         </button>
-        <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:2}}>
-          <div style={{fontSize:13, fontWeight:700, color:T.text}}>Review Photo</div>
-          {scanStatus === 'scanning' && previewUrl && (
-            <div style={{fontSize:10, color:T.textDim, display:'flex', alignItems:'center', gap:4}}>
-              <div style={{
-                width:8, height:8, borderRadius:'50%',
-                border:'1.5px solid rgba(255,255,255,0.12)', borderTopColor:col,
-                animation:'spin 0.8s linear infinite',
-              }}/>
-              Detecting document…
-            </div>
-          )}
-          {scanStatus === 'done' && (
-            <div style={{fontSize:10, color:col, fontWeight:600}}>✓ Document corrected</div>
-          )}
-        </div>
-        <button onClick={() => onConfirm(fileToUse, caption)} className="btn-press"
+        <div style={{fontSize:13, fontWeight:700, color:T.text}}>Review Photo</div>
+        <button onClick={() => onConfirm(file, caption)} className="btn-press"
           style={{
             background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
             border:'none', color:'#fff', fontSize:12, fontWeight:700,
@@ -2275,8 +2128,8 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
       {/* Preview */}
       <div style={{flex:1, display:'flex', alignItems:'center', justifyContent:'center',
         padding:'16px', background:'#000', overflow:'hidden'}}>
-        {displayUrl ? (
-          <img src={displayUrl} alt="Preview"
+        {previewUrl ? (
+          <img src={previewUrl} alt="Preview"
             style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain',
               borderRadius:14, boxShadow:'0 12px 50px rgba(0,0,0,0.85)', display:'block'}}/>
         ) : (
@@ -2316,7 +2169,7 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
               cursor:'pointer', minHeight:52}}>
             Retake
           </button>
-          <button onClick={() => onConfirm(fileToUse, caption)} className="btn-press"
+          <button onClick={() => onConfirm(file, caption)} className="btn-press"
             style={{flex:2, background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`,
               border:'none', color:'#fff', borderRadius:16, padding:'14px',
               fontSize:14, fontWeight:800, cursor:'pointer', minHeight:52,
@@ -2332,7 +2185,8 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
 function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, weekPlan, onDetailOpenChange }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
-  useEffect(() => { onDetailOpenChange?.(!!selectedCourseId); }, [selectedCourseId]);
+  const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
+  useEffect(() => { onDetailOpenChange?.(!!(selectedCourseId || pendingScan)); }, [selectedCourseId, pendingScan]);
   // Guarantee the HUD is restored if PhotoLibrary unmounts while a detail is open
   // (e.g. user switches tabs before tapping Back)
   useEffect(() => { return () => { onDetailOpenChange?.(false); }; }, []);
@@ -2342,7 +2196,6 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, focusItems, 
   const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadError, setUploadError] = useState('');
   const [aiStudyOpen, setAiStudyOpen] = useState(false);
-  const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const addingToRef = useRef(null);
@@ -4998,7 +4851,7 @@ Respond ONLY with valid JSON:
       </div>
 
       {/* ── Bottom Navigation ── */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:appReady?1:0,transition:"opacity 0.3s ease",pointerEvents:"auto"}}>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:(showAddPhotoNote||photoDetailOpen)?0:appReady?1:0,transition:"opacity 0.3s ease",pointerEvents:(showAddPhotoNote||photoDetailOpen)?"none":"auto"}}>
         <div style={{
           position:"absolute",inset:0,
           background:"rgba(13,27,42,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
