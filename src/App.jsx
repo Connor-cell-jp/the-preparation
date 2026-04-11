@@ -4851,45 +4851,57 @@ Respond ONLY with valid JSON:
       </div>
 
       {/* ── Bottom Navigation ── */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:50,animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",opacity:(showAddPhotoNote||photoDetailOpen)?0:appReady?1:0,transition:"opacity 0.3s ease",pointerEvents:(showAddPhotoNote||photoDetailOpen)?"none":"auto"}}>
+      {/* Outer div: owns opacity/transition/pointerEvents — no animation, so fill-mode cannot block the fade */}
+      <div style={{
+        position:"fixed",bottom:0,left:0,right:0,zIndex:50,
+        opacity:(showAddPhotoNote||photoDetailOpen)?0:1,
+        transition:"opacity 0.3s ease",
+        pointerEvents:(showAddPhotoNote||photoDetailOpen)?"none":"auto",
+      }}>
+        {/* Inner div: owns the cinemaTabFade entrance animation — kept separate so its fill-mode does not interfere with the outer opacity transition */}
         <div style={{
-          position:"absolute",inset:0,
-          background:"rgba(13,27,42,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
-          borderTop:"1px solid rgba(255,255,255,0.08)",
-          boxShadow:"0 -4px 24px rgba(0,0,0,0.4)",
-          transform:"translateZ(0)",
-        }}/>
-        <div style={{display:"flex",position:"relative"}}>
-          {[
-            ["today","Today","☀"],
-            ["week","Week","▦"],
-            ["ai","Check-In","✦"],
-            ["arc","Arc","△"],
-            ["notes","Notes","📷"],
-          ].map(([k,label,icon])=>(
-            <button key={k} onClick={()=>setView(k)} className="btn-press"
-              style={{
-                flex:1,padding:"10px 2px 8px",background:"none",border:"none",
-                cursor:"pointer",display:"flex",flexDirection:"column",
-                alignItems:"center",gap:3,color:view===k?T.blue:"rgba(255,255,255,0.35)",
-                transition:"color 0.22s cubic-bezier(0.4,0,0.2,1)",minHeight:56,position:"relative",
-              }}>
-              {view===k&&<div style={{
-                position:"absolute",top:0,left:"15%",right:"15%",
-                height:2,
-                background:"linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)",
-                borderRadius:"0 0 3px 3px",
-                boxShadow:"0 0 8px rgba(59,130,246,0.7), 0 0 20px rgba(59,130,246,0.3)",
-              }}/>}
-              <span style={{fontSize:17,lineHeight:1}}>{icon}</span>
-              <span style={{
-                fontSize:9,fontWeight:view===k?800:500,
-                letterSpacing:0.5,textTransform:"uppercase",
-              }}>{label}</span>
-            </button>
-          ))}
+          animation:appReady?"cinemaTabFade 0.6s cubic-bezier(0.2,0,0,1) both 0.18s":"none",
+          opacity:appReady?1:0,
+        }}>
+          <div style={{
+            position:"absolute",inset:0,
+            background:"rgba(13,27,42,0.96)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
+            borderTop:"1px solid rgba(255,255,255,0.08)",
+            boxShadow:"0 -4px 24px rgba(0,0,0,0.4)",
+            transform:"translateZ(0)",
+          }}/>
+          <div style={{display:"flex",position:"relative"}}>
+            {[
+              ["today","Today","☀"],
+              ["week","Week","▦"],
+              ["ai","Check-In","✦"],
+              ["arc","Arc","△"],
+              ["notes","Notes","📷"],
+            ].map(([k,label,icon])=>(
+              <button key={k} onClick={()=>setView(k)} className="btn-press"
+                style={{
+                  flex:1,padding:"10px 2px 8px",background:"none",border:"none",
+                  cursor:"pointer",display:"flex",flexDirection:"column",
+                  alignItems:"center",gap:3,color:view===k?T.blue:"rgba(255,255,255,0.35)",
+                  transition:"color 0.22s cubic-bezier(0.4,0,0.2,1)",minHeight:56,position:"relative",
+                }}>
+                {view===k&&<div style={{
+                  position:"absolute",top:0,left:"15%",right:"15%",
+                  height:2,
+                  background:"linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%)",
+                  borderRadius:"0 0 3px 3px",
+                  boxShadow:"0 0 8px rgba(59,130,246,0.7), 0 0 20px rgba(59,130,246,0.3)",
+                }}/>}
+                <span style={{fontSize:17,lineHeight:1}}>{icon}</span>
+                <span style={{
+                  fontSize:9,fontWeight:view===k?800:500,
+                  letterSpacing:0.5,textTransform:"uppercase",
+                }}>{label}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{height:"env(safe-area-inset-bottom)",background:"#0d1b2a",position:"relative"}}/>
         </div>
-        <div style={{height:"env(safe-area-inset-bottom)",background:"#0d1b2a",position:"relative"}}/>
       </div>
     </>
   );
