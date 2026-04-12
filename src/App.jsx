@@ -2460,7 +2460,14 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
     const withUser = [...chatHistory, { role: 'user', content: answer }];
     setChatHistory(withUser);
     try {
-      const apiMessages = withUser.map(m => ({ role: m.role, content: m._content ?? m.content }));
+      const apiMessages = withUser.map((m, i) => {
+        // First message carries _content with PDF + image blocks — strip them on follow-ups
+        if (i === 0 && Array.isArray(m._content)) {
+          const textBlock = m._content.find(b => b.type === 'text');
+          return { role: m.role, content: textBlock ? textBlock.text : m.content };
+        }
+        return { role: m.role, content: m._content ?? m.content };
+      });
       const response = await callStudyAPI(apiMessages);
       setChatHistory(h => [...h, { role: 'assistant', content: response }]);
     } catch (err) {
