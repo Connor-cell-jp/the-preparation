@@ -72,3 +72,40 @@ export async function deleteNotePhoto(storageKey) {
     await supabase.storage.from('notes-photos').remove([storageKey]);
   } catch {}
 }
+
+// ── Course Materials (PDFs) ───────────────────────────────────────────────────
+// Bucket name: course-materials  (create this bucket in Supabase dashboard)
+// Path: {userId}/{courseId}.pdf  — one PDF per course, upsert overwrites previous
+
+// Upload a PDF for a course. Returns { storageKey } on success, throws on error.
+export async function uploadCourseMaterial(file, courseId) {
+  if (!_activeUserId) throw new Error('Not authenticated');
+  const storageKey = `${_activeUserId}/${courseId}.pdf`;
+  const { error } = await supabase.storage
+    .from('course-materials')
+    .upload(storageKey, file, { upsert: true, contentType: 'application/pdf' });
+  if (error) throw error;
+  return { storageKey };
+}
+
+// Generate a fresh signed URL for an existing course PDF.
+export async function createSignedCourseMaterialUrl(storageKey, expiresIn = 31536000) {
+  if (!storageKey) return null;
+  try {
+    const { data, error } = await supabase.storage
+      .from('course-materials')
+      .createSignedUrl(storageKey, expiresIn);
+    if (error) return null;
+    return data?.signedUrl || null;
+  } catch {
+    return null;
+  }
+}
+
+// Delete a course PDF. Fire-and-forget safe — never throws.
+export async function deleteCourseMaterial(storageKey) {
+  if (!storageKey) return;
+  try {
+    await supabase.storage.from('course-materials').remove([storageKey]);
+  } catch {}
+}

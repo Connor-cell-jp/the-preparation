@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, startTransition, useDeferredValue } from "react";
 import { createPortal } from "react-dom";
-import { supabase, upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
+import { supabase, upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl, uploadCourseMaterial, createSignedCourseMaterialUrl, deleteCourseMaterial } from "./supabase";
 
 
 // ── Settings-aware pure helpers ───────────────────────────────────────────────
@@ -602,6 +602,8 @@ const SK_SNAPSHOT="tp_snapshot1";
 const SK_RATIOS="tp_ratios1",SK_HISTORY="tp_history1",SK_FOCUS_INPUT="tp_focus_input1";
 // ── Photo Notes storage key ──
 const SK_NOTES="tp_notes1";
+// ── Course Materials storage key ──
+const SK_COURSE_MATERIALS="tp_course_materials1";
 const MAX_REVIEWS=20;
 const NOTIF_TTL_MS = 3*24*60*60*1000;
 
@@ -2296,8 +2298,23 @@ async function fetchImageAsBase64(storageKey, fallbackUrl) {
   } catch { return null; }
 }
 
+// ── Fetch course PDF as base64 for Anthropic document block ──────────────────
+async function fetchPdfAsBase64(storageKey) {
+  try {
+    const url = await createSignedCourseMaterialUrl(storageKey);
+    if (!url) return null;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  } catch { return null; }
+}
+
 // ── LectureStudyModal ────────────────────────────────────────────────────────
-function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose }) {
+function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMaterial, onClose }) {
   const col = gc(courseItem?.genre);
   const lectureLabel = lectureNum != null ? `Lecture ${lectureNum}` : 'Unlabeled Notes';
 
@@ -2330,6 +2347,13 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
   // summarize
   const [summary, setSummary] = useState('');
 
+  // study source sub-mode (for flashcard + mc)
+  const [pendingMode, setPendingMode] = useState(null); // which mode was tapped before source chosen
+  const [studySource, setStudySource] = useState(null); // 'notes' | 'notes+gaps'
+
+  // cached PDF base64 (loaded once per session alongside images)
+  const [pdfData, setPdfData] = useState(null); // base64 string or null
+
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory]);
   useEffect(() => {
     if (mode === 'chat' && chatHistory.length > 0 && !thinking) setTimeout(() => inputRef.current?.focus(), 80);
@@ -2350,51 +2374,74 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
     return valid;
   };
 
-  const buildContext = (imgs) => {
+  const buildContext = (imgs, hasPdf) => {
     const pages = photos.map(p => p.pageNum).filter(p => p != null);
     let ctx = `Course: ${courseItem?.name || 'Unknown'}\n${lectureLabel}${pages.length ? ` · Pages: ${pages.join(', ')}` : ''}\nPhotos provided: ${imgs.length}`;
+    if (hasPdf) ctx += `\nCourse outline PDF: provided above — use it for full course context`;
     if (profile && profile.length > 30) ctx += `\n\nLEARNER PROFILE:\n${profile}`;
     return ctx;
   };
 
   const goBack = () => {
-    setMode(null); setLoadError('');
+    setMode(null); setPendingMode(null); setStudySource(null); setLoadError('');
     setChatHistory([]); setUserInput('');
     setFlashcards([]); setCardIndex(0); setCardFlipped(false); setCardResults([]); setFlashDone(false);
     setMcQuestions([]); setMcIndex(0); setMcSelected(null); setMcResults([]); setMcDone(false);
     setSummary('');
   };
 
-  const startMode = async (selectedMode) => {
+  const startMode = async (selectedMode, source) => {
     setMode(selectedMode);
+    setStudySource(source);
+    setPendingMode(null);
     setLoadError('');
     setThinking(true);
     try {
       const imgs = imageData || await (async () => { const d = await loadImages(); setImageData(d); return d; })();
       const imgBlocks = imgs.map(({ base64, mediaType }) => ({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }));
-      const ctx = buildContext(imgs);
+
+      // Load course PDF once and cache it; silently skip if unavailable
+      const pdf = pdfData !== null ? pdfData : await (async () => {
+        const b64 = courseMaterial?.storageKey ? await fetchPdfAsBase64(courseMaterial.storageKey) : null;
+        setPdfData(b64 ?? false); // false = attempted but unavailable
+        return b64;
+      })();
+      const docBlock = pdf ? {
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: pdf },
+        title: `${courseItem?.name || 'Course'} — Course Outline`,
+      } : null;
+      const allBlocks = (content) => [...(docBlock ? [docBlock] : []), ...imgBlocks, { type: 'text', text: content }];
+
+      const ctx = buildContext(imgs, !!pdf);
 
       if (selectedMode === 'chat') {
-        const firstMsg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nYou are a knowledgeable tutor helping a student understand this lecture. You have studied the notes in these images and understand the concepts deeply. Do NOT quote directly from the notes or repeat phrases verbatim. Engage like a real teacher: use your own words, offer analogies, and help the student build genuine understanding. Start with a concise overview of the core ideas in this lecture in your own words, then ask the student what they'd like to dig into or where they feel less confident.` }] };
+        const firstMsg = { role: 'user', content: allBlocks(`${ctx}\n\nYou are a knowledgeable tutor helping a student understand this lecture. You have studied the notes in these images and understand the concepts deeply. Do NOT quote directly from the notes or repeat phrases verbatim. Engage like a real teacher: use your own words, offer analogies, and help the student build genuine understanding. Start with a concise overview of the core ideas in this lecture in your own words, then ask the student what they'd like to dig into or where they feel less confident.`) };
         const firstReply = await callStudyAPI([firstMsg]);
         setChatHistory([{ role: 'user', _content: firstMsg.content }, { role: 'assistant', content: firstReply }]);
 
       } else if (selectedMode === 'flashcard') {
-        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nYou are a skilled teacher creating flashcards for a student. Study the notes in these images and understand the concepts. Generate 8–12 flashcards that test genuine comprehension — do NOT copy phrases directly from the notes. Questions should ask the student to explain ideas in their own words, apply a concept to a situation, or articulate why something matters. Avoid simple recall like "What does X stand for?" — favor questions like "Why does X matter?" or "How would you apply X when...?". Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]` }] };
+        const flashPrompt = source === 'notes+gaps'
+          ? `${ctx}\n\nYou are a skilled teacher creating flashcards for a student. Study the notes in these images carefully. Mirror the student's own terminology and phrasing from the notes wherever it makes sense — adapt or rephrase slightly only when needed for clarity. Generate 8–12 flashcards: the majority should test concepts directly from these notes, but include a few that fill in important gaps — foundational ideas, prerequisite knowledge, or closely related concepts not fully covered in the notes but needed for genuine understanding. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]`
+          : `${ctx}\n\nYou are a skilled teacher creating flashcards for a student. Study the notes in these images carefully. Mirror the student's own terminology and phrasing from the notes wherever it makes sense — adapt or rephrase slightly only when needed for clarity. Generate 8–12 flashcards that cover only the concepts found in these notes. Ask questions in a natural, conversational way that tests genuine understanding, not just memorization. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]`;
+        const msg = { role: 'user', content: allBlocks(flashPrompt) };
         const raw = await callStudyAPI([msg]);
         const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
         const cards = JSON.parse(jsonStr);
         setFlashcards(cards); setCardIndex(0); setCardFlipped(false); setCardResults([]); setFlashDone(false);
 
       } else if (selectedMode === 'mc') {
-        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nYou are a skilled teacher writing a quiz for a student. Study the notes in these images and understand the concepts. Generate 6–8 multiple choice questions that test real understanding — do NOT copy phrases directly from the notes. Questions should require the student to apply concepts, distinguish between related ideas, or reason about cause and effect. Distractors should be plausible and require genuine thought to rule out. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]` }] };
+        const mcPrompt = source === 'notes+gaps'
+          ? `${ctx}\n\nYou are a skilled teacher writing a quiz for a student. Study the notes in these images carefully. Mirror the student's own terminology and phrasing from the notes wherever it makes sense — adapt or rephrase slightly only when needed for clarity. Generate 6–8 multiple choice questions: the majority should test concepts directly from these notes, but include a few that fill in important gaps — foundational ideas, prerequisite knowledge, or closely related concepts not fully covered in the notes but needed for genuine understanding. Distractors should be plausible and require genuine thought to rule out. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]`
+          : `${ctx}\n\nYou are a skilled teacher writing a quiz for a student. Study the notes in these images carefully. Mirror the student's own terminology and phrasing from the notes wherever it makes sense — adapt or rephrase slightly only when needed for clarity. Generate 6–8 multiple choice questions that test concepts found only in these notes. Questions should require the student to apply concepts, distinguish between related ideas, or reason about cause and effect. Distractors should be plausible and require genuine thought to rule out. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]`;
+        const msg = { role: 'user', content: allBlocks(mcPrompt) };
         const raw = await callStudyAPI([msg]);
         const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
         const questions = JSON.parse(jsonStr);
         setMcQuestions(questions); setMcIndex(0); setMcSelected(null); setMcResults([]); setMcDone(false);
 
       } else if (selectedMode === 'summarize') {
-        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nProvide a clear, well-organized summary of this lecture based on the notes in these photos. Cover key concepts, important definitions, main arguments or processes, and anything particularly emphasized.` }] };
+        const msg = { role: 'user', content: allBlocks(`${ctx}\n\nProvide a clear, well-organized summary of this lecture based on the notes in these photos. Cover key concepts, important definitions, main arguments or processes, and anything particularly emphasized.`) };
         setSummary(await callStudyAPI([msg]));
       }
     } catch (err) {
@@ -2460,9 +2507,10 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
           </div>
           <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700, marginBottom: 4 }}>AI Study ✦</div>
           <div style={{ fontSize: 19, fontWeight: 900, color: T.text, letterSpacing: -0.5, lineHeight: 1.2 }}>{courseItem?.name}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: T.text, background: `${col}33`, borderRadius: 6, padding: '2px 9px' }}>{lectureLabel}</span>
             <span style={{ fontSize: 10, color: T.textDim }}>{photos.length} photo{photos.length !== 1 ? 's' : ''}</span>
+            {courseMaterial && <span style={{ fontSize: 10, color: T.textDim, display: 'flex', alignItems: 'center', gap: 3 }}>📄 outline</span>}
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', WebkitOverflowScrolling: 'touch' }}>
@@ -2474,7 +2522,46 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
             { key: 'mc',        icon: '✅', label: 'Multiple Choice', desc: 'Claude writes 4-option questions from your notes. Pick an answer and see if you\'re right.' },
             { key: 'summarize', icon: '📋', label: 'Summarize',       desc: 'A clean, organized summary of the lecture content from your photos.' },
           ].map((opt, i) => (
-            <button key={opt.key} onClick={() => startMode(opt.key)} className="btn-press"
+            <button key={opt.key} onClick={() => (opt.key === 'flashcard' || opt.key === 'mc') ? setPendingMode(opt.key) : startMode(opt.key, null)} className="btn-press"
+              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ fontSize: 26, flexShrink: 0 }}>{opt.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>{opt.label}</div>
+                <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5 }}>{opt.desc}</div>
+              </div>
+              <div style={{ fontSize: 16, color: T.textDim, flexShrink: 0 }}>›</div>
+            </button>
+          ))}
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
+  // ── Source selector (flashcard / mc sub-screen) ──
+  if (pendingMode && !mode) {
+    const modeLabel = pendingMode === 'flashcard' ? 'Flashcard' : 'Multiple Choice';
+    const modeIcon  = pendingMode === 'flashcard' ? '🃏' : '✅';
+    return createPortal(
+      <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
+        <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ marginBottom: 12 }}>
+            <button onClick={() => setPendingMode(null)} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 40, display: 'flex', alignItems: 'center', gap: 6 }}>← Back</button>
+          </div>
+          <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700, marginBottom: 4 }}>{modeIcon} {modeLabel}</div>
+          <div style={{ fontSize: 19, fontWeight: 900, color: T.text, letterSpacing: -0.5, lineHeight: 1.2 }}>{courseItem?.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: T.text, background: `${col}33`, borderRadius: 6, padding: '2px 9px' }}>{lectureLabel}</span>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', WebkitOverflowScrolling: 'touch' }}>
+          {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 16 }}>{loadError}</div>}
+          <div style={{ fontSize: 11, color: T.textDim, textAlign: 'center', marginBottom: 22 }}>What should the questions pull from?</div>
+          {[
+            { key: 'notes',      icon: '📝', label: 'Notes Only',       desc: 'Questions cover only the concepts in your notes, using your own terminology and phrasing where it makes sense.' },
+            { key: 'notes+gaps', icon: '🔍', label: 'Notes + Fill Gaps', desc: 'Covers your notes plus a few extra questions on foundational ideas or related concepts your notes may not have fully captured.' },
+          ].map((opt, i) => (
+            <button key={opt.key} onClick={() => startMode(pendingMode, opt.key)} className="btn-press"
               style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ fontSize: 26, flexShrink: 0 }}>{opt.icon}</div>
               <div style={{ flex: 1 }}>
@@ -2734,7 +2821,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
   );
 }
 
-const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange, profile }) {
+const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange, profile, courseMaterials, onSetCourseMaterial, onRemoveCourseMaterial }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
@@ -2748,12 +2835,16 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
   const [uploadError, setUploadError] = useState('');
   const [studySession, setStudySession] = useState(null); // { courseItem, lectureNum, photos }
   const [expandedLectures, setExpandedLectures] = useState(new Set());
+  // course material (PDF) upload state
+  const [uploadingMaterial, setUploadingMaterial] = useState(false);
+  const [materialError, setMaterialError] = useState('');
   useEffect(() => { onDetailOpenChange?.(!!(selectedCourseId || pendingScan || expandedNote || studySession)); }, [selectedCourseId, pendingScan, expandedNote, studySession]);
   // Guarantee the HUD is restored if PhotoLibrary unmounts while a detail is open
   // (e.g. user switches tabs before tapping Back)
   useEffect(() => { return () => { onDetailOpenChange?.(false); }; }, []);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
   const addingToRef = useRef(null);
 
   const coursesOnly = (curriculum||[]).filter(i=>i.type==="course");
@@ -2831,6 +2922,37 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
     setTimeout(()=>cameraInputRef.current?.click(), 50);
   };
 
+  const triggerPdfUpload = () => {
+    setMaterialError('');
+    setTimeout(() => pdfInputRef.current?.click(), 50);
+  };
+
+  const handlePdfChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = '';
+    if (!file || !selectedCourseId) return;
+    if (file.type !== 'application/pdf') { setMaterialError('Please select a PDF file.'); return; }
+    setUploadingMaterial(true);
+    setMaterialError('');
+    try {
+      const { storageKey } = await uploadCourseMaterial(file, selectedCourseId);
+      onSetCourseMaterial?.(selectedCourseId, {
+        storageKey,
+        name: file.name,
+        uploadedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      setMaterialError(err?.message || 'Upload failed');
+    }
+    setUploadingMaterial(false);
+  };
+
+  const handleRemoveMaterial = (courseId) => {
+    const mat = courseMaterials?.[courseId];
+    if (mat?.storageKey) deleteCourseMaterial(mat.storageKey); // fire-and-forget
+    onRemoveCourseMaterial?.(courseId);
+  };
+
   if (pendingScan) {
     const courseItem = coursesOnly.find(i=>i.id===pendingScan.courseId);
     const col = gc(courseItem?.genre);
@@ -2854,6 +2976,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
       lectureNum={studySession.lectureNum}
       photos={studySession.photos}
       profile={profile}
+      courseMaterial={courseMaterials?.[studySession.courseItem?.id]}
       onClose={() => setStudySession(null)}
     />;
   }
@@ -3128,6 +3251,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
       }}>
         <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleFileChange}/>
         <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFileChange}/>
+        <input ref={pdfInputRef} type="file" accept="application/pdf" style={{display:'none'}} onChange={handlePdfChange}/>
         {/* Header */}
         <div style={{
           padding:'14px 16px 16px', flexShrink:0,
@@ -3176,10 +3300,51 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
               {noteArr.length} photo{noteArr.length!==1?'s':''}
             </span>
           </div>
+          {/* Course Outline PDF row */}
+          <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+            {(() => {
+              const mat = courseMaterials?.[selectedCourseId];
+              if (uploadingMaterial) {
+                return <div style={{fontSize:11,color:T.textDim,fontWeight:600,display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{width:12,height:12,borderRadius:'50%',border:'2px solid rgba(255,255,255,0.10)',borderTopColor:col,animation:'spin 0.9s linear infinite'}}/>
+                  Uploading outline…
+                </div>;
+              }
+              if (mat) {
+                return <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <div style={{fontSize:14}}>📄</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:11,fontWeight:700,color:T.textMid,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{mat.name}</div>
+                    <div style={{fontSize:9,color:T.textDim,marginTop:1}}>Course outline · used in AI sessions</div>
+                  </div>
+                  <button onClick={()=>handleRemoveMaterial(selectedCourseId)} className="btn-press"
+                    style={{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.28)',color:T.red,
+                      borderRadius:8,padding:'4px 10px',fontSize:10,fontWeight:700,cursor:'pointer',flexShrink:0,minHeight:30}}>
+                    Remove
+                  </button>
+                  <button onClick={triggerPdfUpload} className="btn-press"
+                    style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.12)',color:T.textDim,
+                      borderRadius:8,padding:'4px 10px',fontSize:10,fontWeight:600,cursor:'pointer',flexShrink:0,minHeight:30}}>
+                    Replace
+                  </button>
+                </div>;
+              }
+              return <button onClick={triggerPdfUpload} className="btn-press"
+                style={{display:'flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.05)',
+                  border:'1px dashed rgba(255,255,255,0.15)',borderRadius:10,padding:'8px 12px',
+                  cursor:'pointer',width:'100%',textAlign:'left'}}>
+                <span style={{fontSize:16}}>📄</span>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:T.textMid}}>Import Course Outline</div>
+                  <div style={{fontSize:10,color:T.textDim,marginTop:1}}>Upload a PDF — Claude will use it as context in AI sessions</div>
+                </div>
+              </button>;
+            })()}
+          </div>
         </div>
-        {uploadError&&<div style={{margin:'8px 14px 0',background:'rgba(239,68,68,0.10)',
+        {(uploadError||materialError)&&<div style={{margin:'8px 14px 0',background:'rgba(239,68,68,0.10)',
           border:'1px solid rgba(239,68,68,0.28)',borderRadius:10,padding:'8px 12px',
-          fontSize:11,color:T.red}}>{uploadError}</div>}
+          fontSize:11,color:T.red}}>{uploadError||materialError}</div>}
         {/* Photo grid */}
         <div style={{flex:1,overflowY:'auto',padding:'16px 14px 24px',WebkitOverflowScrolling:'touch'}}>
           {noteArr.length===0&&!isUploading ? (
@@ -3653,6 +3818,8 @@ export default function App({ onSignOut }){
   });
   // ── Photo notes state ──
   const [notes, setNotes] = useState(()=>load(SK_NOTES,{}));
+  // ── Course materials state ──
+  const [courseMaterials, setCourseMaterials] = useState(()=>load(SK_COURSE_MATERIALS,{}));
   const [showAddPhotoNote, setShowAddPhotoNote] = useState(false);
 
   // ── 3. Remaining state & hooks ──
@@ -3773,6 +3940,8 @@ export default function App({ onSignOut }){
   useEffect(()=>{try{localStorage.setItem(SK_FOCUS_INPUT,planFlowFocusText);}catch{}upsertUserDataRaw(SK_FOCUS_INPUT,planFlowFocusText);},[planFlowFocusText]);
   // Photo notes persistence
   useEffect(()=>save(SK_NOTES,notes),[notes]);
+  // Course materials persistence
+  useEffect(()=>save(SK_COURSE_MATERIALS,courseMaterials),[courseMaterials]);
 
   // ── 7. Effects ──
   useEffect(()=>{
@@ -3884,6 +4053,14 @@ export default function App({ onSignOut }){
       ...prev,
       [itemId]: (prev[itemId] || []).map(n => n.id === noteId ? { ...n, ...updates } : n),
     }));
+  }, []);
+
+  // ── Course materials handlers ──
+  const setCourseMaterialCb = useCallback((courseId, material) => {
+    setCourseMaterials(prev => ({ ...prev, [courseId]: material }));
+  }, []);
+  const removeCourseMaterialCb = useCallback((courseId) => {
+    setCourseMaterials(prev => { const n = { ...prev }; delete n[courseId]; return n; });
   }, []);
 
   // ── 9. AI context builder ──
@@ -4659,7 +4836,7 @@ Respond ONLY with valid JSON:
   const doClearAll=()=>{
     if(!window.confirm("Clear ALL data? Export first.")) return;
     if(!window.confirm("Are you sure? Cannot be undone.")) return;
-    [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export",SK_SETTINGS,SK_NOTIFS,SK_HIDDEN,SK_RATIOS,SK_HISTORY,SK_FOCUS_INPUT,SK_SNAPSHOT,SK_NOTES]
+    [SK_P,SK_W,SK_F,SK_REVIEWS,SK_PROFILE,SK_PLAN,SK_QUEUE,SK_WEEKLY_HOURS,"tp_bonus1",SK_CUSTOM,SK_SUNDAY_DONE,"tp_last_export",SK_SETTINGS,SK_NOTIFS,SK_HIDDEN,SK_RATIOS,SK_HISTORY,SK_FOCUS_INPUT,SK_SNAPSHOT,SK_NOTES,SK_COURSE_MATERIALS]
       .forEach(k=>localStorage.removeItem(k));
     const defaultFocus={courses:["A1"],books:["B99","B34"],manual:false};
     setProgress({});setWeek({weekStart:getMonday(),hoursLogged:0});
@@ -4669,6 +4846,7 @@ Respond ONLY with valid JSON:
     setBonusItems([]);setOfflineQueue([]);setCustomItems([]);
     setSettings(DEFAULT_SETTINGS);setHiddenIds([]);
     setNotes({});
+    setCourseMaterials({});
     setAiResult(null);
     clearNotifs();
     save(SK_F,defaultFocus);
@@ -5546,6 +5724,9 @@ Respond ONLY with valid JSON:
               weekPlan={weekPlan}
               onDetailOpenChange={setPhotoDetailOpen}
               profile={profile}
+              courseMaterials={courseMaterials}
+              onSetCourseMaterial={setCourseMaterialCb}
+              onRemoveCourseMaterial={removeCourseMaterialCb}
             />
           </div>}
         </div>
