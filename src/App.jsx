@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, startTransition } from "react";
 import { supabase, upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
 
 
@@ -583,6 +583,14 @@ function getTodayISO(){ return toLocalISO(new Date()); }
 function getWeekISO(){ const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function isSunday(){ return new Date().getDay()===0; }
 function isMonday(){ return new Date().getDay()===1; }
+// Returns the ISO date of the most recent Sunday (or last week's Sunday if today IS Sunday)
+// Used to detect whether the previous week's review was missed before allowing a new plan.
+function getMostRecentSundayISO() {
+  const d = new Date(), day = d.getDay(); // 0=Sun
+  const daysBack = day === 0 ? 7 : day;
+  const sun = new Date(d); sun.setDate(sun.getDate() - daysBack); sun.setHours(0,0,0,0);
+  return toLocalISO(sun);
+}
 
 const SK_P="tp_p4",SK_W="tp_w4",SK_F="tp_f4",SK_REVIEWS="tp_reviews2",SK_PROFILE="tp_profile2";
 const SK_PLAN="tp_plan2",SK_QUEUE="tp_queue1",SK_WEEKLY_HOURS="tp_wkhours1",SK_CUSTOM="tp_custom1";
@@ -741,7 +749,7 @@ const GLOBAL_CSS = `
   }
   .btn-press { transition: transform 0.08s cubic-bezier(0.4,0,0.2,1), opacity 0.15s ease, color 0.18s ease; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
   .btn-press:active { transform: scale(0.97); transition: transform 0.08s cubic-bezier(0.4,0,0.2,1); }
-  .tab-content { animation: fadeIn 0.15s ease both; padding-top: 220px; position: relative; z-index: 1; }
+  .tab-content { animation: fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both; padding-top: 220px; position: relative; z-index: 1; transform: translateZ(0); will-change: opacity, transform; }
   .tab-card { animation: fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both; }
   html, body { overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; }
   input, textarea, select { transition: border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1); font-size: 16px; color: #ffffff; }
@@ -1834,7 +1842,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
         backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
         display:'flex', flexDirection:'column',
         paddingTop:'env(safe-area-inset-top)',
-        animation:'fadeIn 0.22s ease both',
+        animation:'slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both',
       }}>
         <div style={{padding:'14px 16px 12px', flexShrink:0, borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
@@ -1856,7 +1864,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
               <div style={{fontSize:9, color:T.textDim, textTransform:'uppercase', letterSpacing:1.5, fontWeight:700, marginBottom:8}}>
                 {planCourseIds.length>0?'This Week':'Active Focus'}
               </div>
-              {priorityItems.map(item=>{
+              {priorityItems.map((item,idx)=>{
                 const col=gc(item.genre);
                 const noteCount=(notes[item.id]||[]).length;
                 return (
@@ -1867,6 +1875,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
                       border:`1px solid rgba(255,255,255,0.1)`, borderLeft:`3px solid ${col}`,
                       borderRadius:14, padding:'12px 14px', marginBottom:8,
                       display:'flex', alignItems:'center', gap:12, cursor:'pointer', textAlign:'left',
+                      animation:`fadeUp 0.2s cubic-bezier(0.4,0,0.2,1) ${0.08+idx*0.04}s both`,
                     }}>
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{fontSize:9, color:col, textTransform:'uppercase', letterSpacing:1, fontWeight:700, marginBottom:3}}>
@@ -1905,7 +1914,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
                 boxSizing:'border-box', fontFamily:'inherit', outline:'none', marginBottom:8,
               }}
             />
-            {filteredRest.map(item=>{
+            {filteredRest.map((item,idx)=>{
               const col=gc(item.genre);
               const noteCount=(notes[item.id]||[]).length;
               return (
@@ -1916,6 +1925,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
                     border:'1px solid rgba(255,255,255,0.07)', borderLeft:`2px solid ${col}`,
                     borderRadius:12, padding:'10px 12px', marginBottom:6,
                     display:'flex', alignItems:'center', gap:10, cursor:'pointer', textAlign:'left',
+                    animation:`fadeUp 0.18s cubic-bezier(0.4,0,0.2,1) ${Math.min(idx*0.03,0.24)}s both`,
                   }}>
                   <div style={{flex:1, minWidth:0}}>
                     <div style={{fontSize:9, color:col, letterSpacing:1, fontWeight:700, marginBottom:2}}>{item.id}</div>
@@ -1947,7 +1957,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
       backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
       display:'flex', flexDirection:'column',
       paddingTop:'env(safe-area-inset-top)',
-      animation:'fadeIn 0.18s ease both',
+      animation:'slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both',
     }}>
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e => { const f=e.target.files?.[0]; if(e.target) e.target.value=''; if(f) setPendingScan({file:f}); }}/>
       <input ref={libInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={e => { const f=e.target.files?.[0]; if(e.target) e.target.value=''; if(f) setPendingScan({file:f}); }}/>
@@ -2040,7 +2050,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
             <div style={{fontSize:13, color:T.textDim}}>Uploading photo…</div>
           </div>
         ) : (
-          <div>
+          <div style={{animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both'}}>
             <div style={{position:'relative', borderRadius:16, overflow:'hidden',
               border:'1px solid rgba(255,255,255,0.1)', marginBottom:14}}>
               <SignedImage storageKey={uploaded.storageKey} fallbackUrl={uploaded.url} alt="" style={{width:'100%', display:'block', borderRadius:16}}/>
@@ -2063,6 +2073,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
           padding:'12px 14px',
           paddingBottom:'calc(env(safe-area-inset-bottom) + 12px)',
           borderTop:'1px solid rgba(255,255,255,0.08)', flexShrink:0,
+          animation:'slideInUp 0.25s cubic-bezier(0.16,1,0.3,1) both',
         }}>
           <button onClick={handleSave} className="btn-press"
             style={{
@@ -2218,7 +2229,7 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
   );
 }
 
-function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange }) {
+const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
@@ -2657,7 +2668,8 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
           {noteArr.length===0&&!isUploading ? (
             <div style={{padding:'64px 24px',textAlign:'center',
               background:'rgba(255,255,255,0.02)',borderRadius:24,
-              border:'1px dashed rgba(255,255,255,0.08)',marginTop:8}}>
+              border:'1px dashed rgba(255,255,255,0.08)',marginTop:8,
+              animation:'fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) 0.1s both'}}>
               <div style={{fontSize:52,marginBottom:16,opacity:0.18}}>📷</div>
               <div style={{fontSize:14,fontWeight:700,color:T.textMid,marginBottom:8}}>No photos yet</div>
               <div style={{fontSize:12,color:T.textDim,lineHeight:1.6,maxWidth:220,margin:'0 auto 24px'}}>
@@ -2702,7 +2714,8 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
                   {deleteConfirm?.noteId===note.id && !expandedNote ? (
                     <div style={{position:'absolute',inset:0,borderRadius:14,
                       background:'rgba(0,0,0,0.80)',backdropFilter:'blur(4px)',
-                      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
+                      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,
+                      animation:'fadeIn 0.15s ease both'}}>
                       <div style={{fontSize:10,color:'rgba(255,255,255,0.85)',fontWeight:600,textAlign:'center',padding:'0 6px'}}>Delete?</div>
                       <div style={{display:'flex',gap:6}}>
                         <button onClick={e=>{e.stopPropagation();setDeleteConfirm(null);}} className="btn-press"
@@ -2892,7 +2905,8 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
               backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
               borderRadius:20,border:'1px solid rgba(255,255,255,0.08)',
               borderTop:'1px solid rgba(255,255,255,0.12)',
-              boxShadow:shadow.card,transform:'translateZ(0)'}}>
+              boxShadow:shadow.card,transform:'translateZ(0)',
+              animation:'fadeUp 0.2s cubic-bezier(0.4,0,0.2,1) both'}}>
               <div style={{fontSize:13,color:T.textDim}}>No courses found</div>
             </div>
           ) : displayCourses.map(({id,item,noteArr},idx)=>(
@@ -2946,17 +2960,32 @@ function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, 
       )}
     </div>
   );
-}
+});
 
 function LogModal({ logging, p, logForm, setLogForm, submitLog, setLogging, weeklyTarget }) {
   const [kbPad, setKbPad] = useState(0);
+  const firstInputRef = useRef(null);
+
   useEffect(() => {
     const vv = window.visualViewport;
-    if (!vv) return;
-    const update = () => setKbPad(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
-    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+    const update = () => {
+      if (!vv) return;
+      setKbPad(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    };
+    if (vv) {
+      vv.addEventListener('resize', update);
+      vv.addEventListener('scroll', update);
+    }
+    // Delay focus until after slideInUp animation (300ms) — prevents keyboard
+    // opening mid-animation which caused the input to jump around on iPhone.
+    const t = setTimeout(() => firstInputRef.current?.focus(), 320);
+    return () => {
+      if (vv) {
+        vv.removeEventListener('resize', update);
+        vv.removeEventListener('scroll', update);
+      }
+      clearTimeout(t);
+    };
   }, []);
 
   const isCourse = logging.type === "course";
@@ -2975,6 +3004,7 @@ function LogModal({ logging, p, logForm, setLogForm, submitLog, setLogging, week
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",
       display:"flex",alignItems:"flex-end",zIndex:100,backdropFilter:"blur(8px)",WebkitBackdropFilter:"blur(8px)",
       paddingBottom:kbPad,boxSizing:"border-box",
+      transition:"padding-bottom 0.2s ease",
       transform:"translateZ(0)",animation:"fadeIn 0.2s ease both"}}>
       <div style={{
         background:"linear-gradient(145deg, rgba(13,27,42,0.98) 0%, rgba(15,34,64,0.98) 100%)",
@@ -2984,6 +3014,8 @@ function LogModal({ logging, p, logForm, setLogForm, submitLog, setLogging, week
         width:"100%",boxSizing:"border-box",
         border:"1px solid rgba(255,255,255,0.1)",borderTop:`3px solid ${gc(logging.genre)}`,
         boxShadow:shadow.raised,
+        overflowY:"auto",
+        maxHeight:`calc(100svh - ${kbPad + 48}px)`,
         transform:"translateZ(0)",willChange:"transform",
         animation:"slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both",
       }}>
@@ -3021,17 +3053,17 @@ function LogModal({ logging, p, logForm, setLogForm, submitLog, setLogging, week
         </div>
         {isCourse&&<div style={{marginBottom:12}}>
           <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Content Covered (hrs)</label>
-          <input type="number" min="0.05" step="0.05"
+          <input ref={firstInputRef} type="number" inputMode="decimal" min="0.05" step="0.05"
             value={logForm.contentHours}
             onChange={e=>setLogForm(f=>({...f,contentHours:e.target.value}))}
-            style={inputSt} placeholder="0.0" autoFocus/>
+            style={inputSt} placeholder="0.0"/>
         </div>}
         <div style={{marginBottom:16}}>
           <label style={{fontSize:11,color:T.textMid,display:"block",marginBottom:5}}>Time Studied (hrs)</label>
-          <input type="number" min="0.05" step="0.05"
+          <input ref={isCourse?undefined:firstInputRef} type="number" inputMode="decimal" min="0.05" step="0.05"
             value={logForm.studyHours}
             onChange={e=>setLogForm(f=>({...f,studyHours:e.target.value}))}
-            style={inputSt} placeholder="0.0" autoFocus={!isCourse}/>
+            style={inputSt} placeholder="0.0"/>
           {previewPct!==null&&<div style={{fontSize:11,color:gc(logging.genre),marginTop:4,fontWeight:600}}>
             {p.percentComplete}% → {previewPct}%
           </div>}
@@ -3144,6 +3176,17 @@ export default function App({ onSignOut }){
     ALL_DAYS.slice(fromIdx).filter(d=>ACTIVE_DAYS.includes(d));
   const dLeft = getRemainingActiveDays().length;
 
+  // Missed Sunday review gate: only fires if user has history (not first week) and we're past Sunday
+  const missedSundayReview = useMemo(() => {
+    if (isSunday()) return false; // It's still Sunday — can still do the review
+    const sundayDoneISO = load(SK_SUNDAY_DONE, null);
+    const mostRecentSunISO = getMostRecentSundayISO();
+    // Only block if they've actually used the app before (have review history or logged hours)
+    const hasHistory = reviews.length > 0 || weeklyHours.length > 0;
+    return hasHistory && sundayDoneISO !== mostRecentSunISO;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviews.length, weeklyHours.length]);
+
   // ── 4. UI state ──
   const [view, setView]                         = useState("today");
   const [sideOpen, setSideOpen]                 = useState(false);
@@ -3168,6 +3211,9 @@ export default function App({ onSignOut }){
   const [sundayForm, setSundayForm]             = useState({stars:0,note:""});
   const [sundaySubmitting, setSundaySubmitting] = useState(false);
   const prevProgressRef = useRef(progress);
+  // When user misses their Sunday review and tries to plan — we gate them behind the review first.
+  // After review saves, this ref triggers the plan flow automatically.
+  const planAfterReview = useRef(false);
   const [paceRatios, setPaceRatios]             = useState(()=>load(SK_RATIOS,{}));
   const [planHistory, setPlanHistory]           = useState(()=>load(SK_HISTORY,[]));
   const [planFlowScreen, setPlanFlowScreen]     = useState(null);
@@ -3297,26 +3343,26 @@ export default function App({ onSignOut }){
   const longestStreak = (()=>{let max=0,cur=0;[...weeklyHours].reverse().forEach(w=>{if(w.realH>=WEEKLY_TARGET){cur++;max=Math.max(max,cur);}else cur=0;});return max;})();
   const genreBalance = (()=>{const map={};CURRICULUM.forEach(i=>{const p=getP(i.id);if(p.hoursSpent>0)map[i.genre]=(map[i.genre]||0)+(p.hoursSpent||0);});return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,8);})();
 
-  // ── Photo notes handlers ──
-  const addNote = (itemId, note) => {
+  // ── Photo notes handlers — stable references so React.memo(PhotoLibrary) doesn't re-render ──
+  const addNote = useCallback((itemId, note) => {
     setNotes(prev => ({
       ...prev,
       [itemId]: [...(prev[itemId] || []), note],
     }));
-  };
-  const deleteNote = (itemId, noteId, storageKey) => {
+  }, []);
+  const deleteNote = useCallback((itemId, noteId, storageKey) => {
     if (storageKey) deleteNotePhoto(storageKey); // fire-and-forget
     setNotes(prev => ({
       ...prev,
       [itemId]: (prev[itemId] || []).filter(n => n.id !== noteId),
     }));
-  };
-  const editNote = (itemId, noteId, updates) => {
+  }, []);
+  const editNote = useCallback((itemId, noteId, updates) => {
     setNotes(prev => ({
       ...prev,
       [itemId]: (prev[itemId] || []).map(n => n.id === noteId ? { ...n, ...updates } : n),
     }));
-  };
+  }, []);
 
   // ── 9. AI context builder ──
   const buildAIContext = () => {
@@ -3806,6 +3852,14 @@ Respond ONLY with a JSON array of strings: ["observation 1","observation 2"]`;
     }
     setShowSundayReview(false);setSundayForm({stars:0,note:""});setSundaySubmitting(false);
     toast_("Week reviewed and summarized");
+    // If user was gated behind review before planning, auto-start the plan flow now
+    if (planAfterReview.current) {
+      planAfterReview.current = false;
+      setTimeout(() => {
+        setPlanFlowSettings({weeklyTarget:WEEKLY_TARGET,activeDays:ACTIVE_DAYS});
+        setPlanFlowScreen("focus");
+      }, 400);
+    }
   };
 
 
@@ -4618,9 +4672,13 @@ Respond ONLY with valid JSON:
               </div>
               {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).map(item=>{
                 const realLeft=realHoursRemaining(item,getP(item.id),settings);
-                const weeksToFinish=avgWeeklyH>0?realLeft/avgWeeklyH:null;
-                const finishDate=weeksToFinish?new Date(Date.now()+weeksToFinish*7*24*60*60*1000)
-                  .toLocaleDateString("en-CA",{month:"short",day:"numeric"}):null;
+                // Use actual avg pace if available, fall back to weekly target so there's always a date
+                const paceH=avgWeeklyH>0?avgWeeklyH:WEEKLY_TARGET;
+                const weeksToFinish=paceH>0&&realLeft>0?realLeft/paceH:null;
+                const finishMs=weeksToFinish!=null?Date.now()+weeksToFinish*7*24*60*60*1000:null;
+                const finishDate=finishMs!=null&&isFinite(finishMs)
+                  ?new Date(finishMs).toLocaleDateString("en-US",{month:"short",day:"numeric"})
+                  :null;
                 const c=gc(item.genre);
                 return <div key={item.id} style={{display:"flex",justifyContent:"space-between",
                   alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.surface2}`}}>
@@ -4629,8 +4687,8 @@ Respond ONLY with valid JSON:
                     <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{realLeft.toFixed(2)}h real left · {getP(item.id).percentComplete}%</div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
-                    {finishDate&&<div style={{fontSize:12,fontWeight:800,color:c}}>{finishDate}</div>}
-                    {weeksToFinish&&<div style={{fontSize:9,color:T.textDim}}>{weeksToFinish.toFixed(1)}w</div>}
+                    {finishDate&&<div style={{fontSize:13,fontWeight:900,color:c}}>{finishDate}</div>}
+                    {weeksToFinish&&<div style={{fontSize:9,color:T.textDim,marginTop:1}}>{weeksToFinish.toFixed(1)}w at {paceH.toFixed(0)}h/wk</div>}
                   </div>
                 </div>;
               })}
@@ -4783,21 +4841,39 @@ Respond ONLY with valid JSON:
                 borderLeft:`3px solid ${T.yellow}`,
                 borderRadius:20,padding:13,fontSize:13,fontWeight:800,
                 color:T.yellow,cursor:"pointer",marginBottom:12,letterSpacing:0.3,minHeight:44,
-                transform:"translateZ(0)"}}>
+                transform:"translateZ(0)",
+                animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
               Write This Week's Review
             </button>}
 
+            {missedSundayReview&&<button onClick={()=>{planAfterReview.current=true;setShowSundayReview(true);}} className="btn-press"
+              style={{width:"100%",
+                background:"rgba(245,158,11,0.08)",
+                border:`1px solid rgba(245,158,11,0.32)`,borderLeft:`3px solid ${T.yellow}`,
+                color:T.yellow,borderRadius:14,padding:"13px 14px",fontSize:13,
+                fontWeight:700,cursor:"pointer",marginBottom:8,letterSpacing:0.2,minHeight:44,
+                display:"flex",alignItems:"center",gap:10,textAlign:"left",
+                animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
+              <span style={{fontSize:18}}>📋</span>
+              <div>
+                <div style={{fontSize:12,fontWeight:800}}>Complete last Sunday's review first</div>
+                <div style={{fontSize:10,color:T.yellow,opacity:0.7,marginTop:1}}>Required before planning a new week</div>
+              </div>
+            </button>}
             <button onClick={()=>{
+              if(missedSundayReview){planAfterReview.current=true;setShowSundayReview(true);return;}
               setPlanFlowSettings({weeklyTarget:WEEKLY_TARGET,activeDays:ACTIVE_DAYS});
               setPlanFlowScreen("focus");
             }} disabled={aiLoading} className="btn-press"
               style={{width:"100%",
-                background:aiLoading?"rgba(255,255,255,0.06)":"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-                border:aiLoading?`1px solid rgba(255,255,255,0.12)`:"none",
-                color:aiLoading?T.textDim:"#fff",borderRadius:14,padding:13,fontSize:14,
+                background:aiLoading?"rgba(255,255,255,0.06)":missedSundayReview?"rgba(59,130,246,0.25)":"linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+                border:aiLoading||missedSundayReview?`1px solid rgba(59,130,246,0.3)`:"none",
+                color:aiLoading?"rgba(255,255,255,0.3)":missedSundayReview?"rgba(255,255,255,0.4)":"#fff",
+                borderRadius:14,padding:13,fontSize:14,
                 fontWeight:800,cursor:aiLoading?"default":"pointer",marginBottom:12,
                 letterSpacing:0.3,transition:"all 0.2s",minHeight:44,
-                boxShadow:aiLoading?"none":"0 4px 20px rgba(59,130,246,0.4)"}}>
+                boxShadow:aiLoading||missedSundayReview?"none":"0 4px 20px rgba(59,130,246,0.4)",
+                animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.03s both"}}>
               {aiLoading?"Thinking…":planIsFromThisWeek?"Replan Week":"Plan Week"}
             </button>
 
@@ -5082,7 +5158,7 @@ Respond ONLY with valid JSON:
               ["arc","Arc","△"],
               ["notes","Notes","📷"],
             ].map(([k,label,icon])=>(
-              <button key={k} onClick={()=>setView(k)} className="btn-press"
+              <button key={k} onClick={()=>startTransition(()=>setView(k))} className="btn-press"
                 style={{
                   flex:1,padding:"10px 2px 8px",background:"none",border:"none",
                   cursor:"pointer",display:"flex",flexDirection:"column",
