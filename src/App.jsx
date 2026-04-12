@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, startTransition } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, startTransition, useDeferredValue } from "react";
 import { supabase, upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
 
 
@@ -1051,7 +1051,7 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
     </div>
     <Bar pct={pct} color={T.blue} style={{margin:"0 16px 10px",height:3}} glow={pct>0}/>
     <div style={{overflow:"hidden",maxHeight:open?"9999px":"0",transition:"max-height 0.35s cubic-bezier(0.4,0,0.2,1)"}}>
-      <div style={{padding:"0 12px 12px"}}>
+      {open&&<div style={{padding:"0 12px 12px"}}>
         {/* Per-section search */}
         <div style={{position:'relative',marginBottom:10}} onClick={e=>e.stopPropagation()}>
           <span style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',
@@ -1133,7 +1133,7 @@ function SectionBlock({sec,focusIds,getP,setLogging,onReset,onDelete,settings}){
             No results in {sec.label.toLowerCase()}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   </div>;
 }
@@ -1188,17 +1188,37 @@ const MOUNTAIN_STARS=(()=>{
   let seed=42;
   const r=()=>{seed=(seed*1664525+1013904223)&0xffffffff;return(seed>>>0)/4294967295;};
   const a=[];
+  // Base field: stars across the upper sky band
   for(let i=0;i<80;i++) a.push({x:r()*3200,y:5+r()*115,r:1.0+r()*2.2,o:0.4+r()*0.6});
+  // Extra dense upper-sky stars for Notes tab (y 0–80, tighter clustering)
+  for(let i=0;i<120;i++) a.push({x:r()*3200,y:r()*80,r:0.6+r()*1.6,o:0.3+r()*0.65});
+  // Bright accent stars (hand-placed)
   a.push(
     {x:148,y:28,r:4.0,o:1},{x:480,y:18,r:3.5,o:1},
     {x:820,y:38,r:4.2,o:1},{x:1180,y:22,r:3.8,o:0.98},
     {x:1550,y:48,r:4.0,o:1},{x:1880,y:20,r:3.5,o:0.98},
     {x:2240,y:55,r:4.5,o:1},{x:2580,y:28,r:3.8,o:1},
     {x:2920,y:44,r:4.0,o:0.98},
+    // additional bright stars for upper-sky density
+    {x:320,y:12,r:3.2,o:0.95},{x:710,y:8,r:2.8,o:0.9},
+    {x:1050,y:55,r:3.5,o:1},{x:1340,y:14,r:2.9,o:0.92},
+    {x:1720,y:62,r:3.3,o:0.97},{x:2100,y:10,r:3.6,o:1},
+    {x:2450,y:35,r:2.7,o:0.88},{x:2780,y:16,r:3.8,o:0.99},
+    {x:3050,y:52,r:3.1,o:0.94},{x:90,y:68,r:2.6,o:0.85},
+    {x:640,y:72,r:3.0,o:0.91},{x:1420,y:76,r:2.5,o:0.87},
+    {x:1950,y:9,r:3.4,o:0.96},{x:2660,y:70,r:2.8,o:0.9},
   );
   return a;
 })();
-const VERT_POSITIONS = { today:"center 80%", week:"center 55%", ai:"center 35%", arc:"center 10%" };
+// Vertical background-position for each tab — notes uses negative Y to push mountain
+// down slightly so the gradient sky fills the top (furthest up in the progression).
+const VERT_POSITIONS = {
+  today:"center 80%",
+  week:"center 55%",
+  ai:"center 35%",
+  arc:"center 10%",
+  notes:"center 0%",
+};
 function MountainRange({ view }){
   const vertPos = VERT_POSITIONS[view] ?? "center 80%";
   return(
@@ -1223,20 +1243,22 @@ function MountainRange({ view }){
         ))}
       </svg>
 
-      <img src="/mountain.png" alt=""
-        style={{
-          position:'absolute',top:0,left:0,
-          width:'100%',height:'65%',
-          objectFit:'cover',
-          objectPosition:vertPos,
-          transition:'object-position 700ms cubic-bezier(0.4,0,0.2,1)',
-          mixBlendMode:'screen',
-          filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
-          willChange:'object-position',
-          zIndex:2,
-          display:'block',
-        }}
-      />
+      {/* background-image div replaces <img> — background-position transitions
+          reliably on all platforms including iOS Safari, where object-position
+          animations on mix-blend-mode elements cause rendering glitches. */}
+      <div style={{
+        position:'absolute',top:0,left:0,
+        width:'100%',height:'65%',
+        backgroundImage:'url(/mountain.png)',
+        backgroundRepeat:'no-repeat',
+        backgroundSize:'auto 160%',
+        backgroundPosition:vertPos,
+        transition:'background-position 700ms cubic-bezier(0.4,0,0.2,1)',
+        mixBlendMode:'screen',
+        filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
+        willChange:'background-position',
+        zIndex:2,
+      }}/>
       <div style={{
         position:'absolute',top:0,left:0,
         width:'100%',height:'100%',
@@ -3189,6 +3211,9 @@ export default function App({ onSignOut }){
 
   // ── 4. UI state ──
   const [view, setView]                         = useState("today");
+  // Deferred view lets the tab bar update instantly while heavy content (Arc)
+  // renders at lower priority, keeping the UI responsive on tab switches.
+  const deferredView = useDeferredValue(view);
   const [sideOpen, setSideOpen]                 = useState(false);
   const [exporting, setExporting]               = useState(false);
   const [notifOpen, setNotifOpen]               = useState(false);
@@ -4157,8 +4182,14 @@ Respond ONLY with valid JSON:
   const totalItems  = CURRICULUM.length;
   const doneItems   = CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).length;
   const coreDoneItems = coreItems.filter(i=>getP(i.id).percentComplete>=100).length;
-  const wksLeft     = Math.round(totalRealRemaining/WEEKLY_TARGET);
-  const coreWksLeft = Math.round(coreRealRemaining/WEEKLY_TARGET);
+  // Use the user's actual weekly target from settings as the projection basis.
+  // avgWeeklyH is the 4-week rolling average; if the user has history, blend it toward
+  // WEEKLY_TARGET so the estimate reflects both stated intent and actual pace.
+  const arcPaceH    = weeklyHours.length>=2
+    ? Math.round((avgWeeklyH*0.6 + WEEKLY_TARGET*0.4)*2)/2  // blend, snap to 0.5h
+    : WEEKLY_TARGET;
+  const wksLeft     = arcPaceH>0?totalRealRemaining/arcPaceH:0;
+  const coreWksLeft = arcPaceH>0?coreRealRemaining/arcPaceH:0;
   const estDate     = new Date(Date.now()+wksLeft*7*24*60*60*1000)
     .toLocaleDateString("en-CA",{year:"numeric",month:"short"});
   const coreEstDate = new Date(Date.now()+coreWksLeft*7*24*60*60*1000)
@@ -4671,24 +4702,33 @@ Respond ONLY with valid JSON:
                 Projected Finish
               </div>
               {focusItems.filter(i=>getP(i.id).percentComplete<100&&getP(i.id).percentComplete>0).map(item=>{
-                const realLeft=realHoursRemaining(item,getP(item.id),settings);
-                // Use actual avg pace if available, fall back to weekly target so there's always a date
-                const paceH=avgWeeklyH>0?avgWeeklyH:WEEKLY_TARGET;
-                const weeksToFinish=paceH>0&&realLeft>0?realLeft/paceH:null;
+                const p=getP(item.id);
+                // Use per-item measured pace ratio when available, else fall back to global setting
+                const itemRatio=paceRatios[item.id]?.sessions>=1?paceRatios[item.id].ratio:null;
+                const contentLeft=Math.max(0,(item.hours||0)-(p.courseHoursComplete||0));
+                const realLeft=itemRatio!=null?contentLeft*itemRatio:realHoursRemaining(item,p,settings);
+                // Per-item weekly allocation from the current AI plan (sum across all plan days)
+                const planItemWeeklyH=planIsFromThisWeek&&weekPlan?.days
+                  ?weekPlan.days.reduce((s,d)=>{const it=(d.items||[]).find(x=>x.id===item.id);return s+(it?it.realHours||0:0);},0)
+                  :0;
+                // Use plan allocation if available, else fall back to weekly target from settings
+                const allocationH=planItemWeeklyH>0?planItemWeeklyH:WEEKLY_TARGET;
+                const weeksToFinish=allocationH>0&&realLeft>0?realLeft/allocationH:null;
                 const finishMs=weeksToFinish!=null?Date.now()+weeksToFinish*7*24*60*60*1000:null;
                 const finishDate=finishMs!=null&&isFinite(finishMs)
                   ?new Date(finishMs).toLocaleDateString("en-US",{month:"short",day:"numeric"})
                   :null;
                 const c=gc(item.genre);
+                const rateLabel=planItemWeeklyH>0?`${allocationH.toFixed(1)}h/wk (plan)`:`${allocationH.toFixed(0)}h/wk (target)`;
                 return <div key={item.id} style={{display:"flex",justifyContent:"space-between",
                   alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.surface2}`}}>
                   <div>
                     <div style={{fontSize:11,fontWeight:600}}>{item.id} — {item.name.slice(0,32)}{item.name.length>32?"…":""}</div>
-                    <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{realLeft.toFixed(2)}h real left · {getP(item.id).percentComplete}%</div>
+                    <div style={{fontSize:9,color:T.textDim,marginTop:2}}>{realLeft.toFixed(2)}h real left · {p.percentComplete}%{itemRatio!=null?` · ×${itemRatio.toFixed(2)} pace`:""}</div>
                   </div>
                   <div style={{textAlign:"right",flexShrink:0}}>
                     {finishDate&&<div style={{fontSize:13,fontWeight:900,color:c}}>{finishDate}</div>}
-                    {weeksToFinish&&<div style={{fontSize:9,color:T.textDim,marginTop:1}}>{weeksToFinish.toFixed(1)}w at {paceH.toFixed(0)}h/wk</div>}
+                    {weeksToFinish&&<div style={{fontSize:9,color:T.textDim,marginTop:1}}>{weeksToFinish.toFixed(1)}w · {rateLabel}</div>}
                   </div>
                 </div>;
               })}
@@ -4889,7 +4929,7 @@ Respond ONLY with valid JSON:
           </div>}
 
           {/* ══ YEAR ARC ══ */}
-          {view==="arc"&&<div className="tab-content">
+          {deferredView==="arc"&&<div className="tab-content">
             <Card style={{marginBottom:16,padding:16,animation:"fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both"}}>
               <div style={{fontSize:9,fontWeight:700,color:T.textDim,textTransform:"uppercase",letterSpacing:1.5,marginBottom:14}}>
                 Curriculum Overview
@@ -4960,7 +5000,7 @@ Respond ONLY with valid JSON:
                 </div>
                 <Bar pct={(coreDoneItems/Math.max(coreItems.length,1))*100} color={T.blue} height={5} glow/>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:5,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
-                  <span style={{color:T.textDim}}>Est. Core at {WEEKLY_TARGET}h/week</span>
+                  <span style={{color:T.textDim}}>Est. Core at {arcPaceH.toFixed(1)}h/wk</span>
                   <span style={{color:T.blue,fontWeight:700}}>{coreEstDate}</span>
                 </div>
               </div>
@@ -4971,7 +5011,7 @@ Respond ONLY with valid JSON:
                 </div>
                 <Bar pct={(doneItems/totalItems)*100} color={T.green} height={5} glow/>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:6,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
-                  <span style={{color:T.textDim}}>Est. completion at {WEEKLY_TARGET}h/week</span>
+                  <span style={{color:T.textDim}}>Est. completion at {arcPaceH.toFixed(1)}h/wk</span>
                   <span style={{color:T.yellow,fontWeight:700}}>{estDate}</span>
                 </div>
               </div>
@@ -4993,7 +5033,7 @@ Respond ONLY with valid JSON:
           </div>}
 
           {/* ══ NOTES (Photo Library) ══ */}
-          {view==="notes"&&<div className="tab-content">
+          {deferredView==="notes"&&<div className="tab-content">
             <PhotoLibrary
               notes={notes}
               curriculum={CURRICULUM}
