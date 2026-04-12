@@ -2264,7 +2264,7 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
   );
 }
 
-// ── Fetch image as base64 for AI vision ──────────────────────────────────────
+// ── Fetch image as base64 for AI vision (compressed for API) ─────────────────
 async function fetchImageAsBase64(storageKey, fallbackUrl) {
   try {
     const url = storageKey ? await createSignedPhotoUrl(storageKey) : null;
@@ -2273,12 +2273,25 @@ async function fetchImageAsBase64(storageKey, fallbackUrl) {
     const response = await fetch(fetchUrl);
     if (!response.ok) return null;
     const blob = await response.blob();
-    const mediaType = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/jpeg';
     return new Promise(resolve => {
-      const reader = new FileReader();
-      reader.onloadend = () => { const b64 = reader.result?.split(',')[1]; resolve(b64 ? { base64: b64, mediaType } : null); };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 800;
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if (w > MAX || h > MAX) {
+          if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+          else        { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(img.src);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        const b64 = dataUrl.split(',')[1];
+        resolve(b64 ? { base64: b64, mediaType: 'image/jpeg' } : null);
+      };
+      img.onerror = () => { URL.revokeObjectURL(img.src); resolve(null); };
+      img.src = URL.createObjectURL(blob);
     });
   } catch { return null; }
 }
@@ -2287,19 +2300,39 @@ async function fetchImageAsBase64(storageKey, fallbackUrl) {
 function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose }) {
   const col = gc(courseItem?.genre);
   const lectureLabel = lectureNum != null ? `Lecture ${lectureNum}` : 'Unlabeled Notes';
+
+  // shared
   const [mode, setMode] = useState(null);
   const [imageData, setImageData] = useState(null);
   const [loadError, setLoadError] = useState('');
-  const [result, setResult] = useState('');
+  const [thinking, setThinking] = useState(false);
+
+  // chat
   const [chatHistory, setChatHistory] = useState([]);
   const [userInput, setUserInput] = useState('');
-  const [thinking, setThinking] = useState(false);
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // flashcard
+  const [flashcards, setFlashcards] = useState([]);
+  const [cardIndex, setCardIndex] = useState(0);
+  const [cardFlipped, setCardFlipped] = useState(false);
+  const [cardResults, setCardResults] = useState([]);
+  const [flashDone, setFlashDone] = useState(false);
+
+  // multiple choice
+  const [mcQuestions, setMcQuestions] = useState([]);
+  const [mcIndex, setMcIndex] = useState(0);
+  const [mcSelected, setMcSelected] = useState(null);
+  const [mcResults, setMcResults] = useState([]);
+  const [mcDone, setMcDone] = useState(false);
+
+  // summarize
+  const [summary, setSummary] = useState('');
+
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory]);
   useEffect(() => {
-    if (mode === 'quiz' && chatHistory.length > 0 && !thinking) setTimeout(() => inputRef.current?.focus(), 80);
+    if (mode === 'chat' && chatHistory.length > 0 && !thinking) setTimeout(() => inputRef.current?.focus(), 80);
   }, [chatHistory.length, thinking, mode]);
 
   const callStudyAPI = async (messages) => {
@@ -2324,6 +2357,14 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
     return ctx;
   };
 
+  const goBack = () => {
+    setMode(null); setLoadError('');
+    setChatHistory([]); setUserInput('');
+    setFlashcards([]); setCardIndex(0); setCardFlipped(false); setCardResults([]); setFlashDone(false);
+    setMcQuestions([]); setMcIndex(0); setMcSelected(null); setMcResults([]); setMcDone(false);
+    setSummary('');
+  };
+
   const startMode = async (selectedMode) => {
     setMode(selectedMode);
     setLoadError('');
@@ -2332,17 +2373,29 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
       const imgs = imageData || await (async () => { const d = await loadImages(); setImageData(d); return d; })();
       const imgBlocks = imgs.map(({ base64, mediaType }) => ({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }));
       const ctx = buildContext(imgs);
-      if (selectedMode === 'quiz') {
-        const firstMsg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nPlease quiz me on this lecture. Ask one focused question at a time based on what's visible in the notes. After I answer, give brief feedback (1–2 sentences), then ask the next question. Start with question 1 now.` }] };
-        const firstQ = await callStudyAPI([firstMsg]);
-        setChatHistory([{ role: 'user', _content: firstMsg.content }, { role: 'assistant', content: firstQ }]);
-      } else {
-        const prompts = {
-          gaps: `${ctx}\n\nReview these lecture notes and identify 4–7 specific topics, concepts, or details that appear underdeveloped, incomplete, or missing. For each gap, briefly explain what's missing and why it matters for understanding the subject.`,
-          summarize: `${ctx}\n\nProvide a clear, well-organized summary of this lecture based on the notes in these photos. Cover key concepts, important definitions, main arguments or processes, and anything particularly emphasized.`,
-        };
-        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: prompts[selectedMode] }] };
-        setResult(await callStudyAPI([msg]));
+
+      if (selectedMode === 'chat') {
+        const firstMsg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nYou are a helpful study tutor. I want to have a conversation about this lecture to help me understand it better. Start with a brief one-paragraph overview of the main topics covered in these notes, then ask me what I'd like to explore or clarify first.` }] };
+        const firstReply = await callStudyAPI([firstMsg]);
+        setChatHistory([{ role: 'user', _content: firstMsg.content }, { role: 'assistant', content: firstReply }]);
+
+      } else if (selectedMode === 'flashcard') {
+        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nGenerate 8–12 flashcards from this lecture. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]` }] };
+        const raw = await callStudyAPI([msg]);
+        const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        const cards = JSON.parse(jsonStr);
+        setFlashcards(cards); setCardIndex(0); setCardFlipped(false); setCardResults([]); setFlashDone(false);
+
+      } else if (selectedMode === 'mc') {
+        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nGenerate 6–8 multiple choice questions from this lecture. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]` }] };
+        const raw = await callStudyAPI([msg]);
+        const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        const questions = JSON.parse(jsonStr);
+        setMcQuestions(questions); setMcIndex(0); setMcSelected(null); setMcResults([]); setMcDone(false);
+
+      } else if (selectedMode === 'summarize') {
+        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nProvide a clear, well-organized summary of this lecture based on the notes in these photos. Cover key concepts, important definitions, main arguments or processes, and anything particularly emphasized.` }] };
+        setSummary(await callStudyAPI([msg]));
       }
     } catch (err) {
       setLoadError(err.message || 'Something went wrong');
@@ -2351,7 +2404,8 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
     setThinking(false);
   };
 
-  const sendAnswer = async () => {
+  // chat: send message
+  const sendMessage = async () => {
     const answer = userInput.trim();
     if (!answer || thinking) return;
     setUserInput('');
@@ -2368,14 +2422,27 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
     setThinking(false);
   };
 
-  const StudyHeader = ({ backLabel, onBack }) => (
+  // flashcard: rate current card and advance
+  const rateCard = (result) => {
+    const newResults = [...cardResults, result];
+    setCardResults(newResults);
+    if (cardIndex + 1 >= flashcards.length) { setFlashDone(true); }
+    else { setCardIndex(cardIndex + 1); setCardFlipped(false); }
+  };
+
+  // mc: commit answer and advance
+  const nextMcQuestion = () => {
+    setMcResults(r => [...r, { selected: mcSelected, correct: mcQuestions[mcIndex].correct }]);
+    if (mcIndex + 1 >= mcQuestions.length) { setMcDone(true); }
+    else { setMcIndex(mcIndex + 1); setMcSelected(null); }
+  };
+
+  const StudyHeader = ({ backLabel, onBack, title }) => (
     <div style={{ padding: '10px 14px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={onBack} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 38, display: 'flex', alignItems: 'center', gap: 5 }}>
-          ← {backLabel}
-        </button>
+        <button onClick={onBack} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 38, display: 'flex', alignItems: 'center', gap: 5 }}>← {backLabel}</button>
         <div style={{ textAlign: 'center', flex: 1, padding: '0 8px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: col }}>{mode === 'quiz' ? 'Quiz Me' : mode === 'gaps' ? 'Find Gaps' : 'Summarize'}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: col }}>{title}</div>
           <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>{lectureLabel} · {(courseItem?.name || '').slice(0, 26)}{(courseItem?.name?.length || 0) > 26 ? '…' : ''}</div>
         </div>
         <button onClick={onClose} className="btn-press" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', color: T.textDim, borderRadius: 99, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, cursor: 'pointer' }}>✕</button>
@@ -2402,9 +2469,10 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
           {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 16 }}>{loadError}</div>}
           <div style={{ fontSize: 11, color: T.textDim, textAlign: 'center', marginBottom: 22 }}>Choose how to study this lecture</div>
           {[
-            { key: 'quiz', icon: '💬', label: 'Quiz Me', desc: 'Claude asks questions one at a time based on your notes. Type answers, get feedback, keep going.' },
-            { key: 'gaps', icon: '🔍', label: 'Find Gaps', desc: 'Claude reviews your notes and identifies topics that are underdeveloped or missing.' },
-            { key: 'summarize', icon: '📋', label: 'Summarize', desc: 'A clean, organized summary of the lecture content from your photos.' },
+            { key: 'chat',      icon: '💬', label: 'Chat',            desc: 'Have a back-and-forth conversation with Claude. Ask questions, explore concepts, get explanations.' },
+            { key: 'flashcard', icon: '🃏', label: 'Flashcard',       desc: 'Claude generates flashcards from your notes. Tap to flip, then rate yourself Got it or Missed it.' },
+            { key: 'mc',        icon: '✅', label: 'Multiple Choice', desc: 'Claude writes 4-option questions from your notes. Pick an answer and see if you\'re right.' },
+            { key: 'summarize', icon: '📋', label: 'Summarize',       desc: 'A clean, organized summary of the lecture content from your photos.' },
           ].map((opt, i) => (
             <button key={opt.key} onClick={() => startMode(opt.key)} className="btn-press"
               style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -2422,8 +2490,8 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
     );
   }
 
-  // ── Loading / thinking (before first response) ──
-  if (thinking && chatHistory.length === 0 && !result) {
+  // ── Loading spinner (before first response arrives) ──
+  if (thinking && chatHistory.length === 0 && !summary && flashcards.length === 0 && mcQuestions.length === 0) {
     return createPortal(
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 'env(safe-area-inset-top)' }}>
         <div style={{ width: 44, height: 44, borderRadius: '50%', border: `3px solid rgba(255,255,255,0.08)`, borderTopColor: col, animation: 'spin 0.9s linear infinite', marginBottom: 20 }} />
@@ -2434,11 +2502,11 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
     );
   }
 
-  // ── Quiz mode ──
-  if (mode === 'quiz') {
+  // ── Chat mode ──
+  if (mode === 'chat') {
     return createPortal(
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <StudyHeader backLabel="Modes" onBack={() => { setMode(null); setChatHistory([]); setLoadError(''); }} />
+        <StudyHeader backLabel="Modes" onBack={goBack} title="Chat" />
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px', WebkitOverflowScrolling: 'touch' }}>
           {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 12 }}>{loadError}</div>}
           {chatHistory.filter(m => m.role === 'assistant' || (m.role === 'user' && !m._content)).map((msg, idx) => (
@@ -2461,8 +2529,8 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
         </div>
         <div style={{ flexShrink: 0, padding: '10px 14px', paddingBottom: 'calc(env(safe-area-inset-bottom) + 10px)', background: 'rgba(8,15,30,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <textarea ref={inputRef} value={userInput} onChange={e => setUserInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAnswer(); } }} placeholder="Type your answer…" rows={2} style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 13px', color: T.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', lineHeight: 1.45, boxSizing: 'border-box' }} />
-            <button onClick={sendAnswer} disabled={!userInput.trim() || thinking} className="btn-press" style={{ background: userInput.trim() && !thinking ? `linear-gradient(135deg,${T.blue} 0%,#2563eb 100%)` : 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', borderRadius: 14, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44, flexShrink: 0, opacity: !userInput.trim() || thinking ? 0.4 : 1, transition: 'opacity 0.2s', boxShadow: userInput.trim() && !thinking ? `0 4px 18px ${T.blue}40` : 'none' }}>Send</button>
+            <textarea ref={inputRef} value={userInput} onChange={e => setUserInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Ask a question…" rows={2} style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 13px', color: T.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', lineHeight: 1.45, boxSizing: 'border-box' }} />
+            <button onClick={sendMessage} disabled={!userInput.trim() || thinking} className="btn-press" style={{ background: userInput.trim() && !thinking ? `linear-gradient(135deg,${T.blue} 0%,#2563eb 100%)` : 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', borderRadius: 14, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44, flexShrink: 0, opacity: !userInput.trim() || thinking ? 0.4 : 1, transition: 'opacity 0.2s', boxShadow: userInput.trim() && !thinking ? `0 4px 18px ${T.blue}40` : 'none' }}>Send</button>
           </div>
         </div>
       </div>,
@@ -2470,22 +2538,151 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
     );
   }
 
-  // ── Find Gaps / Summarize result ──
+  // ── Flashcard mode ──
+  if (mode === 'flashcard') {
+    const card = flashcards[cardIndex];
+    const gotCount = cardResults.filter(r => r === 'got').length;
+    const missedCount = cardResults.filter(r => r === 'missed').length;
+    return createPortal(
+      <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
+        <StudyHeader backLabel="Modes" onBack={goBack} title="Flashcard" />
+        {flashDone ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: T.text, marginBottom: 6 }}>Done!</div>
+            <div style={{ fontSize: 13, color: T.textDim, marginBottom: 32 }}>{flashcards.length} card{flashcards.length !== 1 ? 's' : ''} reviewed</div>
+            <div style={{ display: 'flex', gap: 14, marginBottom: 36, width: '100%', maxWidth: 280 }}>
+              <div style={{ flex: 1, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.30)', borderRadius: 18, padding: '18px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 32, fontWeight: 900, color: T.green }}>{gotCount}</div>
+                <div style={{ fontSize: 11, color: T.textDim, marginTop: 4 }}>Got it</div>
+              </div>
+              <div style={{ flex: 1, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 18, padding: '18px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 32, fontWeight: 900, color: T.red }}>{missedCount}</div>
+                <div style={{ fontSize: 11, color: T.textDim, marginTop: 4 }}>Missed</div>
+              </div>
+            </div>
+            <button onClick={goBack} className="btn-press" style={{ background: `linear-gradient(135deg,${col} 0%,${col}bb 100%)`, border: 'none', color: '#fff', borderRadius: 16, padding: '14px 44px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Back to Modes</button>
+          </div>
+        ) : card ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px 20px 0', overflow: 'hidden' }}>
+            {/* progress bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexShrink: 0 }}>
+              <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${(cardIndex / flashcards.length) * 100}%`, background: col, borderRadius: 2, transition: 'width 0.35s ease' }} />
+              </div>
+              <span style={{ fontSize: 11, color: T.textDim, flexShrink: 0 }}>{cardIndex + 1} / {flashcards.length}</span>
+            </div>
+            {/* card face */}
+            <div onClick={() => !cardFlipped && setCardFlipped(true)}
+              style={{ flex: 1, background: 'linear-gradient(145deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0.02) 100%)', border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, borderRadius: 24, padding: '24px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', cursor: cardFlipped ? 'default' : 'pointer', boxShadow: shadow.card, marginBottom: 18, overflowY: 'auto', minHeight: 0 }}>
+              <div style={{ fontSize: 9, color: cardFlipped ? T.green : col, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 12 }}>{cardFlipped ? 'Answer' : 'Question'}</div>
+              <div style={{ fontSize: 15, color: T.text, lineHeight: 1.65, fontWeight: cardFlipped ? 400 : 600 }}>{cardFlipped ? card.a : card.q}</div>
+              {!cardFlipped && <div style={{ marginTop: 20, fontSize: 11, color: T.textDim }}>👆 Tap to reveal answer</div>}
+            </div>
+            {/* rating buttons */}
+            <div style={{ flexShrink: 0, paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+              {cardFlipped ? (
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button onClick={() => rateCard('missed')} className="btn-press" style={{ flex: 1, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.30)', color: T.red, borderRadius: 18, padding: '16px 12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 24 }}>✗</span><span>Missed it</span>
+                  </button>
+                  <button onClick={() => rateCard('got')} className="btn-press" style={{ flex: 1, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.30)', color: T.green, borderRadius: 18, padding: '16px 12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 24 }}>✓</span><span>Got it</span>
+                  </button>
+                </div>
+              ) : (
+                <div style={{ height: 80 }} />
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>,
+      document.body
+    );
+  }
+
+  // ── Multiple choice mode ──
+  if (mode === 'mc') {
+    const q = mcQuestions[mcIndex];
+    const correctCount = mcResults.filter(r => r.selected === r.correct).length;
+    const pctCorrect = mcQuestions.length ? correctCount / mcQuestions.length : 0;
+    return createPortal(
+      <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
+        <StudyHeader backLabel="Modes" onBack={goBack} title="Multiple Choice" />
+        {mcDone ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>{pctCorrect >= 0.8 ? '🏆' : pctCorrect >= 0.5 ? '👍' : '📚'}</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: T.text, marginBottom: 6 }}>{correctCount} / {mcQuestions.length}</div>
+            <div style={{ fontSize: 13, color: T.textDim, marginBottom: 32 }}>{pctCorrect >= 0.8 ? 'Excellent work!' : pctCorrect >= 0.5 ? 'Good effort!' : 'Keep reviewing!'}</div>
+            <button onClick={goBack} className="btn-press" style={{ background: `linear-gradient(135deg,${col} 0%,${col}bb 100%)`, border: 'none', color: '#fff', borderRadius: 16, padding: '14px 44px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Back to Modes</button>
+          </div>
+        ) : q ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px 20px 0', overflow: 'hidden' }}>
+            {/* progress bar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexShrink: 0 }}>
+              <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.08)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${(mcIndex / mcQuestions.length) * 100}%`, background: col, borderRadius: 2, transition: 'width 0.35s ease' }} />
+              </div>
+              <span style={{ fontSize: 11, color: T.textDim, flexShrink: 0 }}>{mcIndex + 1} / {mcQuestions.length}</span>
+            </div>
+            {/* question card */}
+            <div style={{ background: 'linear-gradient(145deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0.02) 100%)', border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px', marginBottom: 14, flexShrink: 0, boxShadow: shadow.card }}>
+              <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 8 }}>Question {mcIndex + 1}</div>
+              <div style={{ fontSize: 14, color: T.text, lineHeight: 1.6, fontWeight: 600 }}>{q.q}</div>
+            </div>
+            {/* options */}
+            <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}>
+              {q.options.map((opt, oi) => {
+                const isSelected = mcSelected === oi;
+                const isCorrect = oi === q.correct;
+                const answered = mcSelected !== null;
+                let bg = 'rgba(255,255,255,0.05)';
+                let border = '1px solid rgba(255,255,255,0.09)';
+                let txtCol = T.text;
+                if (answered) {
+                  if (isCorrect)              { bg = 'rgba(34,197,94,0.15)';  border = '1px solid rgba(34,197,94,0.45)';  txtCol = T.green; }
+                  else if (isSelected)        { bg = 'rgba(239,68,68,0.15)';  border = '1px solid rgba(239,68,68,0.45)';  txtCol = T.red; }
+                }
+                const badgeBg = answered && isCorrect ? 'rgba(34,197,94,0.25)' : answered && isSelected ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.08)';
+                const badge = answered && isCorrect ? '✓' : answered && isSelected && !isCorrect ? '✗' : String.fromCharCode(65 + oi);
+                return (
+                  <button key={oi} onClick={() => { if (!answered) setMcSelected(oi); }} disabled={answered} className="btn-press"
+                    style={{ width: '100%', background: bg, border, borderRadius: 14, padding: '14px 16px', marginBottom: 10, cursor: answered ? 'default' : 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, transition: 'background 0.2s, border-color 0.2s' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: badgeBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, fontWeight: 800, color: txtCol }}>{badge}</div>
+                    <span style={{ fontSize: 13, color: txtCol, lineHeight: 1.5 }}>{opt}</span>
+                  </button>
+                );
+              })}
+              {mcSelected !== null && (
+                <button onClick={nextMcQuestion} className="btn-press"
+                  style={{ width: '100%', background: `linear-gradient(135deg,${col} 0%,${col}bb 100%)`, border: 'none', color: '#fff', borderRadius: 16, padding: '15px', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 4 }}>
+                  {mcIndex + 1 >= mcQuestions.length ? 'See Results' : 'Next Question →'}
+                </button>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>,
+      document.body
+    );
+  }
+
+  // ── Summarize result ──
   return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
-      <StudyHeader backLabel="Modes" onBack={() => { setMode(null); setResult(''); setLoadError(''); }} />
+      <StudyHeader backLabel="Modes" onBack={goBack} title="Summarize" />
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px', WebkitOverflowScrolling: 'touch' }}>
         {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 12 }}>{loadError}</div>}
-        {thinking && !result && (
+        {thinking && !summary && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', textAlign: 'center' }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', border: `2px solid rgba(255,255,255,0.08)`, borderTopColor: col, animation: 'spin 0.9s linear infinite', marginBottom: 16 }} />
             <div style={{ fontSize: 12, color: T.textDim }}>Analyzing your notes…</div>
           </div>
         )}
-        {result && (
+        {summary && (
           <div style={{ background: 'linear-gradient(145deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0.02) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, padding: '18px 16px', boxShadow: shadow.card, animation: 'fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both' }}>
-            <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 12 }}>Claude ✦ · {mode === 'gaps' ? 'Gaps Found' : 'Summary'}</div>
-            <div style={{ fontSize: 13, color: T.text, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{result}</div>
+            <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 12 }}>Claude ✦ · Summary</div>
+            <div style={{ fontSize: 13, color: T.text, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{summary}</div>
           </div>
         )}
       </div>
