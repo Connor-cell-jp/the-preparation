@@ -1221,7 +1221,19 @@ const VERT_POSITIONS = {
   notes:"center 0%",
 };
 function MountainRange({ view }){
-  const vertPos = VERT_POSITIONS[view] ?? "center 80%";
+  // Portrait (iPhone): full mountain visible, no parallax.
+  // Landscape / desktop: vertical parallax pan between tabs.
+  const [isPortrait, setIsPortrait] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(orientation: portrait)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: portrait)');
+    const handler = e => setIsPortrait(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const vertPos = isPortrait ? 'center bottom' : (VERT_POSITIONS[view] ?? "center 80%");
   return(
     <div style={{
       position:'fixed',top:0,left:0,
@@ -1244,20 +1256,19 @@ function MountainRange({ view }){
         ))}
       </svg>
 
-      {/* background-image div replaces <img> — background-position transitions
-          reliably on all platforms including iOS Safari, where object-position
-          animations on mix-blend-mode elements cause rendering glitches. */}
+      {/* Portrait: 100% width, full mountain visible, pinned to bottom, no animation.
+          Landscape/desktop: 160% height, vertical parallax pan as tabs change. */}
       <div style={{
         position:'absolute',top:0,left:0,
         width:'100%',height:'100%',
         backgroundImage:'url(/mountain.png)',
         backgroundRepeat:'no-repeat',
-        backgroundSize:'auto 160%',
-        backgroundPosition:vertPos,
-        transition:'background-position 700ms cubic-bezier(0.4,0,0.2,1)',
+        backgroundSize: isPortrait ? '100% auto' : 'auto 160%',
+        backgroundPosition: vertPos,
+        transition: isPortrait ? 'none' : 'background-position 700ms cubic-bezier(0.4,0,0.2,1)',
         mixBlendMode:'screen',
         filter:'brightness(0.8) sepia(0.4) saturate(1.5) hue-rotate(190deg)',
-        willChange:'background-position',
+        willChange: isPortrait ? 'auto' : 'background-position',
         zIndex:2,
       }}/>
       <div style={{
@@ -2144,7 +2155,7 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
     boxSizing:'border-box', fontFamily:'inherit', outline:'none', width:'100%',
   };
 
-  return (
+  return createPortal(
     <div style={{
       position:'fixed', inset:0, zIndex:600,
       background:'linear-gradient(180deg,#000 0%,#0a0f1a 100%)',
@@ -2248,7 +2259,8 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -2373,7 +2385,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
 
   // ── Mode selector ──
   if (!mode) {
-    return (
+    return createPortal(
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
         <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
           <div style={{ marginBottom: 12 }}>
@@ -2405,24 +2417,26 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
             </button>
           ))}
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   // ── Loading / thinking (before first response) ──
   if (thinking && chatHistory.length === 0 && !result) {
-    return (
+    return createPortal(
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 'env(safe-area-inset-top)' }}>
         <div style={{ width: 44, height: 44, borderRadius: '50%', border: `3px solid rgba(255,255,255,0.08)`, borderTopColor: col, animation: 'spin 0.9s linear infinite', marginBottom: 20 }} />
         <div style={{ fontSize: 14, color: T.textMid, fontWeight: 700, marginBottom: 6 }}>Preparing study session</div>
         <div style={{ fontSize: 11, color: T.textDim }}>Loading photos · analyzing content</div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   // ── Quiz mode ──
   if (mode === 'quiz') {
-    return (
+    return createPortal(
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
         <StudyHeader backLabel="Modes" onBack={() => { setMode(null); setChatHistory([]); setLoadError(''); }} />
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px', WebkitOverflowScrolling: 'touch' }}>
@@ -2451,12 +2465,13 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
             <button onClick={sendAnswer} disabled={!userInput.trim() || thinking} className="btn-press" style={{ background: userInput.trim() && !thinking ? `linear-gradient(135deg,${T.blue} 0%,#2563eb 100%)` : 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', borderRadius: 14, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44, flexShrink: 0, opacity: !userInput.trim() || thinking ? 0.4 : 1, transition: 'opacity 0.2s', boxShadow: userInput.trim() && !thinking ? `0 4px 18px ${T.blue}40` : 'none' }}>Send</button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
   // ── Find Gaps / Summarize result ──
-  return (
+  return createPortal(
     <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
       <StudyHeader backLabel="Modes" onBack={() => { setMode(null); setResult(''); setLoadError(''); }} />
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px', WebkitOverflowScrolling: 'touch' }}>
@@ -2474,7 +2489,8 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
