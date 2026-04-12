@@ -2375,19 +2375,19 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
       const ctx = buildContext(imgs);
 
       if (selectedMode === 'chat') {
-        const firstMsg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nYou are a helpful study tutor. I want to have a conversation about this lecture to help me understand it better. Start with a brief one-paragraph overview of the main topics covered in these notes, then ask me what I'd like to explore or clarify first.` }] };
+        const firstMsg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nYou are a knowledgeable tutor helping a student understand this lecture. You have studied the notes in these images and understand the concepts deeply. Do NOT quote directly from the notes or repeat phrases verbatim. Engage like a real teacher: use your own words, offer analogies, and help the student build genuine understanding. Start with a concise overview of the core ideas in this lecture in your own words, then ask the student what they'd like to dig into or where they feel less confident.` }] };
         const firstReply = await callStudyAPI([firstMsg]);
         setChatHistory([{ role: 'user', _content: firstMsg.content }, { role: 'assistant', content: firstReply }]);
 
       } else if (selectedMode === 'flashcard') {
-        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nGenerate 8–12 flashcards from this lecture. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]` }] };
+        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nYou are a skilled teacher creating flashcards for a student. Study the notes in these images and understand the concepts. Generate 8–12 flashcards that test genuine comprehension — do NOT copy phrases directly from the notes. Questions should ask the student to explain ideas in their own words, apply a concept to a situation, or articulate why something matters. Avoid simple recall like "What does X stand for?" — favor questions like "Why does X matter?" or "How would you apply X when...?". Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]` }] };
         const raw = await callStudyAPI([msg]);
         const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
         const cards = JSON.parse(jsonStr);
         setFlashcards(cards); setCardIndex(0); setCardFlipped(false); setCardResults([]); setFlashDone(false);
 
       } else if (selectedMode === 'mc') {
-        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nGenerate 6–8 multiple choice questions from this lecture. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]` }] };
+        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nYou are a skilled teacher writing a quiz for a student. Study the notes in these images and understand the concepts. Generate 6–8 multiple choice questions that test real understanding — do NOT copy phrases directly from the notes. Questions should require the student to apply concepts, distinguish between related ideas, or reason about cause and effect. Distractors should be plausible and require genuine thought to rule out. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]` }] };
         const raw = await callStudyAPI([msg]);
         const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
         const questions = JSON.parse(jsonStr);
@@ -2547,21 +2547,37 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
         <StudyHeader backLabel="Modes" onBack={goBack} title="Flashcard" />
         {flashDone ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: T.text, marginBottom: 6 }}>Done!</div>
-            <div style={{ fontSize: 13, color: T.textDim, marginBottom: 32 }}>{flashcards.length} card{flashcards.length !== 1 ? 's' : ''} reviewed</div>
-            <div style={{ display: 'flex', gap: 14, marginBottom: 36, width: '100%', maxWidth: 280 }}>
-              <div style={{ flex: 1, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.30)', borderRadius: 18, padding: '18px 12px', textAlign: 'center' }}>
-                <div style={{ fontSize: 32, fontWeight: 900, color: T.green }}>{gotCount}</div>
-                <div style={{ fontSize: 11, color: T.textDim, marginTop: 4 }}>Got it</div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 28 }}>
+              <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: T.text, marginBottom: 6 }}>Done!</div>
+              <div style={{ fontSize: 13, color: T.textDim, marginBottom: 24 }}>{flashcards.length} card{flashcards.length !== 1 ? 's' : ''} reviewed</div>
+              <div style={{ display: 'flex', gap: 14, marginBottom: 28, width: '100%', maxWidth: 280 }}>
+                <div style={{ flex: 1, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.30)', borderRadius: 18, padding: '18px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, fontWeight: 900, color: T.green }}>{gotCount}</div>
+                  <div style={{ fontSize: 11, color: T.textDim, marginTop: 4 }}>Got it</div>
+                </div>
+                <div style={{ flex: 1, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 18, padding: '18px 12px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, fontWeight: 900, color: T.red }}>{missedCount}</div>
+                  <div style={{ fontSize: 11, color: T.textDim, marginTop: 4 }}>Missed</div>
+                </div>
               </div>
-              <div style={{ flex: 1, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.30)', borderRadius: 18, padding: '18px 12px', textAlign: 'center' }}>
-                <div style={{ fontSize: 32, fontWeight: 900, color: T.red }}>{missedCount}</div>
-                <div style={{ fontSize: 11, color: T.textDim, marginTop: 4 }}>Missed</div>
-              </div>
+              <button onClick={goBack} className="btn-press" style={{ background: `linear-gradient(135deg,${col} 0%,${col}bb 100%)`, border: 'none', color: '#fff', borderRadius: 16, padding: '14px 44px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Back to Modes</button>
             </div>
-            <button onClick={goBack} className="btn-press" style={{ background: `linear-gradient(135deg,${col} 0%,${col}bb 100%)`, border: 'none', color: '#fff', borderRadius: 16, padding: '14px 44px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Back to Modes</button>
+            {missedCount > 0 && (
+              <div>
+                <div style={{ fontSize: 11, color: T.textDim, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 14 }}>Missed ({missedCount})</div>
+                {flashcards.map((card, i) => cardResults[i] === 'missed' && (
+                  <div key={i} style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.22)', borderRadius: 16, padding: '16px', marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: T.red, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 8 }}>Q</div>
+                    <div style={{ fontSize: 14, color: T.text, fontWeight: 600, marginBottom: 12, lineHeight: 1.55 }}>{card.q}</div>
+                    <div style={{ height: 1, background: 'rgba(239,68,68,0.20)', marginBottom: 12 }} />
+                    <div style={{ fontSize: 11, color: T.green, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 6 }}>Answer</div>
+                    <div style={{ fontSize: 13, color: T.textDim, lineHeight: 1.6 }}>{card.a}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : card ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px 20px 0', overflow: 'hidden' }}>
@@ -2610,11 +2626,38 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose })
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
         <StudyHeader backLabel="Modes" onBack={goBack} title="Multiple Choice" />
         {mcDone ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px' }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>{pctCorrect >= 0.8 ? '🏆' : pctCorrect >= 0.5 ? '👍' : '📚'}</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: T.text, marginBottom: 6 }}>{correctCount} / {mcQuestions.length}</div>
-            <div style={{ fontSize: 13, color: T.textDim, marginBottom: 32 }}>{pctCorrect >= 0.8 ? 'Excellent work!' : pctCorrect >= 0.5 ? 'Good effort!' : 'Keep reviewing!'}</div>
-            <button onClick={goBack} className="btn-press" style={{ background: `linear-gradient(135deg,${col} 0%,${col}bb 100%)`, border: 'none', color: '#fff', borderRadius: 16, padding: '14px 44px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Back to Modes</button>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 28 }}>
+              <div style={{ fontSize: 52, marginBottom: 16 }}>{pctCorrect >= 0.8 ? '🏆' : pctCorrect >= 0.5 ? '👍' : '📚'}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: T.text, marginBottom: 6 }}>{correctCount} / {mcQuestions.length}</div>
+              <div style={{ fontSize: 13, color: T.textDim, marginBottom: 28 }}>{pctCorrect >= 0.8 ? 'Excellent work!' : pctCorrect >= 0.5 ? 'Good effort!' : 'Keep reviewing!'}</div>
+              <button onClick={goBack} className="btn-press" style={{ background: `linear-gradient(135deg,${col} 0%,${col}bb 100%)`, border: 'none', color: '#fff', borderRadius: 16, padding: '14px 44px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Back to Modes</button>
+            </div>
+            {mcResults.some(r => r.selected !== r.correct) && (
+              <div>
+                <div style={{ fontSize: 11, color: T.textDim, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 14 }}>Review Incorrect ({mcResults.filter(r => r.selected !== r.correct).length})</div>
+                {mcQuestions.map((q, i) => {
+                  const result = mcResults[i];
+                  if (!result || result.selected === result.correct) return null;
+                  return (
+                    <div key={i} style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.22)', borderRadius: 16, padding: '16px', marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, color: T.textDim, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 8 }}>Question {i + 1}</div>
+                      <div style={{ fontSize: 14, color: T.text, fontWeight: 600, marginBottom: 14, lineHeight: 1.55 }}>{q.q}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, padding: '10px 14px' }}>
+                          <div style={{ fontSize: 9, color: T.red, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 4 }}>Your answer</div>
+                          <div style={{ fontSize: 13, color: T.red, lineHeight: 1.5 }}>{result.selected !== null ? q.options[result.selected] : '(no answer)'}</div>
+                        </div>
+                        <div style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.30)', borderRadius: 10, padding: '10px 14px' }}>
+                          <div style={{ fontSize: 9, color: T.green, textTransform: 'uppercase', letterSpacing: 1.2, fontWeight: 700, marginBottom: 4 }}>Correct answer</div>
+                          <div style={{ fontSize: 13, color: T.green, lineHeight: 1.5 }}>{q.options[q.correct]}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : q ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px 20px 0', overflow: 'hidden' }}>
