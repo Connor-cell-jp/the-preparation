@@ -2314,7 +2314,7 @@ async function fetchPdfAsBase64(storageKey) {
 }
 
 // ── LectureStudyModal ────────────────────────────────────────────────────────
-function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMaterial, onClose }) {
+function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMaterial, pageRange, onClose }) {
   const col = gc(courseItem?.genre);
   const lectureLabel = lectureNum != null ? `Lecture ${lectureNum}` : 'Unlabeled Notes';
 
@@ -2377,7 +2377,12 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
   const buildContext = (imgs, hasPdf) => {
     const pages = photos.map(p => p.pageNum).filter(p => p != null);
     let ctx = `Course: ${courseItem?.name || 'Unknown'}\n${lectureLabel}${pages.length ? ` · Pages: ${pages.join(', ')}` : ''}\nPhotos provided: ${imgs.length}`;
-    if (hasPdf) ctx += `\nCourse outline PDF: provided above — use it for full course context`;
+    if (hasPdf) {
+      const pageNote = pageRange
+        ? ` — this lecture covers pages ${pageRange.startPage}–${pageRange.endPage} of the PDF; focus exclusively on that section`
+        : ' — use it for full course context';
+      ctx += `\nCourse outline PDF: provided above${pageNote}`;
+    }
     if (profile && profile.length > 30) ctx += `\n\nLEARNER PROFILE:\n${profile}`;
     return ctx;
   };
@@ -2409,7 +2414,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
       const docBlock = pdf ? {
         type: 'document',
         source: { type: 'base64', media_type: 'application/pdf', data: pdf },
-        title: `${courseItem?.name || 'Course'} — Course Outline`,
+        title: `${courseItem?.name || 'Course'} — Course Outline${pageRange ? ` · ${lectureLabel} pp. ${pageRange.startPage}–${pageRange.endPage}` : ''}`,
       } : null;
       const allBlocks = (content) => [...(docBlock ? [docBlock] : []), ...imgBlocks, { type: 'text', text: content }];
 
@@ -2517,7 +2522,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: T.text, background: `${col}33`, borderRadius: 6, padding: '2px 9px' }}>{lectureLabel}</span>
             <span style={{ fontSize: 10, color: T.textDim }}>{photos.length} photo{photos.length !== 1 ? 's' : ''}</span>
-            {courseMaterial && <span style={{ fontSize: 10, color: T.textDim, display: 'flex', alignItems: 'center', gap: 3 }}>📄 outline</span>}
+            {courseMaterial?.storageKey && <span style={{ fontSize: 10, color: T.textDim, display: 'flex', alignItems: 'center', gap: 3 }}>📄 outline{pageRange ? ` · pp. ${pageRange.startPage}–${pageRange.endPage}` : ''}</span>}
           </div>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', WebkitOverflowScrolling: 'touch' }}>
@@ -2828,7 +2833,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
   );
 }
 
-const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange, profile, courseMaterials, onSetCourseMaterial, onRemoveCourseMaterial }) {
+const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange, profile, courseMaterials, onSetCourseMaterial, onRemoveCourseMaterial, onSetLecturePageRange, onRemoveLecturePageRange }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
@@ -2845,6 +2850,9 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
   // course material (PDF) upload state
   const [uploadingMaterial, setUploadingMaterial] = useState(false);
   const [materialError, setMaterialError] = useState('');
+  // lecture page range editing state
+  const [editingPageRange, setEditingPageRange] = useState(null); // lKey ('1', '2', etc.) or null
+  const [pageRangeForm, setPageRangeForm] = useState({ startPage: '', endPage: '' });
   useEffect(() => { onDetailOpenChange?.(!!(selectedCourseId || pendingScan || expandedNote || studySession)); }, [selectedCourseId, pendingScan, expandedNote, studySession]);
   // Guarantee the HUD is restored if PhotoLibrary unmounts while a detail is open
   // (e.g. user switches tabs before tapping Back)
@@ -2984,6 +2992,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
       photos={studySession.photos}
       profile={profile}
       courseMaterial={courseMaterials?.[studySession.courseItem?.id]}
+      pageRange={studySession.pageRange}
       onClose={() => setStudySession(null)}
     />;
   }
@@ -3423,9 +3432,14 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
                     const isExp = expandedLectures.has(lKey);
                     const label = group.lectureNum != null ? `Lecture ${group.lectureNum}` : 'Unlabeled';
                     const toggleLec = () => setExpandedLectures(prev => { const n=new Set(prev); n.has(lKey)?n.delete(lKey):n.add(lKey); return n; });
+                    const lecturePageRange = group.lectureNum != null
+                      ? (courseMaterials?.[selectedCourseId]?.lecturePageRanges?.[String(group.lectureNum)] ?? null)
+                      : null;
+                    const isEditingThisRange = editingPageRange === String(lKey);
+                    const pageInputSt = { width:'100%', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:10, padding:'10px 12px', color:T.text, fontSize:16, boxSizing:'border-box', fontFamily:'inherit', outline:'none' };
                     return (
                       <div key={lKey} style={{ marginBottom: 10 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,0.04)', borderRadius:14, padding:'10px 12px', borderLeft:`2px solid ${col}`, marginBottom: isExp ? 8 : 0 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,0.04)', borderRadius:14, padding:'10px 12px', borderLeft:`2px solid ${col}`, marginBottom: (isExp || isEditingThisRange) ? 8 : 0 }}>
                           {!isExp && (
                             <div onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:noteArr.indexOf(group.photos[0])})} style={{ width:44, height:44, borderRadius:8, overflow:'hidden', flexShrink:0, cursor:'pointer' }}>
                               <SignedImage storageKey={group.photos[0].storageKey} fallbackUrl={group.photos[0].url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
@@ -3438,11 +3452,69 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
                               <div style={{ fontSize:10, color:T.textDim, marginTop:1 }}>{group.photos.length} photo{group.photos.length!==1?'s':''}</div>
                             </div>
                           </button>
-                          <button onClick={() => setStudySession({ courseItem: item, lectureNum: group.lectureNum, photos: group.photos })} className="btn-press"
+                          {group.lectureNum != null && (
+                            lecturePageRange ? (
+                              <button onClick={() => { setEditingPageRange(isEditingThisRange ? null : String(lKey)); setPageRangeForm({ startPage: String(lecturePageRange.startPage), endPage: String(lecturePageRange.endPage) }); }} className="btn-press"
+                                style={{ background:'rgba(255,255,255,0.07)', border:`1px solid ${isEditingThisRange ? col : 'rgba(255,255,255,0.14)'}`, color: isEditingThisRange ? col : T.textDim, borderRadius:8, padding:'4px 8px', fontSize:10, fontWeight:700, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap', minHeight:30 }}>
+                                p.{lecturePageRange.startPage}–{lecturePageRange.endPage}
+                              </button>
+                            ) : (
+                              <button onClick={() => { setEditingPageRange(isEditingThisRange ? null : String(lKey)); setPageRangeForm({ startPage: '', endPage: '' }); }} className="btn-press"
+                                style={{ background:'transparent', border:`1px dashed ${isEditingThisRange ? col : 'rgba(255,255,255,0.18)'}`, color: isEditingThisRange ? col : T.textFaint, borderRadius:8, padding:'4px 8px', fontSize:10, cursor:'pointer', flexShrink:0, whiteSpace:'nowrap', minHeight:30 }}>
+                                + pages
+                              </button>
+                            )
+                          )}
+                          <button onClick={() => setStudySession({ courseItem: item, lectureNum: group.lectureNum, photos: group.photos, pageRange: lecturePageRange })} className="btn-press"
                             style={{ background:'linear-gradient(135deg,rgba(59,130,246,0.18) 0%,rgba(59,130,246,0.10) 100%)', border:'1px solid rgba(59,130,246,0.30)', color:T.blue, borderRadius:10, padding:'6px 12px', fontSize:11, fontWeight:700, cursor:'pointer', flexShrink:0, minHeight:36 }}>
                             Study ✦
                           </button>
                         </div>
+                        {isEditingThisRange && (
+                          <div style={{ background:'rgba(255,255,255,0.03)', borderRadius:12, padding:'12px 12px 10px', marginBottom:8, border:'1px solid rgba(255,255,255,0.08)' }}>
+                            <div style={{ fontSize:9, color:col, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, marginBottom:10 }}>{label} — Page Range</div>
+                            <div style={{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10 }}>
+                              <div style={{ flex:1 }}>
+                                <label style={{ fontSize:10, color:T.textDim, fontWeight:700, display:'block', marginBottom:5, textTransform:'uppercase', letterSpacing:0.5 }}>Start page</label>
+                                <input type="number" min="1" max="9999" step="1" placeholder="e.g. 1"
+                                  value={pageRangeForm.startPage}
+                                  onChange={e => setPageRangeForm(f => ({ ...f, startPage: e.target.value }))}
+                                  style={pageInputSt} />
+                              </div>
+                              <div style={{ fontSize:14, color:T.textDim, paddingBottom:12, flexShrink:0 }}>–</div>
+                              <div style={{ flex:1 }}>
+                                <label style={{ fontSize:10, color:T.textDim, fontWeight:700, display:'block', marginBottom:5, textTransform:'uppercase', letterSpacing:0.5 }}>End page</label>
+                                <input type="number" min="1" max="9999" step="1" placeholder="e.g. 18"
+                                  value={pageRangeForm.endPage}
+                                  onChange={e => setPageRangeForm(f => ({ ...f, endPage: e.target.value }))}
+                                  style={pageInputSt} />
+                              </div>
+                            </div>
+                            <div style={{ display:'flex', gap:8 }}>
+                              {lecturePageRange && (
+                                <button onClick={() => { onRemoveLecturePageRange?.(selectedCourseId, group.lectureNum); setEditingPageRange(null); }} className="btn-press"
+                                  style={{ background:'rgba(239,68,68,0.10)', border:'1px solid rgba(239,68,68,0.22)', color:T.red, borderRadius:10, padding:'10px 12px', fontSize:12, fontWeight:600, cursor:'pointer', minHeight:40 }}>
+                                  Remove
+                                </button>
+                              )}
+                              <button onClick={() => setEditingPageRange(null)} className="btn-press"
+                                style={{ flex:1, background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', color:T.textMid, borderRadius:10, padding:'10px', fontSize:13, fontWeight:600, cursor:'pointer', minHeight:40 }}>
+                                Cancel
+                              </button>
+                              <button onClick={() => {
+                                const sp = parseInt(pageRangeForm.startPage, 10);
+                                const ep = parseInt(pageRangeForm.endPage, 10);
+                                if (sp > 0 && ep >= sp) {
+                                  onSetLecturePageRange?.(selectedCourseId, group.lectureNum, { startPage: sp, endPage: ep });
+                                  setEditingPageRange(null);
+                                }
+                              }} className="btn-press"
+                                style={{ flex:2, background:`linear-gradient(135deg,${col} 0%,${col}cc 100%)`, border:'none', color:'#fff', borderRadius:10, padding:'10px', fontSize:13, fontWeight:800, cursor:'pointer', minHeight:40, boxShadow:`0 4px 18px ${col}40` }}>
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         {isExp && (
                           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
                             {group.photos.map((note, i) => (
@@ -4064,10 +4136,44 @@ export default function App({ onSignOut }){
 
   // ── Course materials handlers ──
   const setCourseMaterialCb = useCallback((courseId, material) => {
-    setCourseMaterials(prev => ({ ...prev, [courseId]: material }));
+    // Preserve any existing lecturePageRanges when updating the PDF metadata
+    setCourseMaterials(prev => ({
+      ...prev,
+      [courseId]: { ...(prev[courseId] || {}), ...material },
+    }));
   }, []);
   const removeCourseMaterialCb = useCallback((courseId) => {
-    setCourseMaterials(prev => { const n = { ...prev }; delete n[courseId]; return n; });
+    setCourseMaterials(prev => {
+      const existing = prev[courseId];
+      const ranges = existing?.lecturePageRanges;
+      if (ranges && Object.keys(ranges).length > 0) {
+        // Keep page ranges even after PDF removal so the user doesn't have to re-enter them
+        return { ...prev, [courseId]: { lecturePageRanges: ranges } };
+      }
+      const n = { ...prev }; delete n[courseId]; return n;
+    });
+  }, []);
+
+  const setLecturePageRangeCb = useCallback((courseId, lectureNum, range) => {
+    setCourseMaterials(prev => ({
+      ...prev,
+      [courseId]: {
+        ...(prev[courseId] || {}),
+        lecturePageRanges: {
+          ...((prev[courseId]?.lecturePageRanges) || {}),
+          [String(lectureNum)]: range,
+        },
+      },
+    }));
+  }, []);
+
+  const removeLecturePageRangeCb = useCallback((courseId, lectureNum) => {
+    setCourseMaterials(prev => {
+      const existing = prev[courseId] || {};
+      const ranges = { ...(existing.lecturePageRanges || {}) };
+      delete ranges[String(lectureNum)];
+      return { ...prev, [courseId]: { ...existing, lecturePageRanges: ranges } };
+    });
   }, []);
 
   // ── 9. AI context builder ──
@@ -5734,6 +5840,8 @@ Respond ONLY with valid JSON:
               courseMaterials={courseMaterials}
               onSetCourseMaterial={setCourseMaterialCb}
               onRemoveCourseMaterial={removeCourseMaterialCb}
+              onSetLecturePageRange={setLecturePageRangeCb}
+              onRemoveLecturePageRange={removeLecturePageRangeCb}
             />
           </div>}
         </div>
