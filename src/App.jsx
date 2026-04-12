@@ -2252,7 +2252,233 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
   );
 }
 
-const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange }) {
+// ── Fetch image as base64 for AI vision ──────────────────────────────────────
+async function fetchImageAsBase64(storageKey, fallbackUrl) {
+  try {
+    const url = storageKey ? await createSignedPhotoUrl(storageKey) : null;
+    const fetchUrl = url || fallbackUrl;
+    if (!fetchUrl) return null;
+    const response = await fetch(fetchUrl);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    const mediaType = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/jpeg';
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => { const b64 = reader.result?.split(',')[1]; resolve(b64 ? { base64: b64, mediaType } : null); };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
+
+// ── LectureStudyModal ────────────────────────────────────────────────────────
+function LectureStudyModal({ courseItem, lectureNum, photos, profile, onClose }) {
+  const col = gc(courseItem?.genre);
+  const lectureLabel = lectureNum != null ? `Lecture ${lectureNum}` : 'Unlabeled Notes';
+  const [mode, setMode] = useState(null);
+  const [imageData, setImageData] = useState(null);
+  const [loadError, setLoadError] = useState('');
+  const [result, setResult] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [userInput, setUserInput] = useState('');
+  const [thinking, setThinking] = useState(false);
+  const chatEndRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory]);
+  useEffect(() => {
+    if (mode === 'quiz' && chatHistory.length > 0 && !thinking) setTimeout(() => inputRef.current?.focus(), 80);
+  }, [chatHistory.length, thinking, mode]);
+
+  const callStudyAPI = async (messages) => {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1200, messages }) });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error.message || JSON.stringify(d.error).slice(0, 200));
+    return d.content.map(c => c.text || '').join('');
+  };
+
+  const loadImages = async () => {
+    const results = await Promise.all(photos.slice(0, 8).map(p => fetchImageAsBase64(p.storageKey, p.url)));
+    const valid = results.filter(Boolean);
+    if (!valid.length) throw new Error('Could not load any photos. Check your connection.');
+    return valid;
+  };
+
+  const buildContext = (imgs) => {
+    const pages = photos.map(p => p.pageNum).filter(p => p != null);
+    let ctx = `Course: ${courseItem?.name || 'Unknown'}\n${lectureLabel}${pages.length ? ` · Pages: ${pages.join(', ')}` : ''}\nPhotos provided: ${imgs.length}`;
+    if (profile && profile.length > 30) ctx += `\n\nLEARNER PROFILE:\n${profile}`;
+    return ctx;
+  };
+
+  const startMode = async (selectedMode) => {
+    setMode(selectedMode);
+    setLoadError('');
+    setThinking(true);
+    try {
+      const imgs = imageData || await (async () => { const d = await loadImages(); setImageData(d); return d; })();
+      const imgBlocks = imgs.map(({ base64, mediaType }) => ({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }));
+      const ctx = buildContext(imgs);
+      if (selectedMode === 'quiz') {
+        const firstMsg = { role: 'user', content: [...imgBlocks, { type: 'text', text: `${ctx}\n\nPlease quiz me on this lecture. Ask one focused question at a time based on what's visible in the notes. After I answer, give brief feedback (1–2 sentences), then ask the next question. Start with question 1 now.` }] };
+        const firstQ = await callStudyAPI([firstMsg]);
+        setChatHistory([{ role: 'user', _content: firstMsg.content }, { role: 'assistant', content: firstQ }]);
+      } else {
+        const prompts = {
+          gaps: `${ctx}\n\nReview these lecture notes and identify 4–7 specific topics, concepts, or details that appear underdeveloped, incomplete, or missing. For each gap, briefly explain what's missing and why it matters for understanding the subject.`,
+          summarize: `${ctx}\n\nProvide a clear, well-organized summary of this lecture based on the notes in these photos. Cover key concepts, important definitions, main arguments or processes, and anything particularly emphasized.`,
+        };
+        const msg = { role: 'user', content: [...imgBlocks, { type: 'text', text: prompts[selectedMode] }] };
+        setResult(await callStudyAPI([msg]));
+      }
+    } catch (err) {
+      setLoadError(err.message || 'Something went wrong');
+      setMode(null);
+    }
+    setThinking(false);
+  };
+
+  const sendAnswer = async () => {
+    const answer = userInput.trim();
+    if (!answer || thinking) return;
+    setUserInput('');
+    setThinking(true);
+    const withUser = [...chatHistory, { role: 'user', content: answer }];
+    setChatHistory(withUser);
+    try {
+      const apiMessages = withUser.map(m => ({ role: m.role, content: m._content ?? m.content }));
+      const response = await callStudyAPI(apiMessages);
+      setChatHistory(h => [...h, { role: 'assistant', content: response }]);
+    } catch (err) {
+      setChatHistory(h => [...h, { role: 'assistant', content: `Error: ${err.message}` }]);
+    }
+    setThinking(false);
+  };
+
+  const StudyHeader = ({ backLabel, onBack }) => (
+    <div style={{ padding: '10px 14px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <button onClick={onBack} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 38, display: 'flex', alignItems: 'center', gap: 5 }}>
+          ← {backLabel}
+        </button>
+        <div style={{ textAlign: 'center', flex: 1, padding: '0 8px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: col }}>{mode === 'quiz' ? 'Quiz Me' : mode === 'gaps' ? 'Find Gaps' : 'Summarize'}</div>
+          <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>{lectureLabel} · {(courseItem?.name || '').slice(0, 26)}{(courseItem?.name?.length || 0) > 26 ? '…' : ''}</div>
+        </div>
+        <button onClick={onClose} className="btn-press" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', color: T.textDim, borderRadius: 99, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, cursor: 'pointer' }}>✕</button>
+      </div>
+    </div>
+  );
+
+  // ── Mode selector ──
+  if (!mode) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
+        <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ marginBottom: 12 }}>
+            <button onClick={onClose} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 40, display: 'flex', alignItems: 'center', gap: 6 }}>← Back</button>
+          </div>
+          <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700, marginBottom: 4 }}>AI Study ✦</div>
+          <div style={{ fontSize: 19, fontWeight: 900, color: T.text, letterSpacing: -0.5, lineHeight: 1.2 }}>{courseItem?.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: T.text, background: `${col}33`, borderRadius: 6, padding: '2px 9px' }}>{lectureLabel}</span>
+            <span style={{ fontSize: 10, color: T.textDim }}>{photos.length} photo{photos.length !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', WebkitOverflowScrolling: 'touch' }}>
+          {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 16 }}>{loadError}</div>}
+          <div style={{ fontSize: 11, color: T.textDim, textAlign: 'center', marginBottom: 22 }}>Choose how to study this lecture</div>
+          {[
+            { key: 'quiz', icon: '💬', label: 'Quiz Me', desc: 'Claude asks questions one at a time based on your notes. Type answers, get feedback, keep going.' },
+            { key: 'gaps', icon: '🔍', label: 'Find Gaps', desc: 'Claude reviews your notes and identifies topics that are underdeveloped or missing.' },
+            { key: 'summarize', icon: '📋', label: 'Summarize', desc: 'A clean, organized summary of the lecture content from your photos.' },
+          ].map((opt, i) => (
+            <button key={opt.key} onClick={() => startMode(opt.key)} className="btn-press"
+              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ fontSize: 26, flexShrink: 0 }}>{opt.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>{opt.label}</div>
+                <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5 }}>{opt.desc}</div>
+              </div>
+              <div style={{ fontSize: 16, color: T.textDim, flexShrink: 0 }}>›</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Loading / thinking (before first response) ──
+  if (thinking && chatHistory.length === 0 && !result) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 'env(safe-area-inset-top)' }}>
+        <div style={{ width: 44, height: 44, borderRadius: '50%', border: `3px solid rgba(255,255,255,0.08)`, borderTopColor: col, animation: 'spin 0.9s linear infinite', marginBottom: 20 }} />
+        <div style={{ fontSize: 14, color: T.textMid, fontWeight: 700, marginBottom: 6 }}>Preparing study session</div>
+        <div style={{ fontSize: 11, color: T.textDim }}>Loading photos · analyzing content</div>
+      </div>
+    );
+  }
+
+  // ── Quiz mode ──
+  if (mode === 'quiz') {
+    return (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
+        <StudyHeader backLabel="Modes" onBack={() => { setMode(null); setChatHistory([]); setLoadError(''); }} />
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px', WebkitOverflowScrolling: 'touch' }}>
+          {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 12 }}>{loadError}</div>}
+          {chatHistory.filter(m => m.role === 'assistant' || (m.role === 'user' && !m._content)).map((msg, idx) => (
+            <div key={idx} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 12 }}>
+              <div style={{ maxWidth: '82%', background: msg.role === 'user' ? `linear-gradient(135deg,${T.blue} 0%,#2563eb 100%)` : 'linear-gradient(145deg,rgba(255,255,255,0.08) 0%,rgba(255,255,255,0.03) 100%)', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', padding: '12px 14px', border: msg.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.09)', boxShadow: msg.role === 'user' ? `0 4px 18px ${T.blue}40` : shadow.card }}>
+                {msg.role === 'assistant' && <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 6 }}>Claude ✦</div>}
+                <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{typeof msg.content === 'string' ? msg.content : ''}</div>
+              </div>
+            </div>
+          ))}
+          {thinking && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 12 }}>
+              <div style={{ background: 'linear-gradient(145deg,rgba(255,255,255,0.08) 0%,rgba(255,255,255,0.03) 100%)', borderRadius: '4px 18px 18px 18px', padding: '12px 16px', border: '1px solid rgba(255,255,255,0.09)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid rgba(255,255,255,0.10)`, borderTopColor: col, animation: 'spin 0.9s linear infinite' }} />
+                <span style={{ fontSize: 11, color: T.textDim }}>Thinking…</span>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+        <div style={{ flexShrink: 0, padding: '10px 14px', paddingBottom: 'calc(env(safe-area-inset-bottom) + 10px)', background: 'rgba(8,15,30,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <textarea ref={inputRef} value={userInput} onChange={e => setUserInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAnswer(); } }} placeholder="Type your answer…" rows={2} style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 13px', color: T.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', lineHeight: 1.45, boxSizing: 'border-box' }} />
+            <button onClick={sendAnswer} disabled={!userInput.trim() || thinking} className="btn-press" style={{ background: userInput.trim() && !thinking ? `linear-gradient(135deg,${T.blue} 0%,#2563eb 100%)` : 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', borderRadius: 14, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44, flexShrink: 0, opacity: !userInput.trim() || thinking ? 0.4 : 1, transition: 'opacity 0.2s', boxShadow: userInput.trim() && !thinking ? `0 4px 18px ${T.blue}40` : 'none' }}>Send</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Find Gaps / Summarize result ──
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
+      <StudyHeader backLabel="Modes" onBack={() => { setMode(null); setResult(''); setLoadError(''); }} />
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px', WebkitOverflowScrolling: 'touch' }}>
+        {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 12 }}>{loadError}</div>}
+        {thinking && !result && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', textAlign: 'center' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', border: `2px solid rgba(255,255,255,0.08)`, borderTopColor: col, animation: 'spin 0.9s linear infinite', marginBottom: 16 }} />
+            <div style={{ fontSize: 12, color: T.textDim }}>Analyzing your notes…</div>
+          </div>
+        )}
+        {result && (
+          <div style={{ background: 'linear-gradient(145deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0.02) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, padding: '18px 16px', boxShadow: shadow.card, animation: 'fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) both' }}>
+            <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 1.5, fontWeight: 700, marginBottom: 12 }}>Claude ✦ · {mode === 'gaps' ? 'Gaps Found' : 'Summary'}</div>
+            <div style={{ fontSize: 13, color: T.text, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{result}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDeleteNote, onAddNote, onEditNote, focusItems, weekPlan, onDetailOpenChange, profile }) {
   const [selectedCourseId, setSelectedCourseId] = useState(null);
   const [isClosingDetail, setIsClosingDetail] = useState(false);
   const [pendingScan, setPendingScan] = useState(null); // { file, courseId }
@@ -2260,7 +2486,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
   const [showInfo, setShowInfo] = useState(false);
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaForm, setMetaForm] = useState({ lectureNum: '', pageNum: '', note: '' });
-  useEffect(() => { onDetailOpenChange?.(!!(selectedCourseId || pendingScan || expandedNote)); }, [selectedCourseId, pendingScan, expandedNote]);
+  useEffect(() => { onDetailOpenChange?.(!!(selectedCourseId || pendingScan || expandedNote || studySession)); }, [selectedCourseId, pendingScan, expandedNote, studySession]);
   // Guarantee the HUD is restored if PhotoLibrary unmounts while a detail is open
   // (e.g. user switches tabs before tapping Back)
   useEffect(() => { return () => { onDetailOpenChange?.(false); }; }, []);
@@ -2268,7 +2494,8 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadError, setUploadError] = useState('');
-  const [aiStudyOpen, setAiStudyOpen] = useState(false);
+  const [studySession, setStudySession] = useState(null); // { courseItem, lectureNum, photos }
+  const [expandedLectures, setExpandedLectures] = useState(new Set());
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const addingToRef = useRef(null);
@@ -2362,6 +2589,17 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
         }}
       />
     );
+  }
+
+  // ── AI Study session ──
+  if (studySession) {
+    return <LectureStudyModal
+      courseItem={studySession.courseItem}
+      lectureNum={studySession.lectureNum}
+      photos={studySession.photos}
+      profile={profile}
+      onClose={() => setStudySession(null)}
+    />;
   }
 
   // ── Expanded note full-screen view ──
@@ -2716,69 +2954,87 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
               </div>
             </div>
           ) : (
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-              {noteArr.map((note,idx)=>(
-                <div key={note.id}
-                  style={{
-                    position:'relative', aspectRatio:'1 / 1', borderRadius:14, overflow:'hidden',
-                    border:'1px solid rgba(255,255,255,0.09)',
-                    boxShadow:'0 2px 14px rgba(0,0,0,0.45)',
-                    animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${Math.min(idx*0.04,0.28)}s both`,
-                  }}>
-                  <div onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:idx})}
-                    className="btn-press"
-                    style={{position:'absolute',inset:0,cursor:'pointer'}}>
-                    <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
-                      style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
-                    <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'18px 8px 6px',
-                      background:'linear-gradient(transparent,rgba(0,0,0,0.72))',
-                      fontSize:8,color:'rgba(255,255,255,0.60)',fontWeight:500}}>{note.date}</div>
+            (() => {
+              // Group photos by lecture number
+              const lectureMap = {};
+              const noLecture = [];
+              noteArr.forEach(note => {
+                if (note.lectureNum != null) {
+                  (lectureMap[note.lectureNum] = lectureMap[note.lectureNum] || []).push(note);
+                } else { noLecture.push(note); }
+              });
+              const lectureGroups = [
+                ...Object.keys(lectureMap).sort((a,b)=>Number(a)-Number(b)).map(num => ({ lectureNum: Number(num), photos: lectureMap[num] })),
+                ...(noLecture.length ? [{ lectureNum: null, photos: noLecture }] : []),
+              ];
+              const PhotoTile = ({ note, globalIdx }) => (
+                <div style={{ position:'relative', aspectRatio:'1 / 1', borderRadius:14, overflow:'hidden', border:'1px solid rgba(255,255,255,0.09)', boxShadow:'0 2px 14px rgba(0,0,0,0.45)' }}>
+                  <div onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:globalIdx})} className="btn-press" style={{position:'absolute',inset:0,cursor:'pointer'}}>
+                    <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+                    <div style={{position:'absolute',bottom:0,left:0,right:0,padding:'18px 8px 6px',background:'linear-gradient(transparent,rgba(0,0,0,0.72))',fontSize:8,color:'rgba(255,255,255,0.60)',fontWeight:500}}>{note.date}</div>
                   </div>
                   {deleteConfirm?.noteId===note.id && !expandedNote ? (
-                    <div style={{position:'absolute',inset:0,borderRadius:14,
-                      background:'rgba(0,0,0,0.80)',backdropFilter:'blur(4px)',
-                      display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,
-                      animation:'fadeIn 0.15s ease both'}}>
+                    <div style={{position:'absolute',inset:0,borderRadius:14,background:'rgba(0,0,0,0.80)',backdropFilter:'blur(4px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
                       <div style={{fontSize:10,color:'rgba(255,255,255,0.85)',fontWeight:600,textAlign:'center',padding:'0 6px'}}>Delete?</div>
                       <div style={{display:'flex',gap:6}}>
-                        <button onClick={e=>{e.stopPropagation();setDeleteConfirm(null);}} className="btn-press"
-                          style={{background:'rgba(255,255,255,0.12)',border:'none',color:'rgba(255,255,255,0.70)',
-                            fontSize:10,cursor:'pointer',borderRadius:8,padding:'5px 10px',fontWeight:600,minHeight:30}}>
-                          Cancel
-                        </button>
-                        <button onClick={e=>{e.stopPropagation();onDeleteNote(selectedCourseId,note.id,note.storageKey);setDeleteConfirm(null);}} className="btn-press"
-                          style={{background:'rgba(239,68,68,0.30)',border:'1px solid rgba(239,68,68,0.55)',color:T.red,
-                            fontSize:10,cursor:'pointer',borderRadius:8,padding:'5px 10px',fontWeight:700,minHeight:30}}>
-                          Delete
-                        </button>
+                        <button onClick={e=>{e.stopPropagation();setDeleteConfirm(null);}} className="btn-press" style={{background:'rgba(255,255,255,0.12)',border:'none',color:'rgba(255,255,255,0.70)',fontSize:10,cursor:'pointer',borderRadius:8,padding:'5px 10px',fontWeight:600,minHeight:30}}>Cancel</button>
+                        <button onClick={e=>{e.stopPropagation();onDeleteNote(selectedCourseId,note.id,note.storageKey);setDeleteConfirm(null);}} className="btn-press" style={{background:'rgba(239,68,68,0.30)',border:'1px solid rgba(239,68,68,0.55)',color:T.red,fontSize:10,cursor:'pointer',borderRadius:8,padding:'5px 10px',fontWeight:700,minHeight:30}}>Delete</button>
                       </div>
                     </div>
                   ) : (
-                    <button
-                      onClick={e=>{e.stopPropagation();setDeleteConfirm({courseId:selectedCourseId,noteId:note.id,storageKey:note.storageKey});}}
-                      className="btn-press"
-                      style={{position:'absolute',top:5,right:5,
-                        width:26,height:26,borderRadius:99,
-                        background:'rgba(180,0,0,0.70)',backdropFilter:'blur(6px)',
-                        border:'1px solid rgba(239,68,68,0.45)',
-                        color:'rgba(255,255,255,0.90)',
-                        cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-                        padding:0}}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-                      </svg>
+                    <button onClick={e=>{e.stopPropagation();setDeleteConfirm({courseId:selectedCourseId,noteId:note.id,storageKey:note.storageKey});}} className="btn-press" style={{position:'absolute',top:5,right:5,width:26,height:26,borderRadius:99,background:'rgba(180,0,0,0.70)',backdropFilter:'blur(6px)',border:'1px solid rgba(239,68,68,0.45)',color:'rgba(255,255,255,0.90)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                     </button>
                   )}
                 </div>
-              ))}
-              {isUploading&&<div style={{aspectRatio:'1 / 1',borderRadius:14,
-                background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.09)',
-                display:'flex',alignItems:'center',justifyContent:'center'}}>
-                <div style={{width:24,height:24,borderRadius:'50%',
-                  border:`2px solid rgba(255,255,255,0.08)`,borderTopColor:col,
-                  animation:'spin 0.9s linear infinite'}}/>
-              </div>}
-            </div>
+              );
+              return (
+                <div>
+                  {lectureGroups.map(group => {
+                    const lKey = group.lectureNum ?? 'unlabeled';
+                    const isExp = expandedLectures.has(lKey);
+                    const label = group.lectureNum != null ? `Lecture ${group.lectureNum}` : 'Unlabeled';
+                    const toggleLec = () => setExpandedLectures(prev => { const n=new Set(prev); n.has(lKey)?n.delete(lKey):n.add(lKey); return n; });
+                    return (
+                      <div key={lKey} style={{ marginBottom: 10 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,0.04)', borderRadius:14, padding:'10px 12px', borderLeft:`2px solid ${col}`, marginBottom: isExp ? 8 : 0 }}>
+                          {!isExp && (
+                            <div onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:noteArr.indexOf(group.photos[0])})} style={{ width:44, height:44, borderRadius:8, overflow:'hidden', flexShrink:0, cursor:'pointer' }}>
+                              <SignedImage storageKey={group.photos[0].storageKey} fallbackUrl={group.photos[0].url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                            </div>
+                          )}
+                          <button onClick={toggleLec} className="btn-press" style={{ flex:1, background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:0, display:'flex', alignItems:'center', gap:8, minHeight:44 }}>
+                            <div style={{ fontSize:10, color:T.textDim, transition:'transform 0.2s', transform:isExp?'rotate(0deg)':'rotate(-90deg)' }}>▾</div>
+                            <div>
+                              <div style={{ fontSize:12, fontWeight:700, color:T.text }}>{label}</div>
+                              <div style={{ fontSize:10, color:T.textDim, marginTop:1 }}>{group.photos.length} photo{group.photos.length!==1?'s':''}</div>
+                            </div>
+                          </button>
+                          <button onClick={() => setStudySession({ courseItem: item, lectureNum: group.lectureNum, photos: group.photos })} className="btn-press"
+                            style={{ background:'linear-gradient(135deg,rgba(59,130,246,0.18) 0%,rgba(59,130,246,0.10) 100%)', border:'1px solid rgba(59,130,246,0.30)', color:T.blue, borderRadius:10, padding:'6px 12px', fontSize:11, fontWeight:700, cursor:'pointer', flexShrink:0, minHeight:36 }}>
+                            Study ✦
+                          </button>
+                        </div>
+                        {isExp && (
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                            {group.photos.map((note, i) => (
+                              <div key={note.id} style={{ animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${Math.min(i*0.04,0.24)}s both` }}>
+                                <PhotoTile note={note} globalIdx={noteArr.indexOf(note)} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {isUploading && (
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'20px 0' }}>
+                      <div style={{ width:24, height:24, borderRadius:'50%', border:`2px solid rgba(255,255,255,0.08)`, borderTopColor:col, animation:'spin 0.9s linear infinite' }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           )}
         </div>
       </div>,
@@ -2849,45 +3105,30 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
         <div style={{fontSize:32,opacity:0.3,flexShrink:0}}>📷</div>
       </div>
 
-      {/* ── AI Study (placeholder) ── */}
-      <button onClick={()=>setAiStudyOpen(s=>!s)} className="btn-press"
-        style={{width:'100%',
-          background:'linear-gradient(145deg,rgba(59,130,246,0.10) 0%,rgba(59,130,246,0.04) 100%)',
-          backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
-          border:'1px solid rgba(59,130,246,0.22)',borderRadius:20,
-          padding:'16px 18px',marginBottom:16,boxShadow:shadow.card,
-          textAlign:'left',cursor:'pointer',
-          display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,
-          animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.05s both'}}>
-        <div>
-          <div style={{fontSize:9,color:T.blue,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:4}}>
-            AI Study ✦
-          </div>
-          <div style={{fontSize:14,fontWeight:800,color:T.text,letterSpacing:-0.2}}>
-            Study from your photos
-          </div>
-          <div style={{fontSize:10,color:T.textDim,marginTop:2}}>
-            AI-powered review from your photo notes — coming soon
-          </div>
-        </div>
-        <div style={{fontSize:20,color:T.blue,flexShrink:0,
-          transform:aiStudyOpen?'rotate(90deg)':'rotate(0deg)',
-          transition:'transform 0.2s ease'}}>›</div>
-      </button>
-      {aiStudyOpen&&<div style={{
-        background:'linear-gradient(145deg,rgba(59,130,246,0.07) 0%,rgba(59,130,246,0.02) 100%)',
-        border:'1px solid rgba(59,130,246,0.15)',borderRadius:20,
-        padding:'20px 18px',marginTop:-8,marginBottom:16,
-        animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) both',
+      {/* ── AI Study ── */}
+      <div style={{
+        background:'linear-gradient(145deg,rgba(59,130,246,0.10) 0%,rgba(59,130,246,0.04) 100%)',
+        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+        border:'1px solid rgba(59,130,246,0.22)',borderRadius:20,
+        padding:'16px 18px',marginBottom:16,boxShadow:shadow.card,
+        animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.05s both',
+        transform:'translateZ(0)',willChange:'backdrop-filter',
       }}>
-        <div style={{fontSize:32,marginBottom:12,textAlign:'center',opacity:0.4}}>✦</div>
-        <div style={{fontSize:13,fontWeight:700,color:T.textMid,textAlign:'center',marginBottom:8}}>
-          AI Photo Study — Coming Soon
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:9,color:T.blue,textTransform:'uppercase',letterSpacing:1.5,fontWeight:700,marginBottom:3}}>
+              AI Study ✦
+            </div>
+            <div style={{fontSize:14,fontWeight:800,color:T.text,letterSpacing:-0.2}}>
+              Study from your photos
+            </div>
+          </div>
+          <div style={{fontSize:26,opacity:0.35,flexShrink:0}}>✦</div>
         </div>
-        <div style={{fontSize:11,color:T.textDim,lineHeight:1.65,textAlign:'center',maxWidth:280,margin:'0 auto'}}>
-          Soon you'll be able to quiz yourself, generate flashcards, and get AI summaries directly from your course photos.
+        <div style={{fontSize:11,color:T.textDim,lineHeight:1.6}}>
+          Open any course below, select a lecture, and tap <span style={{color:T.blue,fontWeight:700}}>Study ✦</span> to quiz yourself, find gaps, or get a summary — powered by Claude vision.
         </div>
-      </div>}
+      </div>
 
       {uploadError&&<div style={{
         background:'rgba(239,68,68,0.10)',border:'1px solid rgba(239,68,68,0.28)',
@@ -3155,6 +3396,7 @@ export default function App({ onSignOut }){
     return f;
   });
   const [weekPlan, setWeekPlan]       = useState(()=>{const p=load(SK_PLAN,null);return p?.weekStart===getMonday()?p:null;});
+  const [expandedDays, setExpandedDays] = useState(()=>new Set([getDayName()]));
   const [weeklyHours, setWeeklyHours] = useState(()=>load(SK_WEEKLY_HOURS,[]));
   const [reviews, setReviews]         = useState(()=>load(SK_REVIEWS,[]));
   const [structuredProfile, setStructuredProfile] = useState(()=>{
@@ -4779,19 +5021,24 @@ Respond ONLY with valid JSON:
                   s+(getP(i.id).sessions||[]).filter(sess=>sess.date===dayStr)
                     .reduce((ss,x)=>ss+(x.studyHours||0),0),0).toFixed(2));
                 const hitRate=dayActualH>0?dayLoggedH/dayActualH:0;
-                return <div key={day.day} style={{marginBottom:14,opacity:isPast&&!isToday?0.4:1,transition:"opacity 0.3s"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                    <div style={{fontSize:11,fontWeight:800,color:isToday?T.blue:isPast?T.textDim:T.text}}>
-                      {day.day}{isToday?" — Today":""}
+                const isExpanded=expandedDays.has(day.day);
+                const toggleDay=()=>setExpandedDays(prev=>{const n=new Set(prev);n.has(day.day)?n.delete(day.day):n.add(day.day);return n;});
+                return <div key={day.day} style={{marginBottom:isExpanded?14:4,opacity:isPast&&!isToday?0.4:1,transition:"opacity 0.3s"}}>
+                  <div onClick={toggleDay} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:isExpanded?6:0,cursor:"pointer",padding:"4px 0",userSelect:"none"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{fontSize:10,color:isPast&&!isToday?T.textDim:T.textMid,transition:"transform 0.2s",transform:isExpanded?"rotate(0deg)":"rotate(-90deg)"}}>▾</div>
+                      <div style={{fontSize:11,fontWeight:800,color:isToday?T.blue:isPast?T.textDim:T.text}}>
+                        {day.day}{isToday?" — Today":""}
+                      </div>
                     </div>
                     <div style={{fontSize:10,
                       color:isPast?(dayLoggedH===0?T.red:hitRate>=0.85?T.green:T.yellow):T.textDim}}>
                       {isPast||isToday
-                        ? `${dayLoggedH.toFixed(2)}h logged of ${dayActualH.toFixed(2)}h`
+                        ? `${dayLoggedH.toFixed(2)}h / ${dayActualH.toFixed(2)}h`
                         : `${dayActualH.toFixed(2)}h planned`}
                     </div>
                   </div>
-                  {day.items?.map(it=>{
+                  {isExpanded&&day.items?.map(it=>{
                     const f=CURRICULUM.find(i=>i.id===it.id);
                     const c=gc(f?.genre);
                     const p=getP(it.id);
@@ -5045,6 +5292,7 @@ Respond ONLY with valid JSON:
               focusItems={focusItems}
               weekPlan={weekPlan}
               onDetailOpenChange={setPhotoDetailOpen}
+              profile={profile}
             />
           </div>}
         </div>
