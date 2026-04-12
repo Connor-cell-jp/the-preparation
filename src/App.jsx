@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, startTransition, useDeferredValue } from "react";
+import { createPortal } from "react-dom";
 import { supabase, upsertUserDataRaw, uploadNotePhoto, deleteNotePhoto, createSignedPhotoUrl } from "./supabase";
 
 
@@ -1248,7 +1249,7 @@ function MountainRange({ view }){
           animations on mix-blend-mode elements cause rendering glitches. */}
       <div style={{
         position:'absolute',top:0,left:0,
-        width:'100%',height:'65%',
+        width:'100%',height:'100%',
         backgroundImage:'url(/mountain.png)',
         backgroundRepeat:'no-repeat',
         backgroundSize:'auto 160%',
@@ -2621,7 +2622,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
       setIsClosingDetail(true);
       setTimeout(()=>{ setSelectedCourseId(null); setIsClosingDetail(false); }, 340);
     };
-    return (
+    return createPortal(
       <div style={{
         position:'fixed', inset:0, zIndex:450,
         background:'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)',
@@ -2780,7 +2781,8 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
             </div>
           )}
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
