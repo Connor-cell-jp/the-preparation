@@ -2486,16 +2486,16 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
   const [showInfo, setShowInfo] = useState(false);
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaForm, setMetaForm] = useState({ lectureNum: '', pageNum: '', note: '' });
-  useEffect(() => { onDetailOpenChange?.(!!(selectedCourseId || pendingScan || expandedNote || studySession)); }, [selectedCourseId, pendingScan, expandedNote, studySession]);
-  // Guarantee the HUD is restored if PhotoLibrary unmounts while a detail is open
-  // (e.g. user switches tabs before tapping Back)
-  useEffect(() => { return () => { onDetailOpenChange?.(false); }; }, []);
   const [deleteConfirm, setDeleteConfirm] = useState(null); // { courseId, noteId, storageKey }
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadingFor, setUploadingFor] = useState(null);
   const [uploadError, setUploadError] = useState('');
   const [studySession, setStudySession] = useState(null); // { courseItem, lectureNum, photos }
   const [expandedLectures, setExpandedLectures] = useState(new Set());
+  useEffect(() => { onDetailOpenChange?.(!!(selectedCourseId || pendingScan || expandedNote || studySession)); }, [selectedCourseId, pendingScan, expandedNote, studySession]);
+  // Guarantee the HUD is restored if PhotoLibrary unmounts while a detail is open
+  // (e.g. user switches tabs before tapping Back)
+  useEffect(() => { return () => { onDetailOpenChange?.(false); }; }, []);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const addingToRef = useRef(null);
@@ -3365,25 +3365,11 @@ export default function App({ onSignOut }){
     const { courseMaxSession: _cms, bookMaxSession: _bms, _courseMaxRaw: _cmr, _bookMaxRaw: _bmr, courseRatio: _cr, bookRatio: _br, ...cleanSaved } = saved;
     return { ...DEFAULT_SETTINGS, ...cleanSaved };
   });
-  const WEEKLY_TARGET = Math.max(5, Math.min(45, settings.weeklyTarget ?? 20));
-  const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
-
-  const MAX_COURSES = WEEKLY_TARGET >= 31 ? 3 : WEEKLY_TARGET >= 16 ? 2 : 1;
-  const MAX_BOOKS   = WEEKLY_TARGET >= 31 ? 5 : WEEKLY_TARGET >= 21 ? 4 : WEEKLY_TARGET >= 16 ? 3 : 2;
-
   // ── 2. Core state ──
   const [splashVisible, setSplashVisible] = useState(true);
   const [appReady, setAppReady]           = useState(false);
   const [customItems, setCustomItems] = useState(()=>load(SK_CUSTOM,[]));
   const [hiddenIds, setHiddenIds]     = useState(()=>load(SK_HIDDEN,[]));
-
-  const CURRICULUM = [...BASE_CURRICULUM,...customItems].filter(i=>!hiddenIds.includes(i.id));
-  const SECTIONS=[
-    {label:"Core Courses",    items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Core")},
-    {label:"Optional Courses",items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Optional")},
-    {label:"Core Books",      items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Core")},
-    {label:"Optional Books",  items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Optional")},
-  ];
 
   const [progress, setProgress]       = useState(()=>load(SK_P,{}));
   const [week, setWeek]               = useState(()=>{
@@ -3409,51 +3395,11 @@ export default function App({ onSignOut }){
       return {...DEFAULT_STRUCTURED_PROFILE,lifeContext:typeof p==="string"?p:""};
     }catch{return{...DEFAULT_STRUCTURED_PROFILE,lifeContext:raw.slice(0,500)};}
   });
-  const profile = buildProfileText(structuredProfile);
-
   // ── Photo notes state ──
   const [notes, setNotes] = useState(()=>load(SK_NOTES,{}));
   const [showAddPhotoNote, setShowAddPhotoNote] = useState(false);
 
-  // ── 3. Derived values ──
-  const getP = id => progress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
-
-  const totalSpentRealH = CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
-  const totalRealRemaining = CURRICULUM.filter(i=>getP(i.id).percentComplete<100)
-    .reduce((s,i)=>s+realHoursRemaining(i,getP(i.id),settings),0);
-  const coreItems = CURRICULUM.filter(i=>i.section==="Core");
-  const coreRealRemaining = coreItems.filter(i=>getP(i.id).percentComplete<100)
-    .reduce((s,i)=>s+realHoursRemaining(i,getP(i.id),settings),0);
-  const weekNum = Math.round(totalSpentRealH / WEEKLY_TARGET) + 1;
-  const completedGenres = [...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.genre))];
-  const arcPosition = (()=>{
-    const y = totalSpentRealH<200?"Year 1 — Foundations":totalSpentRealH<600?"Year 2 — Applied":
-              totalSpentRealH<1200?"Year 3 — Specialization":"Year 4 — Integration";
-    return `${y}. ${totalSpentRealH.toFixed(0)}h total. Completed genres: ${completedGenres.join(",")||"none"}.`;
-  })();
-  const weekH    = week.hoursLogged||0;
-  const wkRem    = Math.max(0,WEEKLY_TARGET-weekH);
-  const focusIds = [...(focus.courses||[]),...(focus.books||[])];
-  const focusItems = focusIds.map(id=>CURRICULUM.find(i=>i.id===id)).filter(Boolean);
-  const curriculumPct = CURRICULUM.length>0
-    ? Math.round(CURRICULUM.reduce((sum,item)=>sum+(getP(item.id).percentComplete||0),0)/CURRICULUM.length)
-    : 0;
-  const getRemainingActiveDays = (fromIdx=getDayIdx()) =>
-    ALL_DAYS.slice(fromIdx).filter(d=>ACTIVE_DAYS.includes(d));
-  const dLeft = getRemainingActiveDays().length;
-
-  // Missed Sunday review gate: only fires if user has history (not first week) and we're past Sunday
-  const missedSundayReview = useMemo(() => {
-    if (isSunday()) return false; // It's still Sunday — can still do the review
-    const sundayDoneISO = load(SK_SUNDAY_DONE, null);
-    const mostRecentSunISO = getMostRecentSundayISO();
-    // Only block if they've actually used the app before (have review history or logged hours)
-    const hasHistory = reviews.length > 0 || weeklyHours.length > 0;
-    return hasHistory && sundayDoneISO !== mostRecentSunISO;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reviews.length, weeklyHours.length]);
-
-  // ── 4. UI state ──
+  // ── 3. Remaining state & hooks ──
   const [view, setView]                         = useState("today");
   // Deferred view lets the tab bar update instantly while heavy content (Arc)
   // renders at lower priority, keeping the UI responsive on tab switches.
@@ -3495,6 +3441,57 @@ export default function App({ onSignOut }){
   const [arcSearchQuery, setArcSearchQuery]     = useState("");
 
   const { notifs, push, markRead, clearAll: clearNotifs, dismiss: dismissNotif, unreadCount, currentBanner, dismissBanner } = useNotifications();
+
+  // ── 4. Derived constants ──
+  const WEEKLY_TARGET = Math.max(5, Math.min(45, settings.weeklyTarget ?? 20));
+  const ACTIVE_DAYS   = settings.activeDays ?? ALL_DAYS;
+  const MAX_COURSES = WEEKLY_TARGET >= 31 ? 3 : WEEKLY_TARGET >= 16 ? 2 : 1;
+  const MAX_BOOKS   = WEEKLY_TARGET >= 31 ? 5 : WEEKLY_TARGET >= 21 ? 4 : WEEKLY_TARGET >= 16 ? 3 : 2;
+  const CURRICULUM = [...BASE_CURRICULUM,...customItems].filter(i=>!hiddenIds.includes(i.id));
+  const SECTIONS=[
+    {label:"Core Courses",    items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Core")},
+    {label:"Optional Courses",items:CURRICULUM.filter(i=>i.type==="course"&&i.section==="Optional")},
+    {label:"Core Books",      items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Core")},
+    {label:"Optional Books",  items:CURRICULUM.filter(i=>i.type==="book"&&i.section==="Optional")},
+  ];
+  const profile = buildProfileText(structuredProfile);
+  const getP = id => progress[id]||{hoursSpent:0,courseHoursComplete:0,percentComplete:0,sessions:[]};
+
+  const totalSpentRealH = CURRICULUM.reduce((s,i)=>s+(getP(i.id).hoursSpent||0),0);
+  const totalRealRemaining = CURRICULUM.filter(i=>getP(i.id).percentComplete<100)
+    .reduce((s,i)=>s+realHoursRemaining(i,getP(i.id),settings),0);
+  const coreItems = CURRICULUM.filter(i=>i.section==="Core");
+  const coreRealRemaining = coreItems.filter(i=>getP(i.id).percentComplete<100)
+    .reduce((s,i)=>s+realHoursRemaining(i,getP(i.id),settings),0);
+  const weekNum = Math.round(totalSpentRealH / WEEKLY_TARGET) + 1;
+  const completedGenres = [...new Set(CURRICULUM.filter(i=>getP(i.id).percentComplete>=100).map(i=>i.genre))];
+  const arcPosition = (()=>{
+    const y = totalSpentRealH<200?"Year 1 — Foundations":totalSpentRealH<600?"Year 2 — Applied":
+              totalSpentRealH<1200?"Year 3 — Specialization":"Year 4 — Integration";
+    return `${y}. ${totalSpentRealH.toFixed(0)}h total. Completed genres: ${completedGenres.join(",")||"none"}.`;
+  })();
+  const weekH    = week.hoursLogged||0;
+  const wkRem    = Math.max(0,WEEKLY_TARGET-weekH);
+  const focusIds = [...(focus.courses||[]),...(focus.books||[])];
+  const focusItems = focusIds.map(id=>CURRICULUM.find(i=>i.id===id)).filter(Boolean);
+  const curriculumPct = CURRICULUM.length>0
+    ? Math.round(CURRICULUM.reduce((sum,item)=>sum+(getP(item.id).percentComplete||0),0)/CURRICULUM.length)
+    : 0;
+  const getRemainingActiveDays = (fromIdx=getDayIdx()) =>
+    ALL_DAYS.slice(fromIdx).filter(d=>ACTIVE_DAYS.includes(d));
+  const dLeft = getRemainingActiveDays().length;
+
+  // Missed Sunday review gate: only fires if user has history (not first week) and we're past Sunday
+  const missedSundayReview = useMemo(() => {
+    if (isSunday()) return false; // It's still Sunday — can still do the review
+    const sundayDoneISO = load(SK_SUNDAY_DONE, null);
+    const mostRecentSunISO = getMostRecentSundayISO();
+    // Only block if they've actually used the app before (have review history or logged hours)
+    const hasHistory = reviews.length > 0 || weeklyHours.length > 0;
+    return hasHistory && sundayDoneISO !== mostRecentSunISO;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviews.length, weeklyHours.length]);
+
 
   // ── 5. Body scroll lock ──
   useEffect(() => {
