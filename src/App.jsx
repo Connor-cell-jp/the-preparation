@@ -3087,9 +3087,8 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
       borderRadius:10, padding:'10px 12px', color:T.text, fontSize:16,
       boxSizing:'border-box', fontFamily:'inherit', outline:'none',
     };
-    return (
+    return createPortal(
       <div style={{position:'fixed',inset:0,zIndex:510,background:'#000',display:'flex',flexDirection:'column',
-        height:'100dvh',
         paddingTop:'env(safe-area-inset-top)',animation:'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both'}}>
         {/* Header */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
@@ -3317,7 +3316,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
           </div>
         )}
       </div>
-    );
+    , document.body);
   }
 
   // ── Course detail splash screen ──
@@ -3623,9 +3622,9 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
     return (
       <button key={id} onClick={()=>setSelectedCourseId(id)} className="btn-press"
         style={{width:'100%',
-          background:'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)',
-          backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
-          border:'1px solid rgba(255,255,255,0.08)',borderTop:'1px solid rgba(255,255,255,0.12)',
+          background:'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)',
+          backdropFilter:'blur(24px) saturate(160%)',WebkitBackdropFilter:'blur(24px) saturate(160%)',
+          border:'1px solid rgba(255,255,255,0.13)',borderTop:'1px solid rgba(255,255,255,0.20)',
           borderLeft:`3px solid ${col}`,
           borderRadius:20,padding:'13px 14px',marginBottom:8,
           display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left',
@@ -3657,9 +3656,9 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
 
       {/* ── Header stats ── */}
       <div style={{
-        background:'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)',
-        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
-        border:'1px solid rgba(255,255,255,0.08)',borderTop:'1px solid rgba(255,255,255,0.12)',
+        background:'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)',
+        backdropFilter:'blur(24px) saturate(160%)',WebkitBackdropFilter:'blur(24px) saturate(160%)',
+        border:'1px solid rgba(255,255,255,0.13)',borderTop:'1px solid rgba(255,255,255,0.20)',
         borderRadius:20,
         padding:'18px 18px 16px',marginBottom:16,boxShadow:shadow.card,
         display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,
@@ -3682,9 +3681,9 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
 
       {/* ── AI Study ── */}
       <div style={{
-        background:'linear-gradient(145deg,rgba(59,130,246,0.10) 0%,rgba(59,130,246,0.04) 100%)',
-        backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
-        border:'1px solid rgba(59,130,246,0.22)',borderRadius:20,
+        background:'linear-gradient(145deg,rgba(59,130,246,0.14) 0%,rgba(59,130,246,0.07) 100%)',
+        backdropFilter:'blur(24px) saturate(160%)',WebkitBackdropFilter:'blur(24px) saturate(160%)',
+        border:'1px solid rgba(59,130,246,0.28)',borderTop:'1px solid rgba(59,130,246,0.38)',borderRadius:20,
         padding:'16px 18px',marginBottom:16,boxShadow:shadow.card,
         animation:'fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) 0.05s both',
         transform:'translateZ(0)',willChange:'backdrop-filter',
@@ -3741,10 +3740,10 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
           </div>
           {displayCourses.length===0 ? (
             <div style={{padding:'32px 24px',textAlign:'center',
-              background:'linear-gradient(145deg,rgba(255,255,255,0.05) 0%,rgba(255,255,255,0.01) 100%)',
-              backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
-              borderRadius:20,border:'1px solid rgba(255,255,255,0.08)',
-              borderTop:'1px solid rgba(255,255,255,0.12)',
+              background:'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)',
+              backdropFilter:'blur(24px) saturate(160%)',WebkitBackdropFilter:'blur(24px) saturate(160%)',
+              borderRadius:20,border:'1px solid rgba(255,255,255,0.13)',
+              borderTop:'1px solid rgba(255,255,255,0.20)',
               boxShadow:shadow.card,transform:'translateZ(0)',
               animation:'fadeUp 0.2s cubic-bezier(0.4,0,0.2,1) both'}}>
               <div style={{fontSize:13,color:T.textDim}}>No courses found</div>
@@ -3783,10 +3782,10 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
 
           {totalPhotos===0&&<div style={{
             padding:'48px 24px',textAlign:'center',
-            background:'linear-gradient(145deg,rgba(255,255,255,0.05) 0%,rgba(255,255,255,0.01) 100%)',
-            backdropFilter:'blur(20px)',WebkitBackdropFilter:'blur(20px)',
+            background:'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)',
+            backdropFilter:'blur(24px) saturate(160%)',WebkitBackdropFilter:'blur(24px) saturate(160%)',
             borderRadius:20,
-            border:'1px solid rgba(255,255,255,0.08)',borderTop:'1px solid rgba(255,255,255,0.12)',
+            border:'1px solid rgba(255,255,255,0.13)',borderTop:'1px solid rgba(255,255,255,0.20)',
             boxShadow:shadow.card,transform:'translateZ(0)',
             animation:'fadeUp 0.28s cubic-bezier(0.4,0,0.2,1) 0.14s both',
           }}>
