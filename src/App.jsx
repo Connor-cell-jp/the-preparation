@@ -963,10 +963,10 @@ function Bar({pct,color=T.blue,height=4,style={},glow=false}){
 }
 function Card({children,style={},accent,glow=false,noBlur=false}){
   return <div style={{
-    background:"linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-    backdropFilter:noBlur?"none":"blur(20px)",WebkitBackdropFilter:noBlur?"none":"blur(20px)",
-    borderRadius:20,border:"1px solid rgba(255,255,255,0.08)",
-    borderTop:"1px solid rgba(255,255,255,0.12)",
+    background:"linear-gradient(145deg, rgba(255,255,255,0.13) 0%, rgba(255,255,255,0.07) 100%)",
+    backdropFilter:noBlur?"none":"blur(24px) saturate(160%)",WebkitBackdropFilter:noBlur?"none":"blur(24px) saturate(160%)",
+    borderRadius:20,border:"1px solid rgba(255,255,255,0.13)",
+    borderTop:"1px solid rgba(255,255,255,0.20)",
     boxShadow:glow&&accent?`${shadow.card}, 0 0 24px ${accent}20`:shadow.card,
     ...(accent?{borderLeft:`3px solid ${accent}`}:{}),
     transform:"translateZ(0)",willChange:"backdrop-filter",
@@ -1235,7 +1235,9 @@ function MountainRange({ view }){
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  const vertPos = isPortrait ? 'center bottom' : (VERT_POSITIONS[view] ?? "center 80%");
+  // Portrait: cover + 73% vertical = mountain fills screen prominently, minimal sky.
+  // Landscape/desktop: 160% height with per-tab parallax pan.
+  const vertPos = isPortrait ? 'center 73%' : (VERT_POSITIONS[view] ?? "center 80%");
   return(
     <div style={{
       position:'fixed',top:0,left:0,
@@ -1258,14 +1260,15 @@ function MountainRange({ view }){
         ))}
       </svg>
 
-      {/* Portrait: 100% width, full mountain visible, pinned to bottom, no animation.
+      {/* Portrait: cover so mountain fills the full screen, anchored at 73% so
+          peaks are prominent and sky is minimal. No animation.
           Landscape/desktop: 160% height, vertical parallax pan as tabs change. */}
       <div style={{
         position:'absolute',top:0,left:0,
         width:'100%',height:'100%',
         backgroundImage:'url(/mountain.png)',
         backgroundRepeat:'no-repeat',
-        backgroundSize: isPortrait ? '100% auto' : 'auto 160%',
+        backgroundSize: isPortrait ? 'cover' : 'auto 160%',
         backgroundPosition: vertPos,
         transition: isPortrait ? 'none' : 'background-position 700ms cubic-bezier(0.4,0,0.2,1)',
         mixBlendMode:'screen',
@@ -2299,13 +2302,40 @@ async function fetchImageAsBase64(storageKey, fallbackUrl) {
 }
 
 // ── Fetch course PDF as base64 for Anthropic document block ──────────────────
-async function fetchPdfAsBase64(storageKey) {
+// When pageRange is provided ({ startPage, endPage }, 1-indexed), extracts only
+// those pages into a new PDF so Claude sees just the relevant lecture section.
+async function fetchPdfAsBase64(storageKey, pageRange) {
   try {
     const url = await createSignedCourseMaterialUrl(storageKey);
     if (!url) return null;
     const response = await fetch(url);
     if (!response.ok) return null;
     const buffer = await response.arrayBuffer();
+
+    if (pageRange?.startPage != null && pageRange?.endPage != null) {
+      try {
+        const { PDFDocument } = await import('pdf-lib');
+        const srcDoc = await PDFDocument.load(buffer);
+        const totalPages = srcDoc.getPageCount();
+        const start = Math.max(0, (pageRange.startPage - 1));   // 1-indexed → 0-indexed
+        const end   = Math.min(totalPages - 1, (pageRange.endPage - 1));
+        const indices = [];
+        for (let i = start; i <= end; i++) indices.push(i);
+        if (indices.length === 0) throw new Error('empty range');
+        const newDoc = await PDFDocument.create();
+        const copied = await newDoc.copyPages(srcDoc, indices);
+        copied.forEach(p => newDoc.addPage(p));
+        const extracted = await newDoc.save();
+        const bytes = new Uint8Array(extracted);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary);
+      } catch {
+        // Fall through to full-PDF fallback if extraction fails
+      }
+    }
+
+    // No page range or extraction failed — return full PDF
     const bytes = new Uint8Array(buffer);
     let binary = '';
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
@@ -2349,10 +2379,11 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
 
   // study source sub-mode (for flashcard + mc)
   const [pendingMode, setPendingMode] = useState(null); // which mode was tapped before source chosen
-  const [studySource, setStudySource] = useState(null); // 'notes' | 'notes+gaps'
+  const [studySource, setStudySource] = useState(null); // 'notes' | 'pdf' | 'both'
 
-  // cached PDF base64 (loaded once per session alongside images)
-  const [pdfData, setPdfData] = useState(null); // base64 string or null
+  // cached PDF base64 (loaded once per session, keyed to current pageRange)
+  const [pdfData, setPdfData] = useState(null); // base64 string | false (unavailable) | null (not yet tried)
+  const hasPdfMaterial = !!(courseMaterial?.storageKey);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory]);
   useEffect(() => {
@@ -2402,51 +2433,78 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
     setLoadError('');
     setThinking(true);
     try {
-      const imgs = imageData || await (async () => { const d = await loadImages(); setImageData(d); return d; })();
-      const imgBlocks = imgs.map(({ base64, mediaType }) => ({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }));
+      // Summarize always uses photos only. Chat uses both. Flashcard/MC use selected source.
+      const needImages = selectedMode === 'summarize' || selectedMode === 'chat' || source === 'notes' || source === 'both';
+      const needPdf    = selectedMode === 'chat' || source === 'pdf' || source === 'both';
 
-      // Load course PDF once and cache it; silently skip if unavailable
-      const pdf = pdfData !== null ? pdfData : await (async () => {
-        const b64 = courseMaterial?.storageKey ? await fetchPdfAsBase64(courseMaterial.storageKey) : null;
-        setPdfData(b64 ?? false); // false = attempted but unavailable
-        return b64;
-      })();
-      const docBlock = pdf ? {
-        type: 'document',
-        source: { type: 'base64', media_type: 'application/pdf', data: pdf },
-        title: `${courseItem?.name || 'Course'} — Course Outline${pageRange ? ` · ${lectureLabel} pp. ${pageRange.startPage}–${pageRange.endPage}` : ''}`,
-      } : null;
-      const allBlocks = (content) => [...(docBlock ? [docBlock] : []), ...imgBlocks, { type: 'text', text: content }];
+      // Load images when needed
+      let imgs = [];
+      let imgBlocks = [];
+      if (needImages) {
+        imgs = imageData || await (async () => { const d = await loadImages(); setImageData(d); return d; })();
+        imgBlocks = imgs.map(({ base64, mediaType }) => ({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }));
+      }
 
-      const ctx = buildContext(imgs, !!pdf);
+      // Load PDF when needed; pass pageRange so only the lecture's pages are extracted
+      let docBlock = null;
+      if (needPdf && hasPdfMaterial) {
+        const pdf = pdfData !== null ? pdfData : await (async () => {
+          const b64 = await fetchPdfAsBase64(courseMaterial.storageKey, pageRange || null);
+          setPdfData(b64 ?? false);
+          return b64;
+        })();
+        if (pdf) {
+          docBlock = {
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: pdf },
+            title: `${courseItem?.name || 'Course'} — Course Outline${pageRange ? ` · ${lectureLabel} pp. ${pageRange.startPage}–${pageRange.endPage}` : ''}`,
+          };
+        }
+      }
+
+      // Build content array based on what was loaded
+      const buildBlocks = (content) => {
+        const blocks = [];
+        if (docBlock) blocks.push(docBlock);
+        blocks.push(...imgBlocks);
+        blocks.push({ type: 'text', text: content });
+        return blocks;
+      };
+
+      // For summarize: photos only, no PDF
+      const summarizeBlocks = (content) => [...imgBlocks, { type: 'text', text: content }];
+
+      const ctx = buildContext(imgs, !!docBlock);
+
+      // Source label used in prompts
+      const srcLabel = source === 'pdf'  ? 'the course outline pages'
+                     : source === 'both' ? 'the lecture notes and course outline pages'
+                     : 'these lecture notes'; // 'notes' or null (chat/summarize)
 
       if (selectedMode === 'chat') {
-        const firstMsg = { role: 'user', content: allBlocks(`${ctx}\n\nYou are a knowledgeable tutor helping a student understand this lecture. You have studied the notes in these images and understand the concepts deeply. Do NOT quote directly from the notes or repeat phrases verbatim. Engage like a real teacher: use your own words, offer analogies, and help the student build genuine understanding. Start with a concise overview of the core ideas in this lecture in your own words, then ask the student what they'd like to dig into or where they feel less confident.`) };
+        const firstMsg = { role: 'user', content: buildBlocks(`${ctx}\n\nYou are a knowledgeable tutor helping a student understand this lecture. You have studied the notes in these images and understand the concepts deeply. Do NOT quote directly from the notes or repeat phrases verbatim. Engage like a real teacher: use your own words, offer analogies, and help the student build genuine understanding. Start with a concise overview of the core ideas in this lecture in your own words, then ask the student what they'd like to dig into or where they feel less confident.`) };
         const firstReply = await callStudyAPI([firstMsg]);
         setChatHistory([{ role: 'user', _content: firstMsg.content }, { role: 'assistant', content: firstReply }]);
 
       } else if (selectedMode === 'flashcard') {
-        const flashPrompt = source === 'notes+gaps'
-          ? `${ctx}\n\nYou are a skilled teacher creating flashcards for a student. Study the notes in these images carefully. Mirror the student's own terminology and phrasing from the notes wherever it makes sense — adapt or rephrase slightly only when needed for clarity. Generate 8–12 flashcards: the majority should test concepts directly from these notes, but include a few that fill in important gaps — foundational ideas, prerequisite knowledge, or closely related concepts not fully covered in the notes but needed for genuine understanding. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]`
-          : `${ctx}\n\nYou are a skilled teacher creating flashcards for a student. Study the notes in these images carefully. Mirror the student's own terminology and phrasing from the notes wherever it makes sense — adapt or rephrase slightly only when needed for clarity. Generate 8–12 flashcards that cover only the concepts found in these notes. Ask questions in a natural, conversational way that tests genuine understanding, not just memorization. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]`;
-        const msg = { role: 'user', content: allBlocks(flashPrompt) };
+        const flashPrompt = `${ctx}\n\nYou are a skilled teacher creating flashcards for a student. Study ${srcLabel} carefully. Mirror the student's own terminology and phrasing wherever it makes sense — adapt or rephrase only when needed for clarity. Generate 8–12 flashcards that test the key concepts. Ask questions in a natural, conversational way that tests genuine understanding, not just memorization. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","a":"answer"},...]`;
+        const msg = { role: 'user', content: buildBlocks(flashPrompt) };
         const raw = await callStudyAPI([msg]);
         const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
         const cards = JSON.parse(jsonStr);
         setFlashcards(cards); setCardIndex(0); setCardFlipped(false); setCardResults([]); setFlashDone(false);
 
       } else if (selectedMode === 'mc') {
-        const mcPrompt = source === 'notes+gaps'
-          ? `${ctx}\n\nYou are a skilled teacher writing a quiz for a student. Study the notes in these images carefully. Mirror the student's own terminology and phrasing from the notes wherever it makes sense — adapt or rephrase slightly only when needed for clarity. Generate 6–8 multiple choice questions: the majority should test concepts directly from these notes, but include a few that fill in important gaps — foundational ideas, prerequisite knowledge, or closely related concepts not fully covered in the notes but needed for genuine understanding. Distractors should be plausible and require genuine thought to rule out. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]`
-          : `${ctx}\n\nYou are a skilled teacher writing a quiz for a student. Study the notes in these images carefully. Mirror the student's own terminology and phrasing from the notes wherever it makes sense — adapt or rephrase slightly only when needed for clarity. Generate 6–8 multiple choice questions that test concepts found only in these notes. Questions should require the student to apply concepts, distinguish between related ideas, or reason about cause and effect. Distractors should be plausible and require genuine thought to rule out. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]`;
-        const msg = { role: 'user', content: allBlocks(mcPrompt) };
+        const mcPrompt = `${ctx}\n\nYou are a skilled teacher writing a quiz for a student. Study ${srcLabel} carefully. Mirror the student's own terminology and phrasing wherever it makes sense — adapt or rephrase only when needed for clarity. Generate 6–8 multiple choice questions that test concepts from ${srcLabel}. Questions should require the student to apply concepts, distinguish between related ideas, or reason about cause and effect. Distractors should be plausible and require genuine thought to rule out. Return ONLY a valid JSON array with no markdown fences or extra text:\n[{"q":"question","options":["option A","option B","option C","option D"],"correct":0},...]`;
+        const msg = { role: 'user', content: buildBlocks(mcPrompt) };
         const raw = await callStudyAPI([msg]);
         const jsonStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
         const questions = JSON.parse(jsonStr);
         setMcQuestions(questions); setMcIndex(0); setMcSelected(null); setMcResults([]); setMcDone(false);
 
       } else if (selectedMode === 'summarize') {
-        const msg = { role: 'user', content: allBlocks(`${ctx}\n\nProvide a clear, well-organized summary of this lecture based on the notes in these photos. Cover key concepts, important definitions, main arguments or processes, and anything particularly emphasized.`) };
+        // Summarize uses photos only — never the PDF
+        const msg = { role: 'user', content: summarizeBlocks(`${ctx}\n\nProvide a clear, well-organized summary of this lecture based on the notes in these photos. Cover key concepts, important definitions, main arguments or processes, and anything particularly emphasized.`) };
         setSummary(await callStudyAPI([msg]));
       }
     } catch (err) {
@@ -2509,6 +2567,51 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
     </div>
   );
 
+  // ── Source selector (flashcard / mc sub-screen) — MUST come before mode selector ──
+  // Bug fix: this was previously rendered AFTER the !mode check, so it never showed.
+  if (pendingMode && !mode) {
+    const modeLabel = pendingMode === 'flashcard' ? 'Flashcard' : 'Multiple Choice';
+    const modeIcon  = pendingMode === 'flashcard' ? '🃏' : '✅';
+    // Build source options — only show PDF options when a PDF is uploaded
+    const sourceOpts = [
+      { key: 'notes', icon: '📸', label: 'Notes Only',  desc: 'Questions drawn from your lecture photos using your own terminology and phrasing.' },
+      ...(hasPdfMaterial ? [
+        { key: 'pdf',  icon: '📄', label: 'PDF Only',   desc: pageRange ? `Questions drawn from pages ${pageRange.startPage}–${pageRange.endPage} of the course outline PDF.` : 'Questions drawn from the course outline PDF.' },
+        { key: 'both', icon: '🔗', label: 'Notes + PDF', desc: 'Questions drawn from both your lecture photos and the course outline PDF together.' },
+      ] : []),
+    ];
+    return createPortal(
+      <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
+        <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ marginBottom: 12 }}>
+            <button onClick={() => setPendingMode(null)} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 40, display: 'flex', alignItems: 'center', gap: 6 }}>← Back</button>
+          </div>
+          <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700, marginBottom: 4 }}>{modeIcon} {modeLabel}</div>
+          <div style={{ fontSize: 19, fontWeight: 900, color: T.text, letterSpacing: -0.5, lineHeight: 1.2 }}>{courseItem?.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: T.text, background: `${col}33`, borderRadius: 6, padding: '2px 9px' }}>{lectureLabel}</span>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', WebkitOverflowScrolling: 'touch' }}>
+          {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 16 }}>{loadError}</div>}
+          <div style={{ fontSize: 11, color: T.textDim, textAlign: 'center', marginBottom: 22 }}>What should the questions pull from?</div>
+          {sourceOpts.map((opt, i) => (
+            <button key={opt.key} onClick={() => startMode(pendingMode, opt.key)} className="btn-press"
+              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.13)', borderTop: '1px solid rgba(255,255,255,0.20)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ fontSize: 26, flexShrink: 0 }}>{opt.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>{opt.label}</div>
+                <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5 }}>{opt.desc}</div>
+              </div>
+              <div style={{ fontSize: 16, color: T.textDim, flexShrink: 0 }}>›</div>
+            </button>
+          ))}
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
   // ── Mode selector ──
   if (!mode) {
     return createPortal(
@@ -2530,51 +2633,21 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
           <div style={{ fontSize: 11, color: T.textDim, textAlign: 'center', marginBottom: 22 }}>Choose how to study this lecture</div>
           {[
             { key: 'chat',      icon: '💬', label: 'Chat',            desc: 'Have a back-and-forth conversation with Claude. Ask questions, explore concepts, get explanations.' },
-            { key: 'flashcard', icon: '🃏', label: 'Flashcard',       desc: 'Claude generates flashcards from your notes. Tap to flip, then rate yourself Got it or Missed it.' },
-            { key: 'mc',        icon: '✅', label: 'Multiple Choice', desc: 'Claude writes 4-option questions from your notes. Pick an answer and see if you\'re right.' },
+            { key: 'flashcard', icon: '🃏', label: 'Flashcard',       desc: hasPdfMaterial ? 'Claude generates flashcards. Choose your source: Notes, PDF, or Both.' : 'Claude generates flashcards from your notes. Tap to flip, then rate yourself Got it or Missed it.' },
+            { key: 'mc',        icon: '✅', label: 'Multiple Choice', desc: hasPdfMaterial ? 'Claude writes 4-option questions. Choose your source: Notes, PDF, or Both.' : 'Claude writes 4-option questions from your notes. Pick an answer and see if you\'re right.' },
             { key: 'summarize', icon: '📋', label: 'Summarize',       desc: 'A clean, organized summary of the lecture content from your photos.' },
           ].map((opt, i) => (
-            <button key={opt.key} onClick={() => (opt.key === 'flashcard' || opt.key === 'mc') ? setPendingMode(opt.key) : startMode(opt.key, null)} className="btn-press"
-              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ fontSize: 26, flexShrink: 0 }}>{opt.icon}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>{opt.label}</div>
-                <div style={{ fontSize: 11, color: T.textDim, lineHeight: 1.5 }}>{opt.desc}</div>
-              </div>
-              <div style={{ fontSize: 16, color: T.textDim, flexShrink: 0 }}>›</div>
-            </button>
-          ))}
-        </div>
-      </div>,
-      document.body
-    );
-  }
-
-  // ── Source selector (flashcard / mc sub-screen) ──
-  if (pendingMode && !mode) {
-    const modeLabel = pendingMode === 'flashcard' ? 'Flashcard' : 'Multiple Choice';
-    const modeIcon  = pendingMode === 'flashcard' ? '🃏' : '✅';
-    return createPortal(
-      <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ marginBottom: 12 }}>
-            <button onClick={() => setPendingMode(null)} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 40, display: 'flex', alignItems: 'center', gap: 6 }}>← Back</button>
-          </div>
-          <div style={{ fontSize: 9, color: col, textTransform: 'uppercase', letterSpacing: 2, fontWeight: 700, marginBottom: 4 }}>{modeIcon} {modeLabel}</div>
-          <div style={{ fontSize: 19, fontWeight: 900, color: T.text, letterSpacing: -0.5, lineHeight: 1.2 }}>{courseItem?.name}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: T.text, background: `${col}33`, borderRadius: 6, padding: '2px 9px' }}>{lectureLabel}</span>
-          </div>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 16px', WebkitOverflowScrolling: 'touch' }}>
-          {loadError && <div style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.28)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: T.red, marginBottom: 16 }}>{loadError}</div>}
-          <div style={{ fontSize: 11, color: T.textDim, textAlign: 'center', marginBottom: 22 }}>What should the questions pull from?</div>
-          {[
-            { key: 'notes',      icon: '📝', label: 'Notes Only',       desc: 'Questions cover only the concepts in your notes, using your own terminology and phrasing where it makes sense.' },
-            { key: 'notes+gaps', icon: '🔍', label: 'Notes + Fill Gaps', desc: 'Covers your notes plus a few extra questions on foundational ideas or related concepts your notes may not have fully captured.' },
-          ].map((opt, i) => (
-            <button key={opt.key} onClick={() => startMode(pendingMode, opt.key)} className="btn-press"
-              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.06) 0%,rgba(255,255,255,0.02) 100%)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.09)', borderTop: '1px solid rgba(255,255,255,0.13)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button key={opt.key}
+              onClick={() => {
+                // Flashcard/MC: show source selector only when PDF is available; else go straight to notes-only
+                if (opt.key === 'flashcard' || opt.key === 'mc') {
+                  hasPdfMaterial ? setPendingMode(opt.key) : startMode(opt.key, 'notes');
+                } else {
+                  startMode(opt.key, null);
+                }
+              }}
+              className="btn-press"
+              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.13)', borderTop: '1px solid rgba(255,255,255,0.20)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ fontSize: 26, flexShrink: 0 }}>{opt.icon}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>{opt.label}</div>
@@ -3016,6 +3089,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
     };
     return (
       <div style={{position:'fixed',inset:0,zIndex:510,background:'#000',display:'flex',flexDirection:'column',
+        height:'100dvh',
         paddingTop:'env(safe-area-inset-top)',animation:'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both'}}>
         {/* Header */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
@@ -3055,11 +3129,12 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
           </button>
         </div>
 
-        {/* Photo */}
+        {/* Photo — fills all remaining space between header and info panel */}
         <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',
-          overflow:'hidden',padding:'0 8px',position:'relative'}}>
+          overflow:'hidden',position:'relative',
+          paddingBottom:'env(safe-area-inset-bottom)'}}>
           <SignedImage storageKey={note.storageKey} fallbackUrl={note.url} alt=""
-            style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain',borderRadius:10}}/>
+            style={{width:'100%',height:'100%',objectFit:'contain'}}/>
           {hasPrev&&<button onClick={()=>navTo(noteIdx-1)} className="btn-press"
             style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',
               background:'rgba(0,0,0,0.50)',backdropFilter:'blur(8px)',WebkitBackdropFilter:'blur(8px)',
