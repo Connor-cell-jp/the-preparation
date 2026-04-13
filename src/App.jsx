@@ -1878,7 +1878,7 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
       <div style={{
         position:'fixed', inset:0, zIndex:400,
         background:'linear-gradient(180deg,rgba(13,27,42,0.99) 0%,rgba(15,34,64,0.99) 100%)',
-        backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
+        backdropFilter:'blur(32px) saturate(160%)', WebkitBackdropFilter:'blur(32px) saturate(160%)',
         display:'flex', flexDirection:'column',
         paddingTop:'env(safe-area-inset-top)',
         animation:'slideInUp 0.3s cubic-bezier(0.4,0,0.2,1) both',
@@ -1910,10 +1910,12 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
                   <button key={item.id} onClick={()=>{setSelectedItem(item);setStep('photo');}}
                     className="btn-press"
                     style={{
-                      width:'100%', background:'rgba(255,255,255,0.05)',
-                      border:`1px solid rgba(255,255,255,0.1)`, borderLeft:`3px solid ${col}`,
+                      width:'100%',
+                      background:'linear-gradient(135deg,rgba(255,255,255,0.11) 0%,rgba(255,255,255,0.06) 100%)',
+                      border:'1px solid rgba(255,255,255,0.13)', borderTop:'1px solid rgba(255,255,255,0.18)', borderLeft:`3px solid ${col}`,
                       borderRadius:14, padding:'12px 14px', marginBottom:8,
                       display:'flex', alignItems:'center', gap:12, cursor:'pointer', textAlign:'left',
+                      boxShadow:'0 4px 16px rgba(0,0,0,0.25)', transform:'translateZ(0)',
                       animation:`fadeUp 0.2s cubic-bezier(0.4,0,0.2,1) ${0.08+idx*0.04}s both`,
                     }}>
                     <div style={{flex:1, minWidth:0}}>
@@ -1960,10 +1962,12 @@ function AddPhotoNoteModal({ curriculum, focus, weekPlan, notes, onClose, onAdd 
                 <button key={item.id} onClick={()=>{setSelectedItem(item);setStep('photo');}}
                   className="btn-press"
                   style={{
-                    width:'100%', background:'rgba(255,255,255,0.03)',
-                    border:'1px solid rgba(255,255,255,0.07)', borderLeft:`2px solid ${col}`,
+                    width:'100%',
+                    background:'linear-gradient(135deg,rgba(255,255,255,0.08) 0%,rgba(255,255,255,0.04) 100%)',
+                    border:'1px solid rgba(255,255,255,0.10)', borderLeft:`2px solid ${col}`,
                     borderRadius:12, padding:'10px 12px', marginBottom:6,
                     display:'flex', alignItems:'center', gap:10, cursor:'pointer', textAlign:'left',
+                    boxShadow:'0 2px 10px rgba(0,0,0,0.2)', transform:'translateZ(0)',
                     animation:`fadeUp 0.18s cubic-bezier(0.4,0,0.2,1) ${Math.min(idx*0.03,0.24)}s both`,
                   }}>
                   <div style={{flex:1, minWidth:0}}>
@@ -2172,8 +2176,8 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
       <div style={{
         display:'flex', justifyContent:'space-between', alignItems:'center',
         padding:'12px 16px', flexShrink:0,
-        background:'rgba(0,0,0,0.70)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-        borderBottom:'1px solid rgba(255,255,255,0.07)',
+        background:'rgba(0,0,0,0.82)', backdropFilter:'blur(24px) saturate(150%)', WebkitBackdropFilter:'blur(24px) saturate(150%)',
+        borderBottom:'1px solid rgba(255,255,255,0.09)',
       }}>
         <button onClick={onRetake} className="btn-press"
           style={{background:'rgba(255,255,255,0.10)', border:'none', color:T.text,
@@ -2212,9 +2216,9 @@ function PhotoPreviewModal({ file, courseColor, onConfirm, onRetake }) {
       {/* Metadata + confirm */}
       <div style={{
         padding:'12px 16px', paddingBottom:'calc(env(safe-area-inset-bottom) + 12px)',
-        flexShrink:0, background:'rgba(0,0,0,0.75)',
-        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-        borderTop:'1px solid rgba(255,255,255,0.07)',
+        flexShrink:0, background:'rgba(0,0,0,0.86)',
+        backdropFilter:'blur(24px) saturate(150%)', WebkitBackdropFilter:'blur(24px) saturate(150%)',
+        borderTop:'1px solid rgba(255,255,255,0.09)',
         display:'flex', flexDirection:'column', gap:10,
       }}>
         {/* Lecture + Page row */}
@@ -2555,7 +2559,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
   };
 
   const StudyHeader = ({ backLabel, onBack, title }) => (
-    <div style={{ padding: '10px 14px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+    <div style={{ padding: '10px 14px', flexShrink: 0, background: 'linear-gradient(180deg,rgba(8,15,30,0.97) 0%,rgba(10,22,50,0.94) 100%)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)', borderBottom: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.07)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={onBack} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 38, display: 'flex', alignItems: 'center', gap: 5 }}>← {backLabel}</button>
         <div style={{ textAlign: 'center', flex: 1, padding: '0 8px' }}>
@@ -2582,7 +2586,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
     ];
     return createPortal(
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'linear-gradient(180deg,rgba(8,15,30,0.97) 0%,rgba(10,22,50,0.94) 100%)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)', borderBottom: `1px solid ${col}28`, boxShadow: '0 4px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07)' }}>
           <div style={{ marginBottom: 12 }}>
             <button onClick={() => setPendingMode(null)} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 40, display: 'flex', alignItems: 'center', gap: 6 }}>← Back</button>
           </div>
@@ -2597,7 +2601,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
           <div style={{ fontSize: 11, color: T.textDim, textAlign: 'center', marginBottom: 22 }}>What should the questions pull from?</div>
           {sourceOpts.map((opt, i) => (
             <button key={opt.key} onClick={() => startMode(pendingMode, opt.key)} className="btn-press"
-              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.13)', borderTop: '1px solid rgba(255,255,255,0.20)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
+              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)', backdropFilter: 'blur(24px) saturate(160%)', WebkitBackdropFilter: 'blur(24px) saturate(160%)', border: '1px solid rgba(255,255,255,0.13)', borderTop: '1px solid rgba(255,255,255,0.20)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', willChange: 'backdrop-filter', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ fontSize: 26, flexShrink: 0 }}>{opt.icon}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>{opt.label}</div>
@@ -2616,7 +2620,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
   if (!mode) {
     return createPortal(
       <div style={{ position: 'fixed', inset: 0, zIndex: 520, background: 'linear-gradient(180deg,#0a1628 0%,#0c1d3d 55%,#080f1e 100%)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', animation: 'slideInUp 0.30s cubic-bezier(0.16,1,0.3,1) both' }}>
-        <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'rgba(8,15,30,0.88)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ padding: '12px 16px 16px', flexShrink: 0, background: 'linear-gradient(180deg,rgba(8,15,30,0.97) 0%,rgba(10,22,50,0.94) 100%)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)', borderBottom: `1px solid ${col}28`, boxShadow: '0 4px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.07)' }}>
           <div style={{ marginBottom: 12 }}>
             <button onClick={onClose} className="btn-press" style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: T.text, borderRadius: 99, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 40, display: 'flex', alignItems: 'center', gap: 6 }}>← Back</button>
           </div>
@@ -2647,7 +2651,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
                 }
               }}
               className="btn-press"
-              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', border: '1px solid rgba(255,255,255,0.13)', borderTop: '1px solid rgba(255,255,255,0.20)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
+              style={{ width: '100%', background: 'linear-gradient(145deg,rgba(255,255,255,0.13) 0%,rgba(255,255,255,0.07) 100%)', backdropFilter: 'blur(24px) saturate(160%)', WebkitBackdropFilter: 'blur(24px) saturate(160%)', border: '1px solid rgba(255,255,255,0.13)', borderTop: '1px solid rgba(255,255,255,0.20)', borderLeft: `3px solid ${col}`, borderRadius: 20, padding: '16px 14px', marginBottom: 10, cursor: 'pointer', textAlign: 'left', boxShadow: shadow.card, transform: 'translateZ(0)', willChange: 'backdrop-filter', animation: `fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${i * 0.07}s both`, display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ fontSize: 26, flexShrink: 0 }}>{opt.icon}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>{opt.label}</div>
@@ -2699,7 +2703,7 @@ function LectureStudyModal({ courseItem, lectureNum, photos, profile, courseMate
           )}
           <div ref={chatEndRef} />
         </div>
-        <div style={{ flexShrink: 0, padding: '10px 14px', paddingBottom: 'calc(env(safe-area-inset-bottom) + 10px)', background: 'rgba(8,15,30,0.92)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div style={{ flexShrink: 0, padding: '10px 14px', paddingBottom: 'calc(env(safe-area-inset-bottom) + 10px)', background: 'linear-gradient(180deg,rgba(8,15,30,0.98) 0%,rgba(10,22,50,0.97) 100%)', backdropFilter: 'blur(32px) saturate(180%)', WebkitBackdropFilter: 'blur(32px) saturate(180%)', borderTop: '1px solid rgba(255,255,255,0.09)', boxShadow: '0 -4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <textarea ref={inputRef} value={userInput} onChange={e => setUserInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Ask a question…" rows={2} style={{ flex: 1, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '10px 13px', color: T.text, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', lineHeight: 1.45, boxSizing: 'border-box' }} />
             <button onClick={sendMessage} disabled={!userInput.trim() || thinking} className="btn-press" style={{ background: userInput.trim() && !thinking ? `linear-gradient(135deg,${T.blue} 0%,#2563eb 100%)` : 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', borderRadius: 14, padding: '0 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44, flexShrink: 0, opacity: !userInput.trim() || thinking ? 0.4 : 1, transition: 'opacity 0.2s', boxShadow: userInput.trim() && !thinking ? `0 4px 18px ${T.blue}40` : 'none' }}>Send</button>
@@ -3093,8 +3097,8 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
         {/* Header */}
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',
           padding:'10px 14px',flexShrink:0,
-          background:'rgba(0,0,0,0.55)',backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
-          borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
+          background:'rgba(0,0,0,0.72)',backdropFilter:'blur(20px) saturate(150%)',WebkitBackdropFilter:'blur(20px) saturate(150%)',
+          borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
           <button onClick={closeExpanded} className="btn-press"
             style={{background:'rgba(255,255,255,0.10)',border:'none',color:T.text,fontSize:12,fontWeight:600,
               cursor:'pointer',padding:'7px 14px',borderRadius:99,minHeight:40,display:'flex',alignItems:'center',gap:5}}>
@@ -3152,8 +3156,10 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
         {showInfo ? (
           <div style={{
             flexShrink:0,
-            background:'rgba(8,15,30,0.97)',backdropFilter:'blur(28px)',WebkitBackdropFilter:'blur(28px)',
+            background:'linear-gradient(180deg,rgba(8,15,30,0.99) 0%,rgba(10,22,50,0.98) 100%)',
+            backdropFilter:'blur(32px) saturate(180%)',WebkitBackdropFilter:'blur(32px) saturate(180%)',
             borderTop:`2px solid ${col}`,
+            boxShadow:'0 -4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
             padding:'16px 18px', paddingBottom:'calc(env(safe-area-inset-bottom) + 16px)',
             animation:'slideInUp 0.22s cubic-bezier(0.16,1,0.3,1) both',
           }}>
@@ -3291,10 +3297,10 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
           /* ── Compact footer when info panel is closed ── */
           <div style={{
             padding:'10px 16px',paddingBottom:'calc(env(safe-area-inset-bottom) + 10px)',
-            flexShrink:0,background:'rgba(0,0,0,0.65)',
-            backdropFilter:'blur(16px)',WebkitBackdropFilter:'blur(16px)',
+            flexShrink:0,background:'rgba(0,0,0,0.75)',
+            backdropFilter:'blur(20px) saturate(140%)',WebkitBackdropFilter:'blur(20px) saturate(140%)',
             display:'flex',alignItems:'center',gap:8,
-            borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+            borderTop:'1px solid rgba(255,255,255,0.07)'}}>
             {note.lectureNum!=null&&(
               <span style={{fontSize:10,color:col,fontWeight:700,background:`${col}22`,borderRadius:6,padding:'2px 7px',flexShrink:0}}>
                 Lec {note.lectureNum}
@@ -3345,9 +3351,10 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
         {/* Header */}
         <div style={{
           padding:'14px 16px 16px', flexShrink:0,
-          background:'rgba(8,15,30,0.82)',
-          backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
-          borderBottom:'1px solid rgba(255,255,255,0.07)',
+          background:'linear-gradient(180deg,rgba(8,15,30,0.97) 0%,rgba(10,22,50,0.94) 100%)',
+          backdropFilter:'blur(32px) saturate(180%)', WebkitBackdropFilter:'blur(32px) saturate(180%)',
+          borderBottom:`1px solid ${col}28`,
+          boxShadow:'0 4px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.07)',
         }}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
             <button onClick={handleClose} className="btn-press"
@@ -3501,7 +3508,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
               );
               return (
                 <div>
-                  {lectureGroups.map(group => {
+                  {lectureGroups.map((group, groupIdx) => {
                     const lKey = group.lectureNum ?? 'unlabeled';
                     const isExp = expandedLectures.has(lKey);
                     const label = group.lectureNum != null ? `Lecture ${group.lectureNum}` : 'Unlabeled';
@@ -3512,8 +3519,8 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
                     const isEditingThisRange = editingPageRange === String(lKey);
                     const pageInputSt = { width:'100%', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:10, padding:'10px 12px', color:T.text, fontSize:16, boxSizing:'border-box', fontFamily:'inherit', outline:'none' };
                     return (
-                      <div key={lKey} style={{ marginBottom: 10 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,0.04)', borderRadius:14, padding:'10px 12px', borderLeft:`2px solid ${col}`, marginBottom: (isExp || isEditingThisRange) ? 8 : 0 }}>
+                      <div key={lKey} style={{ marginBottom: 10, animation:`fadeUp 0.22s cubic-bezier(0.4,0,0.2,1) ${Math.min(groupIdx*0.06,0.3)}s both` }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:10, background:'linear-gradient(135deg,rgba(255,255,255,0.09) 0%,rgba(255,255,255,0.05) 100%)', borderRadius:14, padding:'10px 12px', border:'1px solid rgba(255,255,255,0.09)', borderLeft:`3px solid ${col}`, boxShadow:`0 2px 14px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)`, marginBottom: (isExp || isEditingThisRange) ? 8 : 0 }}>
                           {!isExp && (
                             <div onClick={()=>setExpandedNote({courseId:selectedCourseId,noteIdx:noteArr.indexOf(group.photos[0])})} style={{ width:44, height:44, borderRadius:8, overflow:'hidden', flexShrink:0, cursor:'pointer' }}>
                               <SignedImage storageKey={group.photos[0].storageKey} fallbackUrl={group.photos[0].url} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
@@ -3545,7 +3552,7 @@ const PhotoLibrary = React.memo(function PhotoLibrary({ notes, curriculum, onDel
                           </button>
                         </div>
                         {isEditingThisRange && (
-                          <div style={{ background:'rgba(255,255,255,0.03)', borderRadius:12, padding:'12px 12px 10px', marginBottom:8, border:'1px solid rgba(255,255,255,0.08)' }}>
+                          <div style={{ background:'linear-gradient(135deg,rgba(255,255,255,0.07) 0%,rgba(255,255,255,0.03) 100%)', borderRadius:12, padding:'12px 12px 10px', marginBottom:8, border:'1px solid rgba(255,255,255,0.11)', boxShadow:'0 2px 12px rgba(0,0,0,0.25)', animation:'fadeUp 0.18s cubic-bezier(0.4,0,0.2,1) both' }}>
                             <div style={{ fontSize:9, color:col, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, marginBottom:10 }}>{label} — Page Range</div>
                             <div style={{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:10 }}>
                               <div style={{ flex:1 }}>
